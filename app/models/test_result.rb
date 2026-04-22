@@ -9,6 +9,15 @@ class TestResult < ApplicationRecord
 
   after_update :bump_run, if: :saved_change_to_status?
 
+  after_update_commit :broadcast_row, if: :saved_change_to_status?
+
+  def broadcast_row
+    broadcast_replace_to [test_run, :results],
+      target: "result_#{id}",
+      partial: "test_runs/result_row",
+      locals: { r: self }
+  end
+
   private
 
   def bump_run

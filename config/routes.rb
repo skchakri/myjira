@@ -24,6 +24,7 @@ Rails.application.routes.draw do
   resources :test_runs, only: [:show] do
     member do
       post :complete
+      post :execute
     end
   end
 

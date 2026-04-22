@@ -21,6 +21,19 @@ class TestRunsController < ApplicationController
     end
   end
 
+  # Kick off server-side execution of every pending case in a run.
+  # Works for any case whose api_call is a real HTTP request; prose/browser
+  # instructions are automatically marked blocked by the executor.
+  def execute
+    @run = TestRun.find(params[:id])
+    if @run.completed_at.present?
+      redirect_to test_run_path(@run), alert: "Run already completed."
+      return
+    end
+    RunExecutorJob.perform_later(@run.id)
+    redirect_to test_run_path(@run), notice: "Running #{@run.total_cases} cases server-side — this page updates live."
+  end
+
   def complete
     @run = TestRun.find(params[:id])
     @run.summary = params[:summary]

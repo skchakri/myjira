@@ -10,6 +10,14 @@ class TestRun < ApplicationRecord
   before_create :set_started_at
   after_create :seed_results
   after_update :propagate_status_to_tasks, if: :saved_change_to_status?
+  after_update_commit :broadcast_header, if: -> { saved_change_to_status? || saved_change_to_passed_count? || saved_change_to_failed_count? || saved_change_to_blocked_count? || saved_change_to_skipped_count? }
+
+  def broadcast_header
+    broadcast_replace_to [self, :results],
+      target: "run_header_#{id}",
+      partial: "test_runs/header",
+      locals: { run: self }
+  end
 
   def progress
     total = total_cases.to_i
