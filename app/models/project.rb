@@ -9,9 +9,31 @@ class Project < ApplicationRecord
     format: { with: /\A[a-z0-9][a-z0-9\-_]*\z/, message: "must be lowercase, digits, - or _" }
 
   before_validation :derive_slug, on: :create
+  after_create :ensure_default_environments!
+
+  DEFAULT_ENVIRONMENTS = [
+    { name: "Development", base_url: nil },
+    { name: "Stage",       base_url: nil },
+    { name: "Prod",        base_url: nil }
+  ].freeze
 
   def to_param
     slug
+  end
+
+  # Guarantee every project has Development / Stage / Prod envs. Development is
+  # the default selection on the test-run form. Idempotent — safe to call on
+  # existing projects for backfill.
+  def ensure_default_environments!
+    DEFAULT_ENVIRONMENTS.each do |row|
+      next if environments.exists?(name: row[:name])
+      base = row[:base_url] || default_base_url
+      environments.create!(name: row[:name], base_url: base)
+    end
+  end
+
+  def default_environment
+    environments.find_by(name: "Development") || environments.order(:name).first
   end
 
   def rollup

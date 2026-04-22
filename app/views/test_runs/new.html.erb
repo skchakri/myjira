@@ -1,9 +1,21 @@
 <% content_for :title, "Start run" %>
 <h1 class="text-xl font-semibold text-slate-900 mb-4">Start run for "<%= @plan.title %>"</h1>
-<%= form_with model: [@project, @plan, @run], url: project_test_plan_test_runs_path(@project, @plan), class: "max-w-md space-y-4" do |f| %>
+
+<%
+  envs = @project.environments.order(Arel.sql("CASE name WHEN 'Development' THEN 0 WHEN 'Stage' THEN 1 WHEN 'Prod' THEN 2 ELSE 3 END"), :name)
+  default_env = @project.default_environment
+  env_urls = envs.each_with_object({}) { |e, h| h[e.id] = e.base_url.presence || @project.default_base_url.to_s }
+%>
+
+<%= form_with model: [@project, @plan, @run], url: project_test_plan_test_runs_path(@project, @plan), class: "max-w-xl space-y-4", data: { controller: "env-url", env_url_map_value: env_urls.to_json } do |f| %>
   <div>
     <%= f.label :environment_id, "Environment", class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.select :environment_id, @project.environments.order(:name).map { |e| [e.name, e.id] }, { include_blank: "— none —" }, class: "w-full rounded-md border-slate-300 text-sm" %>
+    <%= f.select :environment_id,
+                 envs.map { |e| [e.name, e.id] },
+                 { selected: default_env&.id },
+                 class: "w-full rounded-md border-slate-300 text-sm",
+                 data: { env_url_target: "select", action: "change->env-url#update" } %>
+    <p class="text-xs text-slate-500 mt-1">URL: <span data-env-url-target="url" class="font-mono text-slate-700"><%= env_urls[default_env&.id].presence || "—" %></span></p>
   </div>
   <div>
     <%= f.label :initiated_by, "Initiated by", class: "block text-sm font-medium text-slate-700 mb-1" %>

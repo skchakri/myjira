@@ -9,6 +9,7 @@ class TestRun < ApplicationRecord
 
   before_create :set_started_at
   after_create :seed_results
+  after_update :propagate_status_to_tasks, if: :saved_change_to_status?
 
   def progress
     total = total_cases.to_i
@@ -26,6 +27,26 @@ class TestRun < ApplicationRecord
   end
 
   private
+
+  # When a run finishes, move attached tasks forward. Only touches tasks that
+  # were in a non-terminal state so we don't undo a manual "done"/"blocked".
+  def propagate_status_to_tasks
+    target =
+      case status
+      when "passed"          then "done"
+      when "failed"          then "blocked"
+      when "partial"         then "testing"
+      when "running"         then "testing"
+      end
+    return unless target
+
+    movable = %w[open in_progress implemented ready_for_test testing]
+    movable << "blocked" if status == "passed" # recovery path
+
+    test_plan.tasks.where(status: movable).find_each do |task|
+      task.update!(status: target)
+    end
+  end
 
   def set_started_at
     self.started_at ||= Time.current
