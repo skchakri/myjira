@@ -8,7 +8,7 @@
     <%= yield :head %>
 
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
-    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
 
@@ -42,6 +42,7 @@
           <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500">local</span>
         </div>
         <nav class="flex items-center gap-1 text-sm">
+          <%= link_to "Clients", clients_path, class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-700" %>
           <%= link_to "Projects", projects_path, class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-700" %>
           <%= link_to "API spec",  "/api/v1/spec", target: "_blank", class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-500 font-mono text-xs" %>
         </nav>

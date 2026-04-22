@@ -3,6 +3,12 @@ Rails.application.routes.draw do
 
   root "projects#index"
 
+  # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
+  # Auto-provisions the matching Project on first GET so external callers
+  # never hit a 404.
+  get "/c",        to: "clients#index", as: :clients
+  get "/c/:slug",  to: "clients#show",  as: :client
+
   resources :projects do
     resources :environments, except: [:index]
     resources :tasks, except: [:index] do
@@ -26,6 +32,9 @@ Rails.application.routes.draw do
     namespace :v1 do
       get "ping", to: "ping#show"
       get "spec",  to: "spec#show"
+
+      # Cross-client overview. Mirrors /c/:slug as JSON for pyr-docker.
+      resources :clients, only: [:index, :show], param: :slug
 
       resources :projects, only: [:index, :show, :create, :update] do
         resources :environments, only: [:index, :show, :create, :update]
