@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html class="h-full bg-slate-50">
+  <head>
+    <title><%= content_for(:title) || "myjira" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= yield :head %>
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="h-full text-slate-800 antialiased" style="font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <%= link_to root_path, class: "group flex items-center gap-2.5 text-slate-900 hover:text-slate-700" do %>
+            <svg class="h-8 w-8 shrink-0" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <defs>
+                <linearGradient id="mj-hdr-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#4F46E5"/>
+                  <stop offset="1" stop-color="#7C3AED"/>
+                </linearGradient>
+                <linearGradient id="mj-hdr-check" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#34D399"/>
+                  <stop offset="1" stop-color="#10B981"/>
+                </linearGradient>
+              </defs>
+              <rect width="512" height="512" rx="112" fill="url(#mj-hdr-bg)"/>
+              <rect x="136" y="176" width="40"  height="40"  rx="10" fill="#ffffff" fill-opacity="0.25"/>
+              <rect x="200" y="184" width="176" height="24" rx="12" fill="#ffffff" fill-opacity="0.55"/>
+              <rect x="136" y="240" width="40"  height="40"  rx="10" fill="#ffffff" fill-opacity="0.25"/>
+              <rect x="200" y="248" width="140" height="24" rx="12" fill="#ffffff" fill-opacity="0.45"/>
+              <rect x="136" y="304" width="40"  height="40"  rx="10" fill="#ffffff" fill-opacity="0.25"/>
+              <rect x="200" y="312" width="160" height="24" rx="12" fill="#ffffff" fill-opacity="0.35"/>
+              <path d="M148 194 l18 18 l30 -34" fill="none" stroke="url(#mj-hdr-check)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="text-base font-semibold tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">myjira</span>
+          <% end %>
+          <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500">local</span>
+        </div>
+        <nav class="flex items-center gap-1 text-sm">
+          <%= link_to "Projects", projects_path, class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-700" %>
+          <%= link_to "API spec",  "/api/v1/spec", target: "_blank", class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-500 font-mono text-xs" %>
+        </nav>
+      </div>
+    </header>
+
+    <% if notice.present? %>
+      <div class="mx-auto max-w-7xl px-6 mt-4">
+        <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"><%= notice %></div>
+      </div>
+    <% end %>
+    <% if alert.present? %>
+      <div class="mx-auto max-w-7xl px-6 mt-4">
+        <div class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"><%= alert %></div>
+      </div>
+    <% end %>
+
+    <main class="mx-auto max-w-7xl px-6 py-8">
+      <%= yield %>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,27 @@
+<% content_for :title, "Test plans" %>
+<div class="flex items-baseline justify-between mb-4">
+  <h1 class="text-xl font-semibold text-slate-900">Test plans — <%= @project.name %></h1>
+  <%= link_to "+ New plan", new_project_test_plan_path(@project), class: "text-sm text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-md" %>
+</div>
+<%= card do %>
+  <% if @plans.empty? %>
+    <p class="text-sm text-slate-500">No plans yet.</p>
+  <% else %>
+    <ul class="divide-y divide-slate-100">
+      <% @plans.each do |p| %>
+        <li class="py-3 flex items-center justify-between">
+          <div>
+            <%= link_to p.title, [@project, p], class: "text-sm font-medium text-slate-900 hover:text-slate-700" %>
+            <div class="text-xs text-slate-500 mt-0.5 flex gap-2 items-center">
+              <%= status_pill(p.status) %>
+              <span><%= pluralize(p.test_cases.count, "case") %></span>
+              <span><%= pluralize(p.tasks.count, "task") %></span>
+            </div>
+          </div>
+          <% run = p.latest_run %>
+          <% if run %><%= status_pill(run.status) %><% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+<% end %>

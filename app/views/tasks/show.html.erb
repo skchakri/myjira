@@ -1,0 +1,84 @@
+<% content_for :title, @task.title %>
+
+<div class="flex items-baseline justify-between mb-4">
+  <div>
+    <div class="text-xs text-slate-500 font-mono">
+      <%= link_to @project.name, @project, class: "hover:underline" %> /
+      task · <%= @task.id.first(8) %>
+    </div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900"><%= @task.title %></h1>
+    <div class="mt-2 flex items-center gap-2">
+      <%= status_pill(@task.status) %>
+      <span class="text-xs text-slate-500">priority: <%= @task.priority %></span>
+      <% if @task.environment %><span class="text-xs font-mono text-slate-500">env: <%= @task.environment.name %></span><% end %>
+      <% if @task.external_ref.present? %><span class="text-xs font-mono text-slate-500"><%= @task.external_ref %></span><% end %>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <%= link_to "Edit", edit_project_task_path(@project, @task), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
+    <%= link_to "+ Follow-up", new_project_task_follow_up_path(@project, @task), class: "text-sm text-white bg-rose-700 hover:bg-rose-800 px-3 py-1.5 rounded-md" %>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 space-y-4">
+    <%= card title: "Original documentation" do %>
+      <% if @task.description.present? %>
+        <pre class="whitespace-pre-wrap text-sm text-slate-800 font-mono leading-relaxed"><%= @task.description %></pre>
+      <% else %>
+        <p class="text-sm text-slate-500">No description yet.</p>
+      <% end %>
+    <% end %>
+
+    <%= card title: "Implementation notes" do %>
+      <% if @task.implementation_notes.present? %>
+        <pre class="whitespace-pre-wrap text-sm text-slate-800 font-mono leading-relaxed"><%= @task.implementation_notes %></pre>
+      <% else %>
+        <p class="text-sm text-slate-500">Claude CLI hasn't recorded any implementation notes yet.</p>
+      <% end %>
+    <% end %>
+
+    <%= card title: "Test plans covering this task" do %>
+      <% if @test_plans.empty? %>
+        <p class="text-sm text-slate-500">No plan covers this task yet.</p>
+      <% else %>
+        <ul class="divide-y divide-slate-100">
+          <% @test_plans.each do |p| %>
+            <li class="py-2 flex items-center justify-between">
+              <%= link_to p.title, [@project, p], class: "text-sm font-medium text-slate-900 hover:text-slate-700" %>
+              <%= status_pill(p.status) %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="space-y-4">
+    <%= card title: "Follow-ups & gaps" do %>
+      <% if @follow_ups.empty? %>
+        <p class="text-sm text-slate-500">None.</p>
+      <% else %>
+        <ul class="space-y-3">
+          <% @follow_ups.each do |f| %>
+            <li>
+              <div class="flex items-center gap-2">
+                <%= severity_pill(f.severity) %>
+                <span class="text-sm text-slate-900 truncate"><%= f.title %></span>
+              </div>
+              <% if f.description.present? %><p class="text-xs text-slate-500 mt-1 line-clamp-2"><%= f.description %></p><% end %>
+              <div class="text-xs text-slate-400 mt-1"><%= f.kind %> · <%= status_pill(f.status) %></div>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% end %>
+
+    <%= card title: "API pointers" do %>
+      <p class="text-xs text-slate-500 mb-2">Commands for Claude CLI to run from any project:</p>
+      <pre class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap">PATCH /api/v1/projects/<%= @project.slug %>/tasks/<%= @task.id %>
+POST  /api/v1/projects/<%= @project.slug %>/tasks/<%= @task.id %>/follow_ups
+POST  /api/v1/projects/<%= @project.slug %>/test_plans</pre>
+    <% end %>
+  </div>
+</div>

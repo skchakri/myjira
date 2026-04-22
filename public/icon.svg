@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mj-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="mj-check" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#mj-bg)"/>
+  <g opacity="0.95">
+    <rect x="136" y="176" width="40"  height="40" rx="10" fill="#ffffff" fill-opacity="0.25"/>
+    <rect x="200" y="184" width="176" height="24" rx="12" fill="#ffffff" fill-opacity="0.55"/>
+    <rect x="136" y="240" width="40"  height="40" rx="10" fill="#ffffff" fill-opacity="0.25"/>
+    <rect x="200" y="248" width="140" height="24" rx="12" fill="#ffffff" fill-opacity="0.45"/>
+    <rect x="136" y="304" width="40"  height="40" rx="10" fill="#ffffff" fill-opacity="0.25"/>
+    <rect x="200" y="312" width="160" height="24" rx="12" fill="#ffffff" fill-opacity="0.35"/>
+  </g>
+  <path d="M148 194 l18 18 l30 -34"
+        fill="none" stroke="url(#mj-check)" stroke-width="18"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

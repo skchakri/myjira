@@ -1,0 +1,20 @@
+<%= form_with model: [@project, environment], class: "max-w-xl space-y-4" do |f| %>
+  <% if environment.errors.any? %>
+    <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <ul class="list-disc ml-5"><% environment.errors.full_messages.each do |m| %><li><%= m %></li><% end %></ul>
+    </div>
+  <% end %>
+  <div>
+    <%= f.label :name, class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_field :name, placeholder: "dev, staging, prod...", class: "w-full rounded-md border-slate-300 text-sm font-mono" %>
+  </div>
+  <div>
+    <%= f.label :base_url, class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_field :base_url, placeholder: "http://localhost:3000", class: "w-full rounded-md border-slate-300 text-sm font-mono" %>
+  </div>
+  <div>
+    <%= f.label :notes, class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_area :notes, rows: 3, class: "w-full rounded-md border-slate-300 text-sm" %>
+  </div>
+  <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
+<% end %>

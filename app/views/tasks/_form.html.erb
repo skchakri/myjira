@@ -1,0 +1,41 @@
+<%= form_with model: [@project, task], class: "max-w-3xl space-y-4" do |f| %>
+  <% if task.errors.any? %>
+    <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+      <ul class="list-disc ml-5"><% task.errors.full_messages.each do |m| %><li><%= m %></li><% end %></ul>
+    </div>
+  <% end %>
+  <div>
+    <%= f.label :title, class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_field :title, class: "w-full rounded-md border-slate-300 text-sm" %>
+  </div>
+  <div>
+    <%= f.label :description, "Original documentation / task description", class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_area :description, rows: 6, class: "w-full rounded-md border-slate-300 text-sm font-mono", placeholder: "What Claude CLI was asked to implement — the original ask, acceptance criteria, etc." %>
+  </div>
+  <div>
+    <%= f.label :implementation_notes, "Implementation notes", class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_area :implementation_notes, rows: 5, class: "w-full rounded-md border-slate-300 text-sm font-mono", placeholder: "What Claude CLI actually did — files changed, endpoints added, gotchas..." %>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <%= f.label :status, class: "block text-sm font-medium text-slate-700 mb-1" %>
+      <%= f.select :status, Task::STATUSES, {}, class: "w-full rounded-md border-slate-300 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :priority, class: "block text-sm font-medium text-slate-700 mb-1" %>
+      <%= f.select :priority, Task::PRIORITIES, {}, class: "w-full rounded-md border-slate-300 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :environment_id, "Environment", class: "block text-sm font-medium text-slate-700 mb-1" %>
+      <%= f.select :environment_id, @project.environments.order(:name).map { |e| [e.name, e.id] }, { include_blank: "— none —" }, class: "w-full rounded-md border-slate-300 text-sm" %>
+    </div>
+  </div>
+  <div>
+    <%= f.label :external_ref, "External ref (PR link, branch, ticket)", class: "block text-sm font-medium text-slate-700 mb-1" %>
+    <%= f.text_field :external_ref, class: "w-full rounded-md border-slate-300 text-sm font-mono" %>
+  </div>
+  <div class="flex items-center gap-2 pt-2">
+    <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
+    <%= link_to "Cancel", @project, class: "text-sm text-slate-500 hover:text-slate-700 px-2" %>
+  </div>
+<% end %>
