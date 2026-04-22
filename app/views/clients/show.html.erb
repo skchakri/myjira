@@ -1,0 +1,133 @@
+<% content_for :title, "#{@project.name} · tests & gaps" %>
+
+<div class="flex items-start justify-between mb-6 gap-4">
+  <div class="min-w-0">
+    <div class="flex items-center gap-2 text-xs text-slate-500 font-mono mb-1">
+      <%= link_to "clients", clients_path, class: "hover:text-slate-700" %>
+      <span>/</span>
+      <span class="text-slate-700"><%= @project.slug %></span>
+    </div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900"><%= @project.name %></h1>
+    <% if @project.description.present? %>
+      <p class="mt-1 text-sm text-slate-600 max-w-2xl"><%= @project.description %></p>
+    <% end %>
+  </div>
+  <div class="flex items-center gap-2 shrink-0">
+    <%= link_to "Full project view →", project_path(@project), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md bg-white" %>
+    <%= link_to "JSON", "/api/v1/clients/#{@project.slug}", target: "_blank", class: "text-xs font-mono text-slate-500 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md bg-white" %>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+  <div class="rounded-xl border border-slate-200 bg-white p-4">
+    <div class="text-2xl font-semibold text-slate-900"><%= @stats[:plans] %></div>
+    <div class="text-xs uppercase tracking-wide text-slate-500 mt-1">test plans</div>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4">
+    <div class="text-2xl font-semibold text-slate-900"><%= @stats[:runs_total] %></div>
+    <div class="text-xs uppercase tracking-wide text-slate-500 mt-1">runs total</div>
+  </div>
+  <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+    <div class="text-2xl font-semibold text-emerald-800"><%= @stats[:passed] %></div>
+    <div class="text-xs uppercase tracking-wide text-emerald-700 mt-1">passed</div>
+  </div>
+  <div class="rounded-xl border border-rose-200 bg-rose-50 p-4">
+    <div class="text-2xl font-semibold text-rose-800"><%= @stats[:failed] %></div>
+    <div class="text-xs uppercase tracking-wide text-rose-700 mt-1">failed</div>
+  </div>
+  <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+    <div class="text-2xl font-semibold text-amber-800"><%= @stats[:blocked] %></div>
+    <div class="text-xs uppercase tracking-wide text-amber-700 mt-1">blocked</div>
+  </div>
+  <div class="rounded-xl border <%= @stats[:critical_gaps].positive? ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white' %> p-4">
+    <div class="text-2xl font-semibold <%= @stats[:critical_gaps].positive? ? 'text-rose-800' : 'text-slate-900' %>"><%= @stats[:open_gaps] %></div>
+    <div class="text-xs uppercase tracking-wide <%= @stats[:critical_gaps].positive? ? 'text-rose-700' : 'text-slate-500' %> mt-1">open gaps</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2">
+    <%= card title: "Test plans & latest runs" do %>
+      <% if @plans.empty? %>
+        <p class="text-sm text-slate-500">No test plans yet. Claude CLI can create one via <code class="font-mono text-xs bg-slate-100 px-1 rounded">POST /api/v1/projects/<%= @project.slug %>/test_plans</code>.</p>
+      <% else %>
+        <div class="divide-y divide-slate-100 -mx-4">
+          <% @plans.each do |plan| %>
+            <% run = @latest_runs[plan] %>
+            <div class="px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <%= link_to plan.title, project_test_plan_path(@project, plan), class: "text-sm font-medium text-slate-900 hover:text-indigo-700 block truncate" %>
+                  <div class="text-xs text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                    <%= status_pill(plan.status) %>
+                    <span><%= pluralize(plan.test_cases.size, "case") %></span>
+                    <span>·</span>
+                    <span><%= pluralize(plan.tasks.size, "task") %></span>
+                    <% if run %>
+                      <span>·</span>
+                      <span>run <%= time_ago_in_words(run.started_at) %> ago</span>
+                    <% end %>
+                  </div>
+                </div>
+                <% if run %>
+                  <div class="shrink-0 text-right w-44">
+                    <div class="flex items-center justify-end gap-2 mb-1">
+                      <%= status_pill(run.status) %>
+                      <span class="text-xs text-slate-500 tabular-nums"><%= run.progress[:percent] %>%</span>
+                    </div>
+                    <%= progress_bar(run.progress[:percent], passed: run.passed_count, failed: run.failed_count, total: run.total_cases) %>
+                    <div class="mt-1 flex justify-end gap-2 text-[11px] tabular-nums">
+                      <span class="text-emerald-700"><%= run.passed_count %>✓</span>
+                      <span class="<%= run.failed_count.to_i.positive? ? 'text-rose-700 font-semibold' : 'text-slate-400' %>"><%= run.failed_count %>✗</span>
+                      <span class="<%= run.blocked_count.to_i.positive? ? 'text-amber-700' : 'text-slate-400' %>"><%= run.blocked_count %>⊘</span>
+                      <%= link_to "open →", test_run_path(run), class: "text-indigo-600 hover:underline" %>
+                    </div>
+                  </div>
+                <% else %>
+                  <div class="shrink-0 text-xs text-slate-400 italic">never run</div>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div>
+    <%= card title: "Open gaps & bugs (#{@open_gaps.size})" do %>
+      <% if @open_gaps.empty? %>
+        <p class="text-sm text-slate-500">No open gaps. 🎉</p>
+      <% else %>
+        <ul class="space-y-3">
+          <% @open_gaps.each do |g| %>
+            <li>
+              <div class="flex items-start gap-2">
+                <%= severity_pill(g.severity) %>
+                <div class="min-w-0 flex-1">
+                  <%= link_to g.title, edit_project_follow_up_task_path(@project, g), class: "text-sm text-slate-900 hover:text-indigo-700 block truncate font-medium" %>
+                  <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
+                    <span class="font-mono"><%= g.kind %></span>
+                    <span>·</span>
+                    <%= status_pill(g.status) %>
+                    <% if g.task_id %>
+                      <span>·</span>
+                      <%= link_to "task", project_task_path(@project, g.task_id), class: "hover:text-slate-700" %>
+                    <% end %>
+                    <% if g.test_result_id %>
+                      <span>·</span>
+                      <span>from test run</span>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+      <div class="mt-3 pt-3 border-t border-slate-100">
+        <%= link_to "All follow-ups →", project_follow_up_tasks_path(@project), class: "text-xs text-slate-600 hover:text-slate-900" %>
+      </div>
+    <% end %>
+  </div>
+</div>

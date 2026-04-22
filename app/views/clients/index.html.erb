@@ -1,0 +1,76 @@
+<% content_for :title, "Clients" %>
+
+<div class="flex items-baseline justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Clients</h1>
+    <p class="mt-1 text-sm text-slate-600">One row per client. Link to <code class="font-mono text-xs bg-slate-100 px-1 rounded">/c/&lt;slug&gt;</code> for a consolidated test-plans + gaps view.</p>
+  </div>
+  <div class="text-xs text-slate-500 font-mono">
+    JSON: <a class="text-indigo-600 hover:underline" href="/api/v1/clients">/api/v1/clients</a>
+  </div>
+</div>
+
+<% if @summaries.empty? %>
+  <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+    <p class="text-sm text-slate-600">No projects yet. Any GET to <code class="font-mono text-xs bg-slate-100 px-1 rounded">/c/&lt;slug&gt;</code> auto-provisions one.</p>
+  </div>
+<% else %>
+  <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
+        <tr>
+          <th class="text-left font-medium px-4 py-2.5">Client</th>
+          <th class="text-right font-medium px-3 py-2.5">Plans</th>
+          <th class="text-right font-medium px-3 py-2.5">Runs</th>
+          <th class="text-right font-medium px-3 py-2.5 text-emerald-700">Passed</th>
+          <th class="text-right font-medium px-3 py-2.5 text-rose-700">Failed</th>
+          <th class="text-right font-medium px-3 py-2.5 text-amber-700">Blocked</th>
+          <th class="text-right font-medium px-3 py-2.5 text-rose-700">Open gaps</th>
+          <th class="text-right font-medium px-4 py-2.5"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% @summaries.each do |project, stats| %>
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3">
+              <%= link_to client_path(project.slug), class: "flex items-center gap-2" do %>
+                <span class="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-600 to-violet-600 text-white text-xs font-bold"><%= project.slug.first(2).upcase %></span>
+                <div>
+                  <div class="font-medium text-slate-900"><%= project.name %></div>
+                  <div class="text-xs text-slate-500 font-mono">/c/<%= project.slug %></div>
+                </div>
+              <% end %>
+            </td>
+            <td class="text-right px-3 tabular-nums"><%= stats[:plans] %></td>
+            <td class="text-right px-3 tabular-nums text-slate-600"><%= stats[:runs_total] %></td>
+            <td class="text-right px-3 tabular-nums text-emerald-700 font-medium"><%= stats[:passed] %></td>
+            <td class="text-right px-3 tabular-nums <%= stats[:failed].positive? ? 'text-rose-700 font-semibold' : 'text-slate-400' %>"><%= stats[:failed] %></td>
+            <td class="text-right px-3 tabular-nums <%= stats[:blocked].positive? ? 'text-amber-700 font-medium' : 'text-slate-400' %>"><%= stats[:blocked] %></td>
+            <td class="text-right px-3 tabular-nums">
+              <% if stats[:critical_gaps].positive? %>
+                <span class="inline-flex items-center gap-1">
+                  <span class="inline-block h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+                  <span class="font-semibold text-rose-700"><%= stats[:open_gaps] %></span>
+                </span>
+              <% elsif stats[:open_gaps].positive? %>
+                <span class="text-amber-700 font-medium"><%= stats[:open_gaps] %></span>
+              <% else %>
+                <span class="text-slate-400">0</span>
+              <% end %>
+            </td>
+            <td class="text-right px-4 py-3">
+              <%= link_to "View →", client_path(project.slug), class: "text-sm text-indigo-600 hover:text-indigo-700 font-medium" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+
+<div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+  <div class="font-semibold text-slate-700 mb-1">URL pattern for pyr-docker:</div>
+  <div class="font-mono">http://localhost:1200/c/&lt;client-slug&gt; <span class="text-slate-400">— HTML page</span></div>
+  <div class="font-mono">http://localhost:1200/api/v1/clients/&lt;client-slug&gt; <span class="text-slate-400">— JSON (same data)</span></div>
+  <div class="mt-1 text-slate-500">First GET auto-creates the project record — pyr-docker can link blindly for any client.</div>
+</div>
