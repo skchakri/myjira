@@ -1,65 +1,123 @@
-<% content_for :title, "Clients" %>
+<% content_for :title, "Fleet — myjira" %>
 
-<div class="flex items-baseline justify-between mb-6">
-  <div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Clients</h1>
-    <p class="mt-1 text-sm text-slate-600">One row per client. Link to <code class="font-mono text-xs bg-slate-100 px-1 rounded">/c/&lt;slug&gt;</code> for a consolidated test-plans + gaps view.</p>
-  </div>
-  <div class="text-xs text-slate-500 font-mono">
-    JSON: <a class="text-indigo-600 hover:underline" href="/api/v1/clients">/api/v1/clients</a>
-  </div>
+<div class="rise rise-1">
+  <div class="eyebrow">Overview</div>
+  <h1 class="font-display text-[56px] leading-[1.05] tracking-tight mt-1">
+    The <span class="ital text-[color:var(--color-amber-ink)]">fleet</span>, at a glance.
+  </h1>
+  <p class="mt-3 text-[15px] text-[color:var(--color-ink-soft)] max-w-2xl">
+    Every client project wired into pyr-docker gets a row. Click a name — or press
+    <span class="kbd">⌘K</span> to jump — to drill into plans, runs, and open gaps.
+  </p>
 </div>
 
+<!-- Fleet stats strip -->
+<% totals = @summaries.each_with_object({ plans: 0, runs: 0, passed: 0, failed: 0, blocked: 0, open_gaps: 0, critical: 0 }) do |(_, s), acc|
+     acc[:plans]     += s[:plans]
+     acc[:runs]      += s[:runs_total]
+     acc[:passed]    += s[:passed]
+     acc[:failed]    += s[:failed]
+     acc[:blocked]   += s[:blocked]
+     acc[:open_gaps] += s[:open_gaps]
+     acc[:critical]  += s[:critical_gaps]
+   end %>
+
+<div class="grid grid-cols-2 md:grid-cols-7 gap-px bg-[color:var(--color-hair)] hair-all rounded-md overflow-hidden mt-10 rise rise-2">
+  <% [
+    ["Clients",  @summaries.size, nil],
+    ["Plans",    totals[:plans],  nil],
+    ["Runs",     totals[:runs],   nil],
+    ["Passed",   totals[:passed], "pass"],
+    ["Failed",   totals[:failed], totals[:failed].positive? ? "fail" : nil],
+    ["Blocked",  totals[:blocked], totals[:blocked].positive? ? "block" : nil],
+    ["Open gaps", totals[:open_gaps], totals[:critical].positive? ? "fail" : (totals[:open_gaps].positive? ? "block" : nil)]
+  ].each do |label, value, tone| %>
+    <div class="bg-[color:var(--color-paper-raised)] px-4 py-4">
+      <div class="eyebrow"><%= label %></div>
+      <div class="mt-1 font-display text-[30px] leading-none tabular <%=
+        case tone
+        when 'pass'  then 'text-[color:var(--color-pass-ink)]'
+        when 'fail'  then 'text-[color:var(--color-fail-ink)]'
+        when 'block' then 'text-[color:var(--color-block-ink)]'
+        end %>"><%= value %></div>
+    </div>
+  <% end %>
+</div>
+
+<!-- Client table -->
 <% if @summaries.empty? %>
-  <div class="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-    <p class="text-sm text-slate-600">No projects yet. Any GET to <code class="font-mono text-xs bg-slate-100 px-1 rounded">/c/&lt;slug&gt;</code> auto-provisions one.</p>
+  <div class="paper p-10 text-center mt-8">
+    <p class="text-sm text-[color:var(--color-ink-soft)]">No clients yet.</p>
+    <p class="mt-2 text-xs text-[color:var(--color-ink-faint)] font-mono">Any GET /c/&lt;slug&gt; auto-provisions one.</p>
   </div>
 <% else %>
-  <div class="rounded-xl border border-slate-200 bg-white overflow-hidden">
+  <div class="paper overflow-hidden mt-8 rise rise-3">
     <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide">
-        <tr>
-          <th class="text-left font-medium px-4 py-2.5">Client</th>
-          <th class="text-right font-medium px-3 py-2.5">Plans</th>
-          <th class="text-right font-medium px-3 py-2.5">Runs</th>
-          <th class="text-right font-medium px-3 py-2.5 text-emerald-700">Passed</th>
-          <th class="text-right font-medium px-3 py-2.5 text-rose-700">Failed</th>
-          <th class="text-right font-medium px-3 py-2.5 text-amber-700">Blocked</th>
-          <th class="text-right font-medium px-3 py-2.5 text-rose-700">Open gaps</th>
-          <th class="text-right font-medium px-4 py-2.5"></th>
+      <thead>
+        <tr class="hair-b">
+          <th class="text-left eyebrow px-4 py-3">Client</th>
+          <th class="text-right eyebrow px-3 py-3">Plans</th>
+          <th class="text-right eyebrow px-3 py-3">Runs</th>
+          <th class="text-right eyebrow px-3 py-3">Pass</th>
+          <th class="text-right eyebrow px-3 py-3">Fail</th>
+          <th class="text-right eyebrow px-3 py-3">Block</th>
+          <th class="text-right eyebrow px-3 py-3">Gaps</th>
+          <th class="text-left  eyebrow px-3 py-3 w-[22%]">Health</th>
+          <th class="px-4 py-3"></th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100">
-        <% @summaries.each do |project, stats| %>
-          <tr class="hover:bg-slate-50">
-            <td class="px-4 py-3">
-              <%= link_to client_path(project.slug), class: "flex items-center gap-2" do %>
-                <span class="inline-flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-indigo-600 to-violet-600 text-white text-xs font-bold"><%= project.slug.first(2).upcase %></span>
-                <div>
-                  <div class="font-medium text-slate-900"><%= project.name %></div>
-                  <div class="text-xs text-slate-500 font-mono">/c/<%= project.slug %></div>
+      <tbody>
+        <% @summaries.each do |project, stats|
+             pass  = stats[:passed]
+             fail  = stats[:failed]
+             blk   = stats[:blocked]
+             total = pass + fail + blk
+             dot_cls = if fail.positive? || stats[:critical_gaps].positive?
+                         "dot-fail"
+                       elsif blk.positive? || stats[:open_gaps].positive?
+                         "dot-block"
+                       elsif total.positive?
+                         "dot-pass"
+                       else
+                         "dot-idle"
+                       end
+        %>
+          <tr class="hair-b last:border-b-0 hover:bg-[color:var(--color-paper-sunk)]/60 transition-colors">
+            <td class="px-4 py-3.5">
+              <%= link_to client_path(project.slug), class: "flex items-center gap-3" do %>
+                <span class="dot <%= dot_cls %>"></span>
+                <div class="min-w-0">
+                  <div class="font-display text-[18px] leading-none tracking-tight truncate"><%= project.name %></div>
+                  <div class="mt-1 text-[11px] font-mono text-[color:var(--color-ink-faint)]">/c/<%= project.slug %></div>
                 </div>
               <% end %>
             </td>
-            <td class="text-right px-3 tabular-nums"><%= stats[:plans] %></td>
-            <td class="text-right px-3 tabular-nums text-slate-600"><%= stats[:runs_total] %></td>
-            <td class="text-right px-3 tabular-nums text-emerald-700 font-medium"><%= stats[:passed] %></td>
-            <td class="text-right px-3 tabular-nums <%= stats[:failed].positive? ? 'text-rose-700 font-semibold' : 'text-slate-400' %>"><%= stats[:failed] %></td>
-            <td class="text-right px-3 tabular-nums <%= stats[:blocked].positive? ? 'text-amber-700 font-medium' : 'text-slate-400' %>"><%= stats[:blocked] %></td>
-            <td class="text-right px-3 tabular-nums">
+            <td class="text-right px-3 tabular text-[color:var(--color-ink-soft)]"><%= stats[:plans] %></td>
+            <td class="text-right px-3 tabular text-[color:var(--color-ink-soft)]"><%= stats[:runs_total] %></td>
+            <td class="text-right px-3 tabular <%= pass.positive? ? 'text-[color:var(--color-pass-ink)] font-medium' : 'text-[color:var(--color-ink-faint)]' %>"><%= pass %></td>
+            <td class="text-right px-3 tabular <%= fail.positive? ? 'text-[color:var(--color-fail-ink)] font-semibold' : 'text-[color:var(--color-ink-faint)]' %>"><%= fail %></td>
+            <td class="text-right px-3 tabular <%= blk.positive? ? 'text-[color:var(--color-block-ink)] font-medium' : 'text-[color:var(--color-ink-faint)]' %>"><%= blk %></td>
+            <td class="text-right px-3 tabular">
               <% if stats[:critical_gaps].positive? %>
-                <span class="inline-flex items-center gap-1">
-                  <span class="inline-block h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-                  <span class="font-semibold text-rose-700"><%= stats[:open_gaps] %></span>
-                </span>
+                <span class="pill pill-fail"><%= stats[:open_gaps] %> · <%= stats[:critical_gaps] %> crit</span>
               <% elsif stats[:open_gaps].positive? %>
-                <span class="text-amber-700 font-medium"><%= stats[:open_gaps] %></span>
+                <span class="pill pill-block"><%= stats[:open_gaps] %></span>
               <% else %>
-                <span class="text-slate-400">0</span>
+                <span class="text-[color:var(--color-ink-faint)]">0</span>
               <% end %>
             </td>
-            <td class="text-right px-4 py-3">
-              <%= link_to "View →", client_path(project.slug), class: "text-sm text-indigo-600 hover:text-indigo-700 font-medium" %>
+            <td class="px-3">
+              <% if total.positive? %>
+                <%= segmented_track(passed: pass, failed: fail, blocked: blk, total: total) %>
+                <div class="mt-1 text-[10.5px] font-mono text-[color:var(--color-ink-faint)] tabular">
+                  <%= ((pass * 100.0 / total)).round %>% pass
+                </div>
+              <% else %>
+                <div class="text-[11px] text-[color:var(--color-ink-faint)] italic">no runs</div>
+              <% end %>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <%= link_to "View →", client_path(project.slug), class: "ink-link text-sm" %>
             </td>
           </tr>
         <% end %>
@@ -68,9 +126,20 @@
   </div>
 <% end %>
 
-<div class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-  <div class="font-semibold text-slate-700 mb-1">URL pattern for pyr-docker:</div>
-  <div class="font-mono">http://localhost:1200/c/&lt;client-slug&gt; <span class="text-slate-400">— HTML page</span></div>
-  <div class="font-mono">http://localhost:1200/api/v1/clients/&lt;client-slug&gt; <span class="text-slate-400">— JSON (same data)</span></div>
-  <div class="mt-1 text-slate-500">First GET auto-creates the project record — pyr-docker can link blindly for any client.</div>
+<!-- URL pattern footer -->
+<div class="mt-10 grid md:grid-cols-2 gap-4 rise rise-4">
+  <div class="paper-sunk p-5">
+    <div class="eyebrow">URL pattern — HTML</div>
+    <div class="mt-2 font-mono text-[13px] text-[color:var(--color-ink)] break-all">
+      http://localhost:1200/c/<span class="text-[color:var(--color-amber-ink)]">&lt;slug&gt;</span>
+    </div>
+    <p class="mt-2 text-xs text-[color:var(--color-ink-soft)]">First visit auto-provisions the project. Embed, iframe, or link directly from pyr-docker.</p>
+  </div>
+  <div class="paper-sunk p-5">
+    <div class="eyebrow">URL pattern — JSON</div>
+    <div class="mt-2 font-mono text-[13px] text-[color:var(--color-ink)] break-all">
+      http://localhost:1200/api/v1/clients/<span class="text-[color:var(--color-amber-ink)]">&lt;slug&gt;</span>
+    </div>
+    <p class="mt-2 text-xs text-[color:var(--color-ink-soft)]">Structured stats + plans + gaps. Use this from pyr-docker to render native badges.</p>
+  </div>
 </div>

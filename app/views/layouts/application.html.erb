@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="h-full bg-slate-50">
+<html class="h-full">
   <head>
     <title><%= content_for(:title) || "myjira" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -8,60 +8,149 @@
     <%= yield :head %>
 
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="h-full text-slate-800 antialiased" style="font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;">
-    <header class="border-b border-slate-200 bg-white">
-      <div class="mx-auto max-w-7xl px-6 py-3 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <%= link_to root_path, class: "group flex items-center gap-2.5 text-slate-900 hover:text-slate-700" do %>
-            <svg class="h-8 w-8 shrink-0" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <body class="h-full">
+    <div class="flex min-h-screen" data-controller="client-filter">
+      <!-- ========== Sidebar ========== -->
+      <aside class="w-[260px] shrink-0 hair-r flex flex-col sticky top-0 h-screen">
+        <!-- Brand -->
+        <div class="px-4 pt-5 pb-4">
+          <%= link_to root_path, class: "flex items-center gap-2.5 text-[color:var(--color-ink)]" do %>
+            <svg class="h-7 w-7 shrink-0" viewBox="0 0 512 512" aria-hidden="true">
               <defs>
-                <linearGradient id="mj-hdr-bg" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0" stop-color="#4F46E5"/>
-                  <stop offset="1" stop-color="#7C3AED"/>
+                <linearGradient id="mj-side-bg" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#1A1814"/><stop offset="1" stop-color="#4A463E"/>
                 </linearGradient>
-                <linearGradient id="mj-hdr-check" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stop-color="#34D399"/>
-                  <stop offset="1" stop-color="#10B981"/>
+                <linearGradient id="mj-side-ck" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#E0A570"/><stop offset="1" stop-color="#B8502A"/>
                 </linearGradient>
               </defs>
-              <rect width="512" height="512" rx="112" fill="url(#mj-hdr-bg)"/>
-              <rect x="136" y="176" width="40"  height="40"  rx="10" fill="#ffffff" fill-opacity="0.25"/>
-              <rect x="200" y="184" width="176" height="24" rx="12" fill="#ffffff" fill-opacity="0.55"/>
-              <rect x="136" y="240" width="40"  height="40"  rx="10" fill="#ffffff" fill-opacity="0.25"/>
-              <rect x="200" y="248" width="140" height="24" rx="12" fill="#ffffff" fill-opacity="0.45"/>
-              <rect x="136" y="304" width="40"  height="40"  rx="10" fill="#ffffff" fill-opacity="0.25"/>
-              <rect x="200" y="312" width="160" height="24" rx="12" fill="#ffffff" fill-opacity="0.35"/>
-              <path d="M148 194 l18 18 l30 -34" fill="none" stroke="url(#mj-hdr-check)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect width="512" height="512" rx="112" fill="url(#mj-side-bg)"/>
+              <rect x="136" y="176" width="40"  height="40"  rx="10" fill="#F7F4ED" fill-opacity="0.18"/>
+              <rect x="200" y="184" width="176" height="24" rx="12" fill="#F7F4ED" fill-opacity="0.55"/>
+              <rect x="136" y="240" width="40"  height="40"  rx="10" fill="#F7F4ED" fill-opacity="0.18"/>
+              <rect x="200" y="248" width="140" height="24" rx="12" fill="#F7F4ED" fill-opacity="0.42"/>
+              <rect x="136" y="304" width="40"  height="40"  rx="10" fill="#F7F4ED" fill-opacity="0.18"/>
+              <rect x="200" y="312" width="160" height="24" rx="12" fill="#F7F4ED" fill-opacity="0.32"/>
+              <path d="M148 194 l18 18 l30 -34" fill="none" stroke="url(#mj-side-ck)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span class="text-base font-semibold tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">myjira</span>
+            <div class="leading-tight">
+              <div class="font-display text-[22px] tracking-tight">myjira</div>
+              <div class="eyebrow mt-[2px]">testing · gaps · plans</div>
+            </div>
           <% end %>
-          <span class="text-xs rounded bg-slate-100 px-2 py-0.5 text-slate-500">local</span>
         </div>
-        <nav class="flex items-center gap-1 text-sm">
-          <%= link_to "Clients", clients_path, class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-700" %>
-          <%= link_to "Projects", projects_path, class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-700" %>
-          <%= link_to "API spec",  "/api/v1/spec", target: "_blank", class: "px-3 py-1.5 rounded-md hover:bg-slate-100 text-slate-500 font-mono text-xs" %>
+
+        <!-- Filter -->
+        <div class="px-3 pb-2">
+          <label class="relative block">
+            <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--color-ink-faint)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input
+              type="text"
+              placeholder="Filter clients"
+              data-client-filter-target="input"
+              data-action="input->client-filter#filter keydown->client-filter#clear"
+              class="w-full pl-7 pr-10 py-1.5 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none"
+            />
+            <span class="absolute right-2 top-1/2 -translate-y-1/2 kbd">⌘K</span>
+          </label>
+        </div>
+
+        <!-- Section header -->
+        <div class="px-4 pt-3 pb-1.5 flex items-center justify-between">
+          <span class="eyebrow">Clients</span>
+          <span class="eyebrow" data-client-filter-target="count"><%= sidebar_clients.size %></span>
+        </div>
+
+        <!-- Client list -->
+        <nav class="flex-1 overflow-y-auto px-2 pb-3">
+          <% if sidebar_clients.empty? %>
+            <div class="px-3 py-6 text-sm text-[color:var(--color-ink-faint)]">
+              No clients yet.<br>
+              <span class="text-[11px] font-mono">GET /c/&lt;slug&gt;</span> to create one.
+            </div>
+          <% end %>
+
+          <% sidebar_clients.each do |project|
+               health  = client_health(project)
+               active  = (params[:slug] == project.slug) || (params[:id] == project.slug && controller_name == "projects")
+               dot_cls = if health[:failing] || health[:critical_gaps].positive?
+                           "dot-fail"
+                         elsif health[:blocked] || health[:total_gaps].positive?
+                           "dot-block"
+                         elsif health[:plans].zero?
+                           "dot-idle"
+                         else
+                           "dot-pass"
+                         end
+          %>
+            <%= link_to client_path(project.slug),
+                  class: "clink #{active ? 'clink-active' : ''}",
+                  data: {
+                    client_filter_target: "row",
+                    hay: "#{project.name} #{project.slug}"
+                  } do %>
+              <span class="dot <%= dot_cls %>" title="health"></span>
+              <span class="truncate"><%= project.name %></span>
+              <% if health[:total_gaps].positive? %>
+                <span class="ml-auto text-[10.5px] tabular font-mono <%= health[:critical_gaps].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
+                  <%= health[:total_gaps] %>
+                </span>
+              <% else %>
+                <span class="clink-slug truncate max-w-[90px]"><%= project.slug %></span>
+              <% end %>
+            <% end %>
+          <% end %>
+
+          <div class="hidden px-3 py-6 text-xs text-[color:var(--color-ink-faint)] text-center" data-client-filter-target="empty">
+            No match.
+          </div>
         </nav>
-      </div>
-    </header>
 
-    <% if notice.present? %>
-      <div class="mx-auto max-w-7xl px-6 mt-4">
-        <div class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"><%= notice %></div>
-      </div>
-    <% end %>
-    <% if alert.present? %>
-      <div class="mx-auto max-w-7xl px-6 mt-4">
-        <div class="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"><%= alert %></div>
-      </div>
-    <% end %>
+        <!-- Footer -->
+        <div class="hair-t px-3 py-3 space-y-1">
+          <%= link_to projects_path, class: "clink text-[12.5px]" do %>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
+            All projects
+          <% end %>
+          <a href="/api/v1/spec" target="_blank" class="clink text-[12.5px]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 8 5-4 5 4M7 16l5 4 5-4M12 4v16"/></svg>
+            API spec
+            <span class="clink-slug">json</span>
+          </a>
+          <div class="flex items-center justify-between px-[10px] pt-2 text-[10.5px] text-[color:var(--color-ink-faint)]">
+            <span class="font-mono">localhost:1200</span>
+            <span class="pill pill-quiet">local</span>
+          </div>
+        </div>
+      </aside>
 
-    <main class="mx-auto max-w-7xl px-6 py-8">
-      <%= yield %>
-    </main>
+      <!-- ========== Main pane ========== -->
+      <main class="flex-1 min-w-0">
+        <% if notice.present? || alert.present? %>
+          <div class="px-10 pt-6 -mb-2">
+            <% if notice.present? %>
+              <div class="paper flex items-center gap-3 px-4 py-2.5 text-sm">
+                <span class="dot dot-pass"></span><span><%= notice %></span>
+              </div>
+            <% end %>
+            <% if alert.present? %>
+              <div class="paper flex items-center gap-3 px-4 py-2.5 text-sm mt-2">
+                <span class="dot dot-fail"></span><span><%= alert %></span>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+
+        <div class="px-10 py-8">
+          <%= yield %>
+        </div>
+      </main>
+    </div>
   </body>
 </html>
