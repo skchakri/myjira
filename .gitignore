@@ -36,3 +36,7 @@
 
 /app/assets/builds/*
 !/app/assets/builds/.keep
+
+# Playwright runner — local node deps + browser cache
+/script/playwright_runner/node_modules
+/script/playwright_runner/.cache

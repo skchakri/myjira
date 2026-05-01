@@ -1,0 +1,11 @@
+{
+  "name": "myjira-playwright-runner",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "run": "node index.js"
+  },
+  "dependencies": {
+    "playwright": "^1.44.0"
+  }
+}

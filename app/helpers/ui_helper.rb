@@ -164,6 +164,15 @@ module UiHelper
     PROMPT
   end
 
+  def playwright_runner_command(run)
+    myjira = request.base_url
+    <<~CMD.strip
+      cd script/playwright_runner
+      node index.js --run-id=#{run.id} --myjira=#{myjira} --visible
+      # swap --visible for --headless to run without a browser window
+    CMD
+  end
+
   def sidebar_clients
     @sidebar_clients ||= Project.order(:name).to_a
   end

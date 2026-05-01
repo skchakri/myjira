@@ -34,6 +34,20 @@ class TestRunsController < ApplicationController
     redirect_to test_run_path(@run), notice: "Running #{@run.total_cases} cases server-side — this page updates live."
   end
 
+  # Spawn the local Playwright + Claude CLI runner for browser-style cases.
+  # Background job shells out to `node script/playwright_runner/index.js` so
+  # the user does not have to keep a terminal open.
+  def playwright_execute
+    @run = TestRun.find(params[:id])
+    if @run.completed_at.present?
+      redirect_to test_run_path(@run), alert: "Run already completed."
+      return
+    end
+    pending = @run.test_results.where(status: "pending").count
+    PlaywrightRunnerJob.perform_later(@run.id, request.base_url)
+    redirect_to test_run_path(@run), notice: "Playwright AI runner launched on #{pending} cases — results stream in below."
+  end
+
   def complete
     @run = TestRun.find(params[:id])
     @run.summary = params[:summary]

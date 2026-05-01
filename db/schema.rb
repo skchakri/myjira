@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_22_100100) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_30_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -83,11 +83,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_22_100100) do
     t.text "steps"
     t.uuid "task_id"
     t.uuid "test_plan_id", null: false
+    t.string "tier", default: "acceptance", null: false
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["task_id"], name: "index_test_cases_on_task_id"
     t.index ["test_plan_id", "position"], name: "index_test_cases_on_test_plan_id_and_position"
     t.index ["test_plan_id"], name: "index_test_cases_on_test_plan_id"
+    t.index ["tier"], name: "index_test_cases_on_tier"
   end
 
   create_table "test_plan_tasks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

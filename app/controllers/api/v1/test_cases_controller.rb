@@ -28,7 +28,7 @@ module Api
         TestCase.transaction do
           cases.each do |row|
             params_row = row.is_a?(ActionController::Parameters) ? row : ActionController::Parameters.new(row)
-            permitted = params_row.permit(:title, :steps, :expected_result, :api_call, :task_id, :position, :notes)
+            permitted = params_row.permit(:title, :steps, :expected_result, :api_call, :task_id, :position, :notes, :tier)
             created << @plan.test_cases.create!(permitted)
           end
         end
@@ -43,12 +43,13 @@ module Api
 
       def case_params
         raw = params[:test_case] || params
-        raw.permit(:title, :steps, :expected_result, :api_call, :task_id, :position, :notes)
+        raw.permit(:title, :steps, :expected_result, :api_call, :task_id, :position, :notes, :tier)
       end
 
       def serialize(c)
         { id: c.id, position: c.position, title: c.title, steps: c.steps,
-          expected_result: c.expected_result, api_call: c.api_call, task_id: c.task_id, notes: c.notes }
+          expected_result: c.expected_result, api_call: c.api_call, task_id: c.task_id,
+          notes: c.notes, tier: c.tier }
       end
     end
   end

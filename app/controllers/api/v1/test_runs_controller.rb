@@ -1,8 +1,8 @@
 module Api
   module V1
     class TestRunsController < BaseController
-      before_action :find_project!, only: [:index, :create]
-      before_action :find_plan!,    only: [:index, :create]
+      before_action :find_project!, only: [ :index, :create ]
+      before_action :find_plan!,    only: [ :index, :create ]
 
       def index
         render json: @plan.test_runs.order(started_at: :desc).map { |r| serialize(r) }
@@ -55,10 +55,15 @@ module Api
       end
 
       def serialize(run, detailed: false)
+        project = run.test_plan.project
+        env = run.environment
+        app_base_url = env&.base_url.presence || project.default_base_url.presence
         data = {
           id: run.id, status: run.status, progress: run.progress,
           started_at: run.started_at, completed_at: run.completed_at,
           initiated_by: run.initiated_by,
+          base_url: app_base_url,
+          environment: env ? { id: env.id, name: env.name, base_url: env.base_url } : nil,
           counts: { total: run.total_cases, passed: run.passed_count, failed: run.failed_count,
                     blocked: run.blocked_count, skipped: run.skipped_count },
           urls: {
@@ -71,6 +76,8 @@ module Api
           data[:results] = run.test_results.includes(:test_case).map do |r|
             { id: r.id, test_case_id: r.test_case_id, position: r.test_case.position,
               title: r.test_case.title, status: r.status,
+              steps: r.test_case.steps, expected_result: r.test_case.expected_result,
+              api_call: r.test_case.api_call,
               actual_result: r.actual_result, notes: r.notes, screenshot_url: r.screenshot_url,
               update_url: "#{base_url}/api/v1/test_runs/#{run.id}/results/#{r.test_case_id}" }
           end.sort_by { |x| x[:position] }

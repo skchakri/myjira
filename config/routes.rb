@@ -25,6 +25,7 @@ Rails.application.routes.draw do
     member do
       post :complete
       post :execute
+      post :playwright_execute
     end
   end
 
