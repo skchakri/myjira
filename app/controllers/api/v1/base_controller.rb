@@ -44,6 +44,14 @@ module Api
             complete:         "PATCH #{base_url}/api/v1/test_runs/#{resource.id}/complete",
             view:             "#{base_url}/test_runs/#{resource.id}"
           }
+        when BrowserTask
+          {
+            kickoff:      "POST #{base_url}/api/v1/browser_tasks/#{resource.id}/kickoff",
+            post_message: "POST #{base_url}/api/v1/browser_tasks/#{resource.id}/messages",
+            watch:        "GET #{base_url}/api/v1/browser_tasks/#{resource.id}?wait=25&since={iso8601_cursor}",
+            complete:     "PATCH #{base_url}/api/v1/browser_tasks/#{resource.id}/complete",
+            view:         "#{base_url}/browser_tasks/#{resource.id}"
+          }
         else
           {}
         end

@@ -19,6 +19,7 @@ Rails.application.routes.draw do
       resources :test_runs, only: [:new, :create, :show, :index]
     end
     resources :follow_up_tasks, only: [:index, :edit, :update, :destroy]
+    resources :browser_tasks, only: [:index, :new, :create]
   end
 
   resources :test_runs, only: [:show] do
@@ -27,6 +28,16 @@ Rails.application.routes.draw do
       post :execute
       post :playwright_execute
     end
+  end
+
+  # Shared CLI ⇄ Claude-in-Chrome relay channel (usually under the "general" project).
+  resources :browser_tasks, only: [:index, :show] do
+    member do
+      post :kickoff
+      post :complete
+      post :cancel
+    end
+    resources :browser_messages, only: [:create]
   end
 
   # Public API (no authentication)
@@ -50,6 +61,7 @@ Rails.application.routes.draw do
           resources :test_runs, only: [:index, :show, :create]
         end
         resources :follow_up_tasks, only: [:index, :create, :update], path: "follow_ups"
+        resources :browser_tasks, only: [:index, :create]
       end
 
       resources :test_runs, only: [:show, :update] do
@@ -58,6 +70,17 @@ Rails.application.routes.draw do
         end
         resources :test_results, only: [:index, :update], path: "results"
       end
+
+      # CLI ⇄ Claude-in-Chrome relay. Both sides watch the same thread.
+      resources :browser_tasks, only: [:index, :show, :update] do
+        member do
+          post :kickoff
+          patch :complete
+          post :cancel
+        end
+        resources :messages, only: [:index, :create], controller: "browser_messages"
+      end
+      get "inbox", to: "browser_tasks#inbox"
     end
   end
 end

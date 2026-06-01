@@ -1,0 +1,33 @@
+<%
+  role = message.role
+  align_right = role == "user"
+  bubble =
+    case role
+    when "cli"     then "bg-amber-50 ring-amber-200 text-slate-800"
+    when "browser" then "bg-blue-50 ring-blue-200 text-slate-800"
+    when "user"    then "bg-slate-900 ring-slate-900 text-slate-100"
+    else                "bg-slate-50 ring-slate-200 text-slate-500"
+    end
+  show_kind = !%w[message instruction].include?(message.kind)
+%>
+<div id="browser_message_<%= message.id %>" class="flex <%= align_right ? 'justify-end' : 'justify-start' %>">
+  <div class="max-w-[80%]">
+    <div class="flex items-center gap-2 mb-0.5 <%= align_right ? 'justify-end' : '' %>">
+      <span class="text-[11px] font-medium text-slate-600"><%= message.display_role %></span>
+      <% if show_kind %>
+        <span class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ring-1 ring-inset
+          <%= message.kind == 'question' ? 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200' :
+              message.kind == 'error' ? 'bg-rose-50 text-rose-700 ring-rose-200' :
+              'bg-slate-100 text-slate-600 ring-slate-200' %>"><%= message.kind %></span>
+      <% end %>
+      <span class="text-[10px] text-slate-400 tabular"><%= message.created_at.strftime("%-l:%M %p") %></span>
+    </div>
+    <div class="rounded-lg px-3 py-2 text-sm ring-1 ring-inset <%= bubble %>">
+      <pre class="whitespace-pre-wrap font-sans"><%= message.body %></pre>
+      <% if message.payload.is_a?(Hash) && message.payload["screenshot_url"].present? %>
+        <a href="<%= message.payload['screenshot_url'] %>" target="_blank" rel="noopener"
+           class="mt-1 inline-block text-xs underline opacity-80">screenshot ↗</a>
+      <% end %>
+    </div>
+  </div>
+</div>

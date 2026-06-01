@@ -1,0 +1,17 @@
+<div id="browser_task_header_<%= task.id %>" class="paper flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+  <%= status_pill(task.status) %>
+  <% if task.waiting_on_cli? %>
+    <span class="inline-flex items-center gap-1.5 text-xs text-fuchsia-700">
+      <span class="dot dot-block"></span> waiting on Claude CLI
+    </span>
+  <% elsif task.waiting_on_browser? %>
+    <span class="inline-flex items-center gap-1.5 text-xs text-amber-700">
+      <span class="dot dot-idle"></span> waiting on Claude-in-Chrome
+    </span>
+  <% end %>
+  <span class="text-xs text-slate-500"><%= task.browser_messages.size %> messages</span>
+  <% if task.initiated_by.present? %>
+    <span class="text-xs font-mono text-slate-500">by <%= task.initiated_by %></span>
+  <% end %>
+  <span class="text-xs text-slate-400 ml-auto">updated <%= format_time(task.last_activity_at || task.updated_at) %></span>
+</div>

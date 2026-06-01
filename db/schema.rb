@@ -10,10 +10,38 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_04_30_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
+
+  create_table "browser_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "body", null: false
+    t.uuid "browser_task_id", null: false
+    t.datetime "created_at", null: false
+    t.string "kind", default: "message", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.string "role", null: false
+    t.datetime "updated_at", null: false
+    t.index ["browser_task_id", "created_at"], name: "index_browser_messages_on_browser_task_id_and_created_at"
+  end
+
+  create_table "browser_tasks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "initiated_by"
+    t.text "instructions"
+    t.datetime "last_activity_at"
+    t.string "priority", default: "normal"
+    t.uuid "project_id", null: false
+    t.string "source", default: "claude-cli"
+    t.string "status", default: "queued", null: false
+    t.string "target_url"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["last_activity_at"], name: "index_browser_tasks_on_last_activity_at"
+    t.index ["project_id"], name: "index_browser_tasks_on_project_id"
+    t.index ["status"], name: "index_browser_tasks_on_status"
+  end
 
   create_table "environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "base_url"
@@ -147,6 +175,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_04_30_120000) do
     t.index ["test_plan_id"], name: "index_test_runs_on_test_plan_id"
   end
 
+  add_foreign_key "browser_messages", "browser_tasks"
+  add_foreign_key "browser_tasks", "projects"
   add_foreign_key "environments", "projects"
   add_foreign_key "follow_up_tasks", "projects"
   add_foreign_key "follow_up_tasks", "tasks"

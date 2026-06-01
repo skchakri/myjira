@@ -1,0 +1,64 @@
+<% content_for :title, "Relay channel" %>
+
+<div class="flex items-baseline justify-between mb-1">
+  <div>
+    <div class="eyebrow">CLI ⇄ Claude-in-Chrome</div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+      <%= @project ? "#{@project.name} · relay" : "Relay channel" %>
+    </h1>
+  </div>
+  <% if @project %>
+    <%= link_to "+ New instruction", new_project_browser_task_path(@project),
+          class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+  <% end %>
+</div>
+
+<p class="text-sm text-slate-500 mb-4 max-w-2xl">
+  A shared channel: any Claude CLI session files an instruction here, you kick it off,
+  Claude-in-Chrome executes it and posts results — or questions — back to the same ticket.
+  Both sides watch the same thread.
+</p>
+
+<%= card do %>
+  <% if @tasks.empty? %>
+    <div class="py-10 text-center text-sm text-slate-500">
+      No instructions yet. A CLI session can file one with
+      <span class="font-mono text-slate-700">POST /api/v1/projects/general/browser_tasks</span>.
+    </div>
+  <% else %>
+    <table class="w-full text-sm">
+      <thead class="text-xs text-slate-500 text-left">
+        <tr>
+          <th class="pb-2">Ticket</th>
+          <th class="pb-2">Status</th>
+          <th class="pb-2">Waiting on</th>
+          <th class="pb-2">Activity</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% @tasks.each do |task| %>
+          <tr class="hover:bg-slate-50">
+            <td class="py-2.5">
+              <%= link_to browser_task_path(task), class: "font-medium text-slate-800 hover:underline" do %>
+                <%= task.title %>
+              <% end %>
+              <% unless params[:project_id] %>
+                <span class="ml-1 text-[11px] font-mono text-slate-400"><%= task.project.slug %></span>
+              <% end %>
+              <% if task.target_url.present? %>
+                <div class="text-[11px] font-mono text-slate-400 truncate max-w-md"><%= task.target_url %></div>
+              <% end %>
+            </td>
+            <td class="py-2.5"><%= status_pill(task.status) %></td>
+            <td class="py-2.5 text-xs text-slate-500">
+              <% if task.waiting_on_cli? %>Claude CLI
+              <% elsif task.waiting_on_browser? %>Claude-in-Chrome
+              <% else %>—<% end %>
+            </td>
+            <td class="py-2.5 text-xs text-slate-400"><%= format_time(task.last_activity_at || task.created_at) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+<% end %>

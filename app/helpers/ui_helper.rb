@@ -25,7 +25,13 @@ module UiHelper
     "skipped"          => "pill-skip",
     # follow-up statuses
     "resolved"         => "pill-pass",
-    "wontfix"          => "pill-quiet"
+    "wontfix"          => "pill-quiet",
+    # browser relay statuses (in_progress / done / failed already mapped above)
+    "queued"           => "pill-quiet",
+    "dispatched"       => "pill-accent",
+    "needs_input"      => "pill-block",
+    "responded"        => "pill-pass",
+    "cancelled"        => "pill-quiet"
   }.freeze
 
   SEVERITY_CLASS = {
@@ -161,6 +167,40 @@ module UiHelper
 
       When the run completes, task statuses on linked tasks auto-update
       (pass→done, fail→blocked, partial→testing).
+    PROMPT
+  end
+
+  # The copy-paste prompt the user drops into the Claude for Chrome chat to act
+  # on one relay ticket. It points the browser at the ticket's JSON, tells it to
+  # follow the instructions, post results back, and ask questions if anything is
+  # unclear — all against the same thread the CLI is watching.
+  def browser_task_prompt(task)
+    api_root = request.base_url
+    target   = task.target_url.presence
+    <<~PROMPT
+      You are Claude in Chrome. Execute one myjira relay ticket end-to-end.
+
+      ticket : #{task.title}
+      id     : #{task.id}
+      #{target ? "open   : #{target}" : "open   : (URL is inside the instructions)"}
+
+      1. Read the full thread + instructions:
+           GET #{api_root}/api/v1/browser_tasks/#{task.id}
+      2. Do exactly what the latest instructions say, in this browser.
+      3. If anything is unclear or blocked, ASK — post a question and stop:
+           POST #{api_root}/api/v1/browser_tasks/#{task.id}/messages
+           body: {"role":"browser","kind":"question","body":"<your question>"}
+           Then poll for the answer (the CLI is watching this same thread):
+           GET #{api_root}/api/v1/browser_tasks/#{task.id}?wait=25&since=<cursor>
+      4. Post progress as you go (optional):
+           POST .../messages  body: {"role":"browser","kind":"message","body":"<update>"}
+      5. When finished, post the result and close it:
+           POST #{api_root}/api/v1/browser_tasks/#{task.id}/messages
+           body: {"role":"browser","kind":"result","body":"<what you did + what you found>",
+                  "payload":{"screenshot_url":"<optional>","data":<optional>}}
+
+      kind=result flips the ticket to "responded"; kind=question flips it to
+      "needs_input". The CLI sees both live — no copy-paste back.
     PROMPT
   end
 

@@ -7,3 +7,11 @@
 #   ["Action", "Comedy", "Drama", "Horror"].each do |genre_name|
 #     MovieGenre.find_or_create_by!(name: genre_name)
 #   end
+
+# The "general" project is the home of the shared CLI ⇄ Claude-in-Chrome relay
+# channel. It is not tied to a repo — any Claude session files browser
+# instructions here. Idempotent.
+Project.find_or_create_by!(slug: "general") do |p|
+  p.name = "General"
+  p.description = "Shared relay channel between Claude CLI and Claude-in-Chrome."
+end

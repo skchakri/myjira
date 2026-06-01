@@ -3,6 +3,7 @@ class Project < ApplicationRecord
   has_many :tasks, dependent: :destroy
   has_many :test_plans, dependent: :destroy
   has_many :follow_up_tasks, dependent: :destroy
+  has_many :browser_tasks, dependent: :destroy
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,
