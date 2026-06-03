@@ -1,0 +1,12 @@
+<% if task.humanized_summary.present? %>
+  <div class="flex items-center gap-1.5 mb-2 text-[11px] text-[color:var(--color-ink-faint)]">
+    <span class="dot dot-pass"></span>
+    Humanized <%= task.humanized_at&.strftime("%-l:%M %p") %>
+  </div>
+  <div class="text-[color:var(--color-ink)]"><%= markdown(task.humanized_summary) %></div>
+<% else %>
+  <p class="text-sm text-[color:var(--color-ink-faint)]">
+    Click <span class="font-medium text-[color:var(--color-ink-soft)]">✦ Humanize</span>
+    for a warm, plain-English recap of this whole thread.
+  </p>
+<% end %>

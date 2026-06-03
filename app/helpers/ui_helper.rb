@@ -171,36 +171,80 @@ module UiHelper
   end
 
   # The copy-paste prompt the user drops into the Claude for Chrome chat to act
-  # on one relay ticket. It points the browser at the ticket's JSON, tells it to
-  # follow the instructions, post results back, and ask questions if anything is
-  # unclear — all against the same thread the CLI is watching.
+  # on one relay ticket. Paste it ONCE: it tells the browser to stay on the
+  # ticket in a poll loop and auto-execute follow-ups the CLI posts later — so a
+  # second instruction never needs another "Kick off".
   def browser_task_prompt(task)
     api_root = request.base_url
     target   = task.target_url.presence
     <<~PROMPT
-      You are Claude in Chrome. Execute one myjira relay ticket end-to-end.
+      You are Claude in Chrome. Work this myjira relay ticket and STAY ON IT until
+      it is closed. The CLI/human often posts FOLLOW-UP steps on the SAME ticket
+      after you reply — you must pick those up AUTOMATICALLY, with no second
+      kick-off. So you run a poll loop, not a one-shot.
 
       ticket : #{task.title}
       id     : #{task.id}
       #{target ? "open   : #{target}" : "open   : (URL is inside the instructions)"}
 
-      1. Read the full thread + instructions:
-           GET #{api_root}/api/v1/browser_tasks/#{task.id}
-      2. Do exactly what the latest instructions say, in this browser.
-      3. If anything is unclear or blocked, ASK — post a question and stop:
-           POST #{api_root}/api/v1/browser_tasks/#{task.id}/messages
-           body: {"role":"browser","kind":"question","body":"<your question>"}
-           Then poll for the answer (the CLI is watching this same thread):
-           GET #{api_root}/api/v1/browser_tasks/#{task.id}?wait=25&since=<cursor>
-      4. Post progress as you go (optional):
-           POST .../messages  body: {"role":"browser","kind":"message","body":"<update>"}
-      5. When finished, post the result and close it:
-           POST #{api_root}/api/v1/browser_tasks/#{task.id}/messages
-           body: {"role":"browser","kind":"result","body":"<what you did + what you found>",
-                  "payload":{"screenshot_url":"<optional>","data":<optional>}}
+      On EVERY post, include a stable id for THIS Chrome chat as
+      "browser_session_id" (reuse the same value for the whole ticket).
 
-      kind=result flips the ticket to "responded"; kind=question flips it to
-      "needs_input". The CLI sees both live — no copy-paste back.
+      WORK LOOP — repeat until the ticket status is "done" or "cancelled":
+
+      1. Read the thread (long-poll; first call omit since, then reuse the cursor):
+           GET #{api_root}/api/v1/browser_tasks/#{task.id}?wait=25&since=<cursor>
+      2. Find the LATEST instruction aimed at you (a role=cli or role=user turn).
+         If you haven't done it yet, do exactly what it says in this browser.
+         If there's nothing new, go back to 1 and keep polling.
+      3. Blocked or unclear? ASK, then keep polling for the answer:
+           POST #{api_root}/api/v1/browser_tasks/#{task.id}/messages
+           body: {"role":"browser","kind":"question","body":"<your question>","browser_session_id":"<id>"}
+      4. Step done → post the result, then KEEP GOING (do NOT end your turn):
+           POST #{api_root}/api/v1/browser_tasks/#{task.id}/messages
+           body: {"role":"browser","kind":"result","body":"<what you did + found>",
+                  "browser_session_id":"<id>","payload":{"screenshot_url":"<optional>"}}
+         Then go back to 1. When the CLI posts a follow-up the ticket flips to
+         "in_progress" — that's your cue to act again, automatically.
+      5. Stop when status is "done"/"cancelled". If you've posted a result and
+         nothing new arrives for ~10 minutes, you may stop — the human can
+         re-paste this prompt to wake you.
+
+      result → "responded"; question → "needs_input"; a fresh role=cli instruction
+      → "in_progress" (act again). The CLI watches live — no copy-paste back.
+    PROMPT
+  end
+
+  # Channel-level worker prompt: paste ONCE into Claude for Chrome and it watches
+  # the whole relay queue, working every auto-dispatched ticket as it lands — so
+  # nobody clicks "Kick off" per ticket. Pairs with auto_kickoff.
+  def browser_worker_prompt
+    api_root = request.base_url
+    <<~PROMPT
+      You are Claude in Chrome — the STANDING relay worker for myjira. Stay running
+      and handle every relay ticket as it arrives. The human does NOT click "Kick
+      off"; tickets are auto-dispatched into your queue.
+
+      WATCH LOOP — repeat indefinitely (re-poll every ~10–15s):
+
+      1. Pull the browser queue (tickets waiting on you, across all projects):
+           GET #{api_root}/api/v1/inbox?for=browser
+         Each entry is a ticket (status dispatched/in_progress) with an id.
+      2. For each ticket, work it end-to-end against its own thread:
+           GET #{api_root}/api/v1/browser_tasks/<id>?wait=25&since=<cursor>
+         Do the latest role=cli / role=user instruction in this browser.
+         Blocked? ASK and keep polling:
+           POST #{api_root}/api/v1/browser_tasks/<id>/messages
+           body: {"role":"browser","kind":"question","body":"<q>","browser_session_id":"<id>"}
+         Done with a step? Post the result, then KEEP watching that ticket for
+         follow-ups (the CLI often posts more on the same ticket):
+           POST #{api_root}/api/v1/browser_tasks/<id>/messages
+           body: {"role":"browser","kind":"result","body":"<did + found>","browser_session_id":"<id>"}
+      3. Put a stable "browser_session_id" on every post.
+      4. A ticket is finished at status done/cancelled — then return to the queue.
+
+      New tickets appear in the queue on their own (auto-dispatched), so you never
+      need a manual kick-off. Just keep the loop running.
     PROMPT
   end
 
@@ -214,6 +258,36 @@ module UiHelper
   end
 
   def sidebar_clients
-    @sidebar_clients ||= Project.order(:name).to_a
+    @sidebar_clients ||= Project.clients.order(:name).to_a
+  end
+
+  # Distinct, pleasant folder-accent colours. A project's saved `color` wins;
+  # otherwise pick deterministically from the slug so each folder is stable and
+  # different. Used by the conversation cards (recolour via the gear menu).
+  FOLDER_PALETTE = %w[
+    #B8502A #2F6F4F #2C5F8A #6B4E9E #9F2D2D
+    #1F7A6E #8A5A1E #4A5568 #B5547F #3A4FA0
+    #1565A0 #0E7490 #3E7C3E #6B8E23 #C0392B
+    #BF6516 #7E57C2 #9B59B6 #C2185B #795548
+    #546E7A #37474F #00897B #5D4037 #A03060
+  ].freeze
+
+  def project_color(project)
+    project.color.presence || FOLDER_PALETTE[project.slug.to_s.sum % FOLDER_PALETTE.size]
+  end
+
+  # Counts for the pinned "Browser Tasks" relay row in the sidebar.
+  #   :open    — tickets still in flight (queued…responded)
+  #   :waiting — tickets needing a CLI/human turn (needs_input/responded)
+  def browser_relay_stats
+    @browser_relay_stats ||= {
+      open: BrowserTask.open.count,
+      waiting: BrowserTask.for_cli.count
+    }
+  end
+
+  # Total captured CLI conversations — for the pinned sidebar "Conversations" row.
+  def conversations_total
+    @conversations_total ||= Conversation.count
   end
 end

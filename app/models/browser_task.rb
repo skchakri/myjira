@@ -18,6 +18,9 @@ class BrowserTask < ApplicationRecord
   PRIORITIES = %w[low normal high urgent].freeze
 
   belongs_to :project
+  # The CLI session that filed this relay (matched by cli_session_id). Optional —
+  # the conversation may not be captured yet, or the id may be absent.
+  belongs_to :conversation, optional: true
   has_many :browser_messages, -> { order(:created_at) }, dependent: :destroy
 
   validates :title, presence: true
@@ -25,6 +28,7 @@ class BrowserTask < ApplicationRecord
   validates :priority, inclusion: { in: PRIORITIES }, allow_blank: true
 
   before_validation :ensure_last_activity, on: :create
+  before_save :link_conversation
 
   scope :recent, -> { order(Arel.sql("COALESCE(last_activity_at, created_at) DESC")) }
   scope :open, -> { where(status: OPEN_STATUSES) }
@@ -76,5 +80,12 @@ class BrowserTask < ApplicationRecord
 
   def ensure_last_activity
     self.last_activity_at ||= Time.current
+  end
+
+  # Resolve cli_session_id → the captured CLI Conversation (if it exists yet).
+  # Runs whenever the session id is set/changed and we don't already have a link.
+  def link_conversation
+    return if conversation_id.present? || cli_session_id.blank?
+    self.conversation = Conversation.find_by(session_id: cli_session_id)
   end
 end

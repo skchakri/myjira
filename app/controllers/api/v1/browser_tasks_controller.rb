@@ -24,8 +24,15 @@ module Api
 
       # Cross-project queue. `for=browser` → tickets to act on in Chrome;
       # `for=cli` → tickets with a fresh answer/question for the CLI.
+      # Optional `session=<id>` scopes to one side's session: for=cli filters by
+      # cli_session_id, for=browser by browser_session_id — so a session sees
+      # only its own relays instead of the whole channel.
       def inbox
-        scope = params[:for].to_s == "cli" ? BrowserTask.for_cli : BrowserTask.for_browser
+        for_cli = params[:for].to_s == "cli"
+        scope = for_cli ? BrowserTask.for_cli : BrowserTask.for_browser
+        if (sid = params[:session].presence)
+          scope = scope.where(for_cli ? { cli_session_id: sid } : { browser_session_id: sid })
+        end
         render json: scope.recent.includes(:project).map { |t| serialize(t) }
       end
 
@@ -53,6 +60,7 @@ module Api
         task = @project.browser_tasks.new(task_params)
         task.save!
         seed_first_message(task)
+        auto_dispatch!(task) if auto_kickoff?
         render json: detailed(task).merge(next_steps: next_steps_for(task)), status: :created
       end
 
@@ -91,7 +99,24 @@ module Api
 
       def task_params
         raw = params[:browser_task] || params
-        raw.permit(:title, :instructions, :target_url, :status, :priority, :source, :initiated_by)
+        raw.permit(:title, :instructions, :target_url, :status, :priority, :source,
+          :initiated_by, :cli_session_id, :browser_session_id)
+      end
+
+      # Skip the manual "Kick off" gate: file → straight to dispatched, so the
+      # browser (a standing relay worker, or a one-time pasted prompt) picks it up
+      # with no human click. Opt in per-ticket with auto_kickoff=true, or globally
+      # with MYJIRA_RELAY_AUTO_KICKOFF set in the server env.
+      def auto_kickoff?
+        return true if ActiveModel::Type::Boolean.new.cast(params[:auto_kickoff])
+        ENV["MYJIRA_RELAY_AUTO_KICKOFF"].present?
+      end
+
+      def auto_dispatch!(task)
+        return unless task.status == "queued"
+        task.touch_activity!("dispatched")
+        task.browser_messages.create!(role: "system", kind: "note",
+          body: "Auto-dispatched to Claude-in-Chrome (no manual kick-off).")
       end
 
       # On create, fold the instruction (and optional first message body) into the
@@ -121,6 +146,8 @@ module Api
           id: task.id, title: task.title, status: task.status, priority: task.priority,
           target_url: task.target_url, source: task.source, initiated_by: task.initiated_by,
           project: task.project.slug, waiting_on: waiting_on(task),
+          cli_session_id: task.cli_session_id, browser_session_id: task.browser_session_id,
+          conversation_id: task.conversation_id,
           message_count: task.browser_messages.size,
           last_activity_at: task.last_activity_at, created_at: task.created_at,
           urls: {

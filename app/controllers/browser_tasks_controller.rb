@@ -1,5 +1,5 @@
 class BrowserTasksController < ApplicationController
-  before_action :set_task, only: [:show, :kickoff, :complete, :cancel]
+  before_action :set_task, only: [:show, :kickoff, :complete, :cancel, :humanize]
 
   def index
     if params[:project_id]
@@ -51,6 +51,23 @@ class BrowserTasksController < ApplicationController
   def cancel
     @task.touch_activity!("cancelled")
     redirect_to browser_task_path(@task), notice: "Cancelled."
+  end
+
+  # "Humanize" — kick off a background summary of the whole thread in warm,
+  # plain English. The job shells out to the local Claude CLI and streams the
+  # result back into the bottom-right panel via Turbo. We answer the click
+  # immediately with a loading state so the popover never feels stuck.
+  def humanize
+    HumanizeThreadJob.perform_later(@task.id)
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.update(
+          "humanize_content_#{@task.id}",
+          partial: "browser_tasks/humanize_loading", locals: { task: @task }
+        )
+      end
+      format.html { redirect_to browser_task_path(@task), notice: "Humanizing this thread…" }
+    end
   end
 
   private

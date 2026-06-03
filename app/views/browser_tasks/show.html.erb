@@ -34,6 +34,29 @@
 
 <%= render "header", task: @task %>
 
+<% if @task.waiting_on_browser? %>
+  <div class="mt-3 paper flex items-start gap-2.5 px-4 py-2.5 text-sm">
+    <span class="dot dot-block mt-1.5"></span>
+    <div class="text-[color:var(--color-ink-soft)]">
+      <% if @task.status == "dispatched" %>
+        <strong>Dispatched to Claude-in-Chrome.</strong> If the standing relay worker is running it picks this up
+        automatically — otherwise paste the hand-off prompt below into the Claude for Chrome chat to start it.
+      <% else %>
+        <strong>Claude-in-Chrome's turn.</strong> If its chat is still open it picks up this follow-up
+        <em>automatically</em> — no second kick-off. If that chat ended, click <strong>Copy prompt</strong> below and paste it again to resume.
+      <% end %>
+    </div>
+  </div>
+<% elsif @task.waiting_on_cli? %>
+  <div class="mt-3 paper flex items-start gap-2.5 px-4 py-2.5 text-sm">
+    <span class="dot dot-pass mt-1.5"></span>
+    <div class="text-[color:var(--color-ink-soft)]">
+      <strong>The CLI's turn.</strong> It's watching this thread live and will read the
+      <%= @task.status == "needs_input" ? "question" : "result" %> and continue.
+    </div>
+  </div>
+<% end %>
+
 <% if @task.instructions.present? %>
   <div class="mt-4">
     <%= card title: "Instructions" do %>
@@ -42,21 +65,43 @@
   </div>
 <% end %>
 
-<div class="mt-4">
+<div class="mt-4" data-controller="chat">
   <%= card title: "Thread" do %>
-    <div id="messages_<%= @task.id %>" class="space-y-3">
-      <% @messages.each do |m| %>
-        <%= render "browser_messages/message", message: m %>
+    <%# scrollable chat pane %>
+    <div data-chat-target="scroll" class="max-h-[60vh] overflow-y-auto -mx-1 px-1 pb-1">
+      <div id="messages_<%= @task.id %>" class="space-y-4">
+        <% @messages.each do |m| %>
+          <%= render "browser_messages/message", message: m %>
+        <% end %>
+      </div>
+      <% if @messages.empty? %>
+        <p class="text-sm text-[color:var(--color-ink-faint)] text-center py-8">
+          No messages yet — kick the ticket off, or drop the first note below.
+        </p>
       <% end %>
     </div>
 
-    <% if @task.open? %>
-      <%= form_with url: browser_task_browser_messages_path(@task), method: :post, class: "mt-4 flex items-end gap-2" do |f| %>
+    <%# composer — always available so you can jump into the thread %>
+    <% default_kind = @task.waiting_on_cli? ? "answer" : "note" %>
+    <%= form_with url: browser_task_browser_messages_path(@task), method: :post,
+          class: "mt-4 pt-4 hair-t" do |f| %>
+      <div class="flex items-center gap-1.5 mb-2">
+        <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)] mr-1">Post as</span>
+        <% %w[note instruction answer question].each do |k| %>
+          <button type="button"
+                  data-chat-target="chip"
+                  data-action="chat#pick" data-chat-kind-param="<%= k %>"
+                  class="pill <%= k == default_kind ? 'pill-accent' : 'pill-quiet' %> cursor-pointer"><%= k %></button>
+        <% end %>
+        <%= f.hidden_field :kind, value: default_kind, data: { chat_target: "kind" } %>
+      </div>
+      <div class="flex items-end gap-2">
         <%= f.text_area :body, rows: 2, required: true,
-              placeholder: @task.waiting_on_cli? ? "Answer Claude-in-Chrome…" : "Add a note or instruction…",
-              class: "flex-1 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-slate-800 placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
-        <%= f.submit "Send", class: "shrink-0 text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-2 rounded-md cursor-pointer" %>
-      <% end %>
+              data: { chat_target: "input", action: "keydown->chat#keydown" },
+              placeholder: @task.waiting_on_cli? ? "Answer Claude-in-Chrome…  (Enter to send, Shift+Enter for newline)" : "Add a note or instruction…  (Enter to send, Shift+Enter for newline)",
+              class: "flex-1 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-lg px-3 py-2 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
+        <%= f.submit "Send", class: "shrink-0 text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-4 py-2 rounded-lg cursor-pointer" %>
+      </div>
     <% end %>
   <% end %>
 </div>
@@ -65,8 +110,9 @@
   <%= card title: "Hand-off prompt → paste into Claude for Chrome" do %>
     <div class="flex items-start justify-between gap-3 mb-2">
       <p class="text-xs text-slate-500">
-        Click <strong>Kick off</strong>, then paste this once into the Claude for Chrome chat.
-        It executes the instructions and posts results — or questions — back to this same thread, live.
+        Paste this <strong>once</strong> into the Claude for Chrome chat. It stays on this ticket in a
+        poll loop and auto-executes any follow-up the CLI posts — so a second instruction needs
+        <strong>no second kick-off</strong>. Only re-paste if that chat actually ended.
       </p>
       <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
               class="shrink-0 text-xs px-2 py-1 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700">
@@ -76,3 +122,5 @@
     <pre data-clipboard-target="source" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_task_prompt(@task) %></pre>
   <% end %>
 </div>
+
+<%= render "browser_tasks/humanize_panel", task: @task %>

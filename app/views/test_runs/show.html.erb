@@ -20,7 +20,7 @@
   <div class="flex items-center gap-2">
     <% unless @run.completed_at %>
       <%= button_to "▶ Run with Playwright AI", playwright_execute_test_run_path(@run), method: :post,
-            class: "text-sm text-white bg-indigo-700 hover:bg-indigo-800 px-3 py-1.5 rounded-md",
+            class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md",
             data: { turbo_confirm: "Launch headless Playwright runner on #{@run.test_results.where(status: 'pending').count} pending cases?" } %>
       <%= button_to "▶ Run now (server-side)", execute_test_run_path(@run), method: :post,
             class: "text-sm text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-md",

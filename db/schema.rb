@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_03_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -27,7 +27,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
   end
 
   create_table "browser_tasks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "browser_session_id"
+    t.string "cli_session_id"
+    t.uuid "conversation_id"
     t.datetime "created_at", null: false
+    t.datetime "humanized_at"
+    t.text "humanized_summary"
     t.string "initiated_by"
     t.text "instructions"
     t.datetime "last_activity_at"
@@ -38,9 +43,49 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
     t.string "target_url"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.index ["browser_session_id"], name: "index_browser_tasks_on_browser_session_id"
+    t.index ["cli_session_id"], name: "index_browser_tasks_on_cli_session_id"
+    t.index ["conversation_id"], name: "index_browser_tasks_on_conversation_id"
     t.index ["last_activity_at"], name: "index_browser_tasks_on_last_activity_at"
     t.index ["project_id"], name: "index_browser_tasks_on_project_id"
     t.index ["status"], name: "index_browser_tasks_on_status"
+  end
+
+  create_table "conversation_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "body"
+    t.uuid "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.string "ext_id", null: false
+    t.string "kind", default: "message", null: false
+    t.datetime "occurred_at"
+    t.jsonb "payload", default: {}, null: false
+    t.integer "position", default: 0, null: false
+    t.string "role", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id", "ext_id"], name: "index_conversation_messages_on_conversation_id_and_ext_id", unique: true
+    t.index ["conversation_id", "position"], name: "index_conversation_messages_on_conversation_id_and_position"
+    t.index ["conversation_id"], name: "index_conversation_messages_on_conversation_id"
+  end
+
+  create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "cwd"
+    t.string "git_branch"
+    t.datetime "last_message_at"
+    t.integer "message_count", default: 0, null: false
+    t.string "model"
+    t.string "name"
+    t.uuid "project_id", null: false
+    t.string "session_id", null: false
+    t.string "source", default: "claude-cli", null: false
+    t.datetime "started_at"
+    t.datetime "summarized_at"
+    t.text "summary"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.index ["last_message_at"], name: "index_conversations_on_last_message_at"
+    t.index ["project_id"], name: "index_conversations_on_project_id"
+    t.index ["session_id"], name: "index_conversations_on_session_id", unique: true
   end
 
   create_table "environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -73,6 +118,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
   end
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "color"
     t.datetime "created_at", null: false
     t.string "default_base_url"
     t.text "description"
@@ -81,6 +127,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
     t.string "slug", null: false
     t.datetime "updated_at", null: false
     t.index ["slug"], name: "index_projects_on_slug", unique: true
+  end
+
+  create_table "session_commands", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "body", null: false
+    t.uuid "conversation_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "responded_at"
+    t.text "result"
+    t.string "source", default: "web"
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["conversation_id", "created_at"], name: "index_session_commands_on_conversation_id_and_created_at"
+    t.index ["conversation_id"], name: "index_session_commands_on_conversation_id"
+    t.index ["status"], name: "index_session_commands_on_status"
   end
 
   create_table "tasks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -176,11 +236,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_31_000002) do
   end
 
   add_foreign_key "browser_messages", "browser_tasks"
+  add_foreign_key "browser_tasks", "conversations"
   add_foreign_key "browser_tasks", "projects"
+  add_foreign_key "conversation_messages", "conversations"
+  add_foreign_key "conversations", "projects"
   add_foreign_key "environments", "projects"
   add_foreign_key "follow_up_tasks", "projects"
   add_foreign_key "follow_up_tasks", "tasks"
   add_foreign_key "follow_up_tasks", "test_results"
+  add_foreign_key "session_commands", "conversations"
   add_foreign_key "tasks", "environments"
   add_foreign_key "tasks", "projects"
   add_foreign_key "test_cases", "tasks"

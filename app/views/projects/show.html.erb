@@ -105,6 +105,22 @@
       <div class="mt-3"><%= link_to "+ Environment", new_project_environment_path(@project), class: "text-xs text-slate-600 hover:text-slate-900" %></div>
     <% end %>
 
+    <%= card title: "Claude CLI conversations", actions: link_to("View all →", project_conversations_path(@project), class: "hover:text-slate-900") do %>
+      <% recent_convos = @project.conversations.recent.limit(6) %>
+      <% if recent_convos.empty? %>
+        <p class="text-sm text-slate-500">No conversations captured yet. CLI sessions in this project are saved here automatically.</p>
+      <% else %>
+        <ul class="space-y-2">
+          <% recent_convos.each do |c| %>
+            <li class="text-sm">
+              <%= link_to c.display_title, conversation_path(c), class: "text-slate-900 hover:text-slate-700 truncate block" %>
+              <div class="text-xs text-slate-500 mt-0.5"><%= pluralize(c.message_count, "turn") %> · <%= ago(c.last_message_at || c.created_at) %></div>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% end %>
+
     <%= card title: "Open follow-ups" do %>
       <% if @follow_ups.empty? %>
         <p class="text-sm text-slate-500">Nothing open.</p>

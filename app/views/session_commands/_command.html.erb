@@ -1,0 +1,18 @@
+<%# locals: command %>
+<div id="session_command_<%= command.id %>" class="py-2 hair-b last:border-0">
+  <div class="flex items-center gap-2 mb-1">
+    <%= status_pill(command.status) %>
+    <% if command.source == "voice" %>
+      <span class="text-[10px] text-[color:var(--color-ink-faint)]">🎤 voice</span>
+    <% end %>
+    <span class="text-[10px] text-[color:var(--color-ink-faint)] tabular ml-auto"><%= command.created_at.strftime("%-l:%M %p") %></span>
+  </div>
+  <p class="text-sm text-[color:var(--color-ink)] whitespace-pre-wrap"><%= command.body %></p>
+  <% if command.result.present? %>
+    <div class="mt-1.5 pl-2.5 border-l-2 border-[color:var(--color-hair)] text-sm text-[color:var(--color-ink-soft)]">
+      <%= markdown(command.result) %>
+    </div>
+  <% elsif command.status == "pending" %>
+    <p class="mt-1 text-[11px] text-[color:var(--color-ink-faint)]">Waiting for the live session to pick this up…</p>
+  <% end %>
+</div>

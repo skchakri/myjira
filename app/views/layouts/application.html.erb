@@ -52,7 +52,7 @@
             <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--color-ink-faint)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
             <input
               type="text"
-              placeholder="Filter clients"
+              placeholder="Filter projects"
               data-client-filter-target="input"
               data-action="input->client-filter#filter keydown->client-filter#clear"
               class="w-full pl-7 pr-10 py-1.5 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none"
@@ -61,17 +61,55 @@
           </label>
         </div>
 
-        <!-- Section header -->
-        <div class="px-4 pt-3 pb-1.5 flex items-center justify-between">
-          <span class="eyebrow">Clients</span>
+        <!-- Channels: Browser Tasks + Conversations, grouped together -->
+        <div class="px-4 pt-3 pb-1.5">
+          <span class="eyebrow">Channels</span>
+        </div>
+        <nav class="px-2 pb-1 shrink-0">
+          <%# Relay channel %>
+          <% relay = browser_relay_stats
+             relay_active = controller_name == "browser_tasks"
+             relay_dot = if relay[:waiting].positive? then "dot-fail"
+                         elsif relay[:open].positive? then "dot-pass"
+                         else "dot-idle"
+                         end %>
+          <%= link_to browser_tasks_path, class: "clink #{relay_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= relay_dot %>" title="relay"></span>
+            <span class="truncate">Browser Tasks</span>
+            <% if relay[:open].positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono <%= relay[:waiting].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
+                <%= relay[:open] %>
+              </span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">chrome</span>
+            <% end %>
+          <% end %>
+
+          <%# Conversations hub — every CLI session, grouped by project %>
+          <% convo_active = controller_name == "conversations" %>
+          <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" title="conversations"></span>
+            <span class="truncate">Conversations</span>
+            <% if conversations_total.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-ink-faint)]"><%= conversations_total %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">cli</span>
+            <% end %>
+          <% end %>
+        </nav>
+
+        <div class="my-1.5 mx-3 h-px shrink-0" style="background:var(--color-hair-soft);"></div>
+
+        <!-- Projects: their own nav section -->
+        <div class="px-4 pt-1 pb-1.5 flex items-center justify-between shrink-0">
+          <span class="eyebrow">Projects</span>
           <span class="eyebrow" data-client-filter-target="count"><%= sidebar_clients.size %></span>
         </div>
 
-        <!-- Client list -->
         <nav class="flex-1 overflow-y-auto px-2 pb-3">
           <% if sidebar_clients.empty? %>
             <div class="px-3 py-6 text-sm text-[color:var(--color-ink-faint)]">
-              No clients yet.<br>
+              No projects yet.<br>
               <span class="text-[11px] font-mono">GET /c/&lt;slug&gt;</span> to create one.
             </div>
           <% end %>
@@ -117,11 +155,6 @@
           <%= link_to projects_path, class: "clink text-[12.5px]" do %>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
             All projects
-          <% end %>
-          <%= link_to browser_tasks_path, class: "clink text-[12.5px]" do %>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v12H5.2L4 17.2V4Z"/><path d="M8 9h8M8 12h5"/></svg>
-            Relay channel
-            <span class="clink-slug">chrome</span>
           <% end %>
           <a href="/api/v1/spec" target="_blank" class="clink text-[12.5px]">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 8 5-4 5 4M7 16l5 4 5-4M12 4v16"/></svg>

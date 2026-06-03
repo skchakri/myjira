@@ -1,8 +1,8 @@
 class ProjectsController < ApplicationController
-  before_action :set_project, only: [:show, :edit, :update, :destroy]
+  before_action :set_project, only: [:show, :edit, :update, :destroy, :color]
 
   def index
-    @projects = Project.order(:name)
+    @projects = Project.clients.order(:name)
   end
 
   def show
@@ -37,6 +37,14 @@ class ProjectsController < ApplicationController
   def destroy
     @project.destroy
     redirect_to projects_path, notice: "Project deleted."
+  end
+
+  # Recolor a folder from the conversation cards' gear menu. Accepts a hex value
+  # or blank (reset to the palette default). Returns to wherever it was called.
+  def color
+    value = params[:color].to_s
+    @project.update_column(:color, value.match?(/\A#[0-9A-Fa-f]{6}\z/) ? value.downcase : nil)
+    redirect_back fallback_location: conversations_path
   end
 
   private

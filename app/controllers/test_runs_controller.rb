@@ -55,13 +55,13 @@ class TestRunsController < ApplicationController
     @run.recalc_counts!
     @run.status = if @run.failed_count.to_i.positive?
                     "failed"
-                  elsif @run.blocked_count.to_i.positive? || @run.skipped_count.to_i.positive?
+    elsif @run.blocked_count.to_i.positive? || @run.skipped_count.to_i.positive?
                     "partial"
-                  elsif @run.passed_count.to_i == @run.total_cases.to_i && @run.total_cases.to_i.positive?
+    elsif @run.passed_count.to_i == @run.total_cases.to_i && @run.total_cases.to_i.positive?
                     "passed"
-                  else
+    else
                     "partial"
-                  end
+    end
     @run.save!
     redirect_to test_run_path(@run), notice: "Run completed."
   end

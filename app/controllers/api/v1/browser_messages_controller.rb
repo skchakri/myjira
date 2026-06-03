@@ -12,6 +12,7 @@ module Api
       end
 
       def create
+        stamp_browser_session!
         msg = @task.browser_messages.create!(message_params)
         @task.reload
         render json: message_json(msg).merge(
@@ -31,6 +32,17 @@ module Api
         permitted = raw.permit(:role, :kind, :body, payload: {})
         permitted[:kind] = "message" if permitted[:kind].blank?
         permitted
+      end
+
+      # Record which Chrome session handled this ticket. The extension sends
+      # browser_session_id top-level or inside payload; we keep the latest.
+      def stamp_browser_session!
+        sid = params[:browser_session_id].presence ||
+              params.dig(:message, :browser_session_id).presence ||
+              params.dig(:payload, :browser_session_id).presence ||
+              params.dig(:message, :payload, :browser_session_id).presence
+        return if sid.blank? || @task.browser_session_id == sid
+        @task.update_column(:browser_session_id, sid)
       end
 
       def message_json(m)

@@ -10,6 +10,7 @@ Rails.application.routes.draw do
   get "/c/:slug",  to: "clients#show",  as: :client
 
   resources :projects do
+    member { patch :color }
     resources :environments, except: [:index]
     resources :tasks, except: [:index] do
       resources :follow_up_tasks, only: [:new, :create], controller: "follow_up_tasks", as: :follow_ups
@@ -20,6 +21,17 @@ Rails.application.routes.draw do
     end
     resources :follow_up_tasks, only: [:index, :edit, :update, :destroy]
     resources :browser_tasks, only: [:index, :new, :create]
+    resources :conversations, only: [:index]
+  end
+
+  # Captured Claude CLI conversations (one thread per CLI session).
+  resources :conversations, only: [:index, :show] do
+    collection { get :live }
+    member do
+      patch :rename
+      post :summarize
+      post :command   # web → queue a command for the live session
+    end
   end
 
   resources :test_runs, only: [:show] do
@@ -36,6 +48,7 @@ Rails.application.routes.draw do
       post :kickoff
       post :complete
       post :cancel
+      post :humanize
     end
     resources :browser_messages, only: [:create]
   end
@@ -62,7 +75,21 @@ Rails.application.routes.draw do
         end
         resources :follow_up_tasks, only: [:index, :create, :update], path: "follow_ups"
         resources :browser_tasks, only: [:index, :create]
+        resources :conversations, only: [:index]
       end
+
+      # Claude CLI conversation capture. The Stop hook posts new turns to sync.
+      resources :conversations, only: [:index, :show] do
+        collection do
+          post :sync
+          get :name   # statusline looks up a session's name by session_id
+        end
+      end
+
+      # Web → live session command channel, keyed by CLI session_id. The
+      # `myjira-listen` listener long-polls index and PATCHes back the result.
+      get   "sessions/:session_id/commands",     to: "session_commands#index"
+      patch "sessions/:session_id/commands/:id", to: "session_commands#update"
 
       resources :test_runs, only: [:show, :update] do
         member do

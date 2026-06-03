@@ -1,33 +1,82 @@
 <%
-  role = message.role
-  align_right = role == "user"
-  bubble =
+  role  = message.role
+  kind  = message.kind
+  mine  = role == "user"
+
+  # System turns (myjira notes like "Kicked off…") read best as a centered
+  # chat event line rather than a speech bubble.
+  system_line = role == "system"
+
+  # Per-role avatar monogram + tint, mapped onto the editorial theme tokens.
+  avatar =
     case role
-    when "cli"     then "bg-amber-50 ring-amber-200 text-slate-800"
-    when "browser" then "bg-blue-50 ring-blue-200 text-slate-800"
-    when "user"    then "bg-slate-900 ring-slate-900 text-slate-100"
-    else                "bg-slate-50 ring-slate-200 text-slate-500"
+    when "cli"     then { mono: "CLI", style: "background:var(--color-amber-ink); color:#fff;" }
+    when "browser" then { mono: "Cr",  style: "background:var(--color-ink); color:var(--color-paper);" }
+    when "user"    then { mono: "You", style: "background:var(--color-ink-soft); color:var(--color-paper);" }
+    else                { mono: "mj",  style: "background:var(--color-paper-sunk); color:var(--color-ink-faint);" }
     end
-  show_kind = !%w[message instruction].include?(message.kind)
+
+  # Bubble tint. Error/question override the role tint so they stand out.
+  bubble =
+    if kind == "error"
+      "background:var(--color-fail-wash); border-color:color-mix(in srgb, var(--color-fail-ink) 22%, transparent); color:var(--color-ink);"
+    elsif kind == "question"
+      "background:var(--color-amber-wash); border-color:color-mix(in srgb, var(--color-amber-ink) 30%, transparent); color:var(--color-ink);"
+    elsif role == "user"
+      "background:var(--color-ink); border-color:var(--color-ink); color:var(--color-paper);"
+    elsif role == "cli"
+      "background:var(--color-amber-wash); border-color:color-mix(in srgb, var(--color-amber-ink) 16%, transparent); color:var(--color-ink);"
+    else # browser / fallback
+      "background:var(--color-paper-raised); border-color:var(--color-hair); color:var(--color-ink);"
+    end
+
+  kind_pill =
+    case kind
+    when "question"        then "pill-accent"
+    when "error"           then "pill-fail"
+    when "result", "done"  then "pill-pass"
+    when "answer", "note"  then "pill-quiet"
+    end
+  show_kind = !%w[message instruction].include?(kind)
 %>
-<div id="browser_message_<%= message.id %>" class="flex <%= align_right ? 'justify-end' : 'justify-start' %>">
-  <div class="max-w-[80%]">
-    <div class="flex items-center gap-2 mb-0.5 <%= align_right ? 'justify-end' : '' %>">
-      <span class="text-[11px] font-medium text-slate-600"><%= message.display_role %></span>
-      <% if show_kind %>
-        <span class="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded ring-1 ring-inset
-          <%= message.kind == 'question' ? 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200' :
-              message.kind == 'error' ? 'bg-rose-50 text-rose-700 ring-rose-200' :
-              'bg-slate-100 text-slate-600 ring-slate-200' %>"><%= message.kind %></span>
-      <% end %>
-      <span class="text-[10px] text-slate-400 tabular"><%= message.created_at.strftime("%-l:%M %p") %></span>
-    </div>
-    <div class="rounded-lg px-3 py-2 text-sm ring-1 ring-inset <%= bubble %>">
-      <pre class="whitespace-pre-wrap font-sans"><%= message.body %></pre>
-      <% if message.payload.is_a?(Hash) && message.payload["screenshot_url"].present? %>
-        <a href="<%= message.payload['screenshot_url'] %>" target="_blank" rel="noopener"
-           class="mt-1 inline-block text-xs underline opacity-80">screenshot ↗</a>
-      <% end %>
+
+<% if system_line %>
+  <div id="browser_message_<%= message.id %>" class="flex items-center gap-3 my-2">
+    <span class="flex-1 h-px" style="background:var(--color-hair-soft);"></span>
+    <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular">
+      <span class="font-medium"><%= message.display_role %></span>
+      · <%= message.body %>
+      · <%= message.created_at.strftime("%-l:%M %p") %>
+    </span>
+    <span class="flex-1 h-px" style="background:var(--color-hair-soft);"></span>
+  </div>
+<% else %>
+  <div id="browser_message_<%= message.id %>"
+       class="flex items-start gap-2.5 <%= mine ? 'flex-row-reverse' : 'flex-row' %>">
+    <%# avatar %>
+    <span class="shrink-0 mt-4 grid place-items-center rounded-full h-7 w-7 text-[9px] font-semibold tracking-tight select-none"
+          style="<%= avatar[:style] %>"><%= avatar[:mono] %></span>
+
+    <div class="min-w-0 max-w-[78%] flex flex-col <%= mine ? 'items-end' : 'items-start' %>">
+      <%# name · kind · time %>
+      <div class="flex items-center gap-2 mb-1 <%= mine ? 'flex-row-reverse' : '' %>">
+        <span class="text-[11px] font-semibold text-[color:var(--color-ink-soft)]"><%= message.display_role %></span>
+        <% if show_kind && kind_pill %>
+          <span class="pill <%= kind_pill %>"><%= kind %></span>
+        <% end %>
+        <span class="text-[10px] text-[color:var(--color-ink-faint)] tabular"><%= message.created_at.strftime("%-l:%M %p") %></span>
+      </div>
+
+      <%# bubble %>
+      <div class="rounded-2xl border px-3.5 py-2.5 text-sm leading-relaxed shadow-sm text-left
+                  <%= mine ? 'rounded-tr-sm' : 'rounded-tl-sm' %>"
+           style="<%= bubble %>">
+        <%= markdown(message.body) %>
+        <% if message.payload.is_a?(Hash) && message.payload["screenshot_url"].present? %>
+          <a href="<%= message.payload['screenshot_url'] %>" target="_blank" rel="noopener"
+             class="mt-1.5 inline-flex items-center gap-1 text-xs underline opacity-80">📎 screenshot ↗</a>
+        <% end %>
+      </div>
     </div>
   </div>
-</div>
+<% end %>

@@ -161,6 +161,78 @@ a.ink-link:hover { color: var(--color-amber-ink); text-decoration-color: var(--c
 
 *:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 2px; border-radius: 3px; }
 
+/* gear menus on conversation cards: drop the default disclosure triangle, and
+   lift the card with an open menu above its neighbours so the popover isn't clipped */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+.conv-card:has(details[open]), .conv-group-head:has(details[open]) { position: relative; z-index: 40; }
+
+/* per-message speak icon: filled while reading aloud */
+.say-btn[data-speaking="true"] {
+  background: var(--color-amber-ink) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 3px var(--color-amber-wash);
+}
+
+/* live session pulse */
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--color-pass-ink); animation: livepulse 1.6s ease-out infinite; }
+@keyframes livepulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-pass-ink) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Rendered markdown (Claude/CLI message bodies, humanized summaries) */
+.md { font-size: 0.875rem; line-height: 1.6; word-break: break-word; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0.5rem 0; }
+.md h1, .md h2, .md h3, .md h4 { font-weight: 600; line-height: 1.3; margin: 0.95rem 0 0.4rem; }
+.md h1 { font-size: 1.15rem; }
+.md h2 { font-size: 1.05rem; }
+.md h3 { font-size: 0.98rem; }
+.md h4 { font-size: 0.9rem; }
+.md ul, .md ol { margin: 0.4rem 0; padding-left: 1.3rem; }
+.md ul { list-style: disc; }
+.md ol { list-style: decimal; }
+.md li { margin: 0.15rem 0; }
+.md li > ul, .md li > ol { margin: 0.15rem 0; }
+.md a { color: var(--color-amber-ink); text-decoration: underline; text-underline-offset: 2px; }
+.md strong { font-weight: 600; }
+.md hr { border: 0; border-top: 1px solid var(--color-hair-soft); margin: 0.85rem 0; }
+.md blockquote {
+  border-left: 3px solid var(--color-hair);
+  padding-left: 0.75rem; margin: 0.5rem 0; color: var(--color-ink-soft);
+}
+/* inline code */
+.md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--color-paper-sunk);
+  color: var(--color-amber-ink);   /* readable on both light and dark bubbles */
+  border: 1px solid var(--color-hair);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+/* fenced code blocks — dark, distinct on both light bubbles and dark ones */
+.md pre {
+  background: #14110D;
+  color: #F2ECE0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin: 0.6rem 0;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+.md pre code {
+  background: transparent; border: 0; padding: 0; font-size: inherit; color: inherit;
+}
+.md table { border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85em; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--color-hair); padding: 0.25rem 0.55rem; text-align: left; }
+.md th { background: var(--color-paper-sunk); font-weight: 600; }
+
 @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .rise { animation: rise 280ms ease-out both; }
 .rise-1 { animation-delay: 40ms; }

@@ -4,6 +4,7 @@ class Project < ApplicationRecord
   has_many :test_plans, dependent: :destroy
   has_many :follow_up_tasks, dependent: :destroy
   has_many :browser_tasks, dependent: :destroy
+  has_many :conversations, dependent: :destroy
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,
@@ -11,6 +12,20 @@ class Project < ApplicationRecord
 
   before_validation :derive_slug, on: :create
   after_create :ensure_default_environments!
+
+  # A "client" is a project with real myjira work — tasks, test plans, gaps, or
+  # relay (browser) tickets. Projects that exist only to group captured CLI
+  # conversations (the sync hook makes one per working dir) are NOT clients;
+  # they stay out of the Clients sidebar / projects index and live under
+  # Conversations instead. Self-correcting: add any real artifact and it appears.
+  scope :clients, lambda {
+    where(
+      "EXISTS (SELECT 1 FROM tasks t WHERE t.project_id = projects.id) " \
+      "OR EXISTS (SELECT 1 FROM test_plans tp WHERE tp.project_id = projects.id) " \
+      "OR EXISTS (SELECT 1 FROM follow_up_tasks f WHERE f.project_id = projects.id) " \
+      "OR EXISTS (SELECT 1 FROM browser_tasks b WHERE b.project_id = projects.id)"
+    )
+  }
 
   DEFAULT_ENVIRONMENTS = [
     { name: "Development", base_url: nil },
@@ -42,7 +57,8 @@ class Project < ApplicationRecord
       tasks: tasks.count,
       open_tasks: tasks.where(status: %w[open in_progress]).count,
       test_plans: test_plans.count,
-      open_follow_ups: follow_up_tasks.where(status: %w[open in_progress]).count
+      open_follow_ups: follow_up_tasks.where(status: %w[open in_progress]).count,
+      conversations: conversations.count
     }
   end
 

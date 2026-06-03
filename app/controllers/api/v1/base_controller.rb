@@ -46,12 +46,14 @@ module Api
           }
         when BrowserTask
           {
-            kickoff:      "POST #{base_url}/api/v1/browser_tasks/#{resource.id}/kickoff",
+            # Only suggest kickoff while it still needs releasing — an
+            # auto-dispatched ticket is already past 'queued'.
+            kickoff:      (resource.status == "queued" ? "POST #{base_url}/api/v1/browser_tasks/#{resource.id}/kickoff" : nil),
             post_message: "POST #{base_url}/api/v1/browser_tasks/#{resource.id}/messages",
             watch:        "GET #{base_url}/api/v1/browser_tasks/#{resource.id}?wait=25&since={iso8601_cursor}",
             complete:     "PATCH #{base_url}/api/v1/browser_tasks/#{resource.id}/complete",
             view:         "#{base_url}/browser_tasks/#{resource.id}"
-          }
+          }.compact
         else
           {}
         end

@@ -1,0 +1,27 @@
+<%# Bottom-right "Humanize" action: a FAB that summarizes the whole thread into a
+    warm, plain-English recap, shown in a popover above the button. %>
+<div class="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3" data-controller="humanize">
+  <div data-humanize-target="panel"
+       class="<%= task.humanized_summary.present? ? '' : 'hidden' %> w-[380px] max-w-[calc(100vw-3rem)] paper rounded-xl overflow-hidden shadow-xl">
+    <header class="flex items-center justify-between px-4 py-2.5 hair-b">
+      <span class="eyebrow">Humanized recap</span>
+      <button type="button" data-action="humanize#close"
+              class="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] text-lg leading-none cursor-pointer"
+              aria-label="Close">×</button>
+    </header>
+    <div id="humanize_content_<%= task.id %>" class="p-4 max-h-[50vh] overflow-y-auto">
+      <%= render "browser_tasks/humanize_content", task: task %>
+    </div>
+  </div>
+
+  <%= form_with url: humanize_browser_task_path(task), method: :post do |f| %>
+    <button type="submit" data-action="humanize#open"
+            class="inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-white shadow-lg cursor-pointer hover:opacity-90"
+            style="background:var(--color-amber-ink);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2l1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9L12 2zM19 14l.95 2.55L22.5 17.5l-2.55.95L19 21l-.95-2.55L15.5 17.5l2.55-.95L19 14z"/>
+      </svg>
+      Humanize
+    </button>
+  <% end %>
+</div>

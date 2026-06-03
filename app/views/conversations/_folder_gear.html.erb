@@ -1,0 +1,20 @@
+<%# locals: project — gear menu to recolour a folder (used on cards + group headers) %>
+<details class="relative pointer-events-auto z-[3] shrink-0">
+  <summary class="grid place-items-center h-6 w-6 rounded-md cursor-pointer text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] hover:bg-[color:var(--color-paper-sunk)]" title="Folder colour">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </summary>
+  <div class="absolute right-0 mt-1 w-[176px] paper rounded-lg shadow-xl p-2.5 z-[30] text-left">
+    <div class="eyebrow mb-1.5">Folder colour · <%= project.name %></div>
+    <div class="grid grid-cols-5 gap-1.5">
+      <% UiHelper::FOLDER_PALETTE.each do |hex| %>
+        <%= button_to color_project_path(project), method: :patch, params: { color: hex },
+              form_class: "contents",
+              class: "h-6 w-6 rounded-full cursor-pointer ring-1 ring-black/10 hover:scale-110 transition-transform #{'ring-2 ring-[color:var(--color-ink)]' if project.color.to_s.casecmp?(hex)}",
+              style: "background:#{hex};" do %><% end %>
+      <% end %>
+    </div>
+    <%= button_to "Reset to auto", color_project_path(project), method: :patch, params: { color: "" },
+          form_class: "contents",
+          class: "mt-2 block w-full text-center text-[11px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] cursor-pointer" %>
+  </div>
+</details>

@@ -14,10 +14,30 @@
 </div>
 
 <p class="text-sm text-slate-500 mb-4 max-w-2xl">
-  A shared channel: any Claude CLI session files an instruction here, you kick it off,
-  Claude-in-Chrome executes it and posts results — or questions — back to the same ticket.
-  Both sides watch the same thread.
+  A shared channel: any Claude CLI session files an instruction here and it's
+  <strong>auto-dispatched</strong> — Claude-in-Chrome executes it and posts results, or questions,
+  back to the same ticket, and the CLI watches live. Start the standing worker once (below) and
+  no per-ticket kick-off is needed.
 </p>
+
+<% if params[:project_id].blank? %>
+  <div class="mb-4" data-controller="clipboard">
+    <%= card title: "Standing relay worker → paste once into Claude for Chrome" do %>
+      <div class="flex items-start justify-between gap-3 mb-2">
+        <p class="text-xs text-slate-500 max-w-2xl">
+          Paste this <strong>once</strong> into a Claude for Chrome chat and leave it running. It watches the
+          whole queue and works every auto-dispatched ticket as it arrives — so you never click
+          <strong>Kick off</strong> per ticket. (Per-ticket pages still have their own hand-off prompt.)
+        </p>
+        <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
+                class="shrink-0 text-xs px-2 py-1 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700">
+          Copy worker
+        </button>
+      </div>
+      <pre data-clipboard-target="source" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_worker_prompt %></pre>
+    <% end %>
+  </div>
+<% end %>
 
 <%= card do %>
   <% if @tasks.empty? %>

@@ -1,0 +1,84 @@
+<% content_for :title, @project ? "#{@project.name} · sessions" : "Conversations" %>
+
+<div class="flex items-baseline justify-between mb-1">
+  <div>
+    <div class="eyebrow">Claude CLI history</div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+      <%= @project ? "#{@project.name} · sessions" : "Conversations" %>
+    </h1>
+  </div>
+  <div class="flex items-center gap-3">
+    <% unless @project %>
+      <div class="flex gap-1">
+        <%= link_to "By folder", conversations_path,
+              class: "pill #{@view == :grouped ? 'pill-accent' : 'pill-quiet'}" %>
+        <%= link_to "Newest", conversations_path(view: "flat"),
+              class: "pill #{@view == :flat ? 'pill-accent' : 'pill-quiet'}" %>
+      </div>
+      <span class="text-xs text-slate-400 tabular"><%= pluralize(conversations_total, "session") %></span>
+    <% end %>
+  </div>
+</div>
+
+<p class="text-sm text-slate-500 mb-4 max-w-2xl">
+  Every Claude CLI session — your prompts, Claude's replies, and the actions it took —
+  captured turn-by-turn. <strong>Grouped by client, newest first.</strong> Each folder has its own
+  colour; click the ⚙ to recolour it.
+</p>
+
+<% unless @project %>
+  <%= turbo_frame_tag "live_sessions", src: live_conversations_path,
+        data: { controller: "auto-reload", auto_reload_interval_value: 15000 } %>
+<% end %>
+
+<% if @grouped %>
+  <%# ---- Default: grouped by folder ---- %>
+  <% if @grouped.empty? %>
+    <%= card do %>
+      <div class="py-10 text-center text-sm text-slate-500">
+        No conversations captured yet. They appear here automatically as you work in any project.
+      </div>
+    <% end %>
+  <% else %>
+    <div class="space-y-6">
+      <% @grouped.each do |project, sessions| %>
+        <% color = project_color(project)
+           preview = sessions.first(ConversationsController::PER_PROJECT_PREVIEW) %>
+        <section class="conv-group">
+          <div class="conv-group-head relative flex items-center gap-2 mb-2 pb-1.5 hair-b">
+            <span class="h-3 w-3 rounded-full shrink-0" style="background:<%= color %>;"></span>
+            <%= link_to project.name, project_conversations_path(project),
+                  class: "text-sm font-semibold hover:underline", style: "color:#{color};" %>
+            <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= sessions.size %></span>
+            <%= render "folder_gear", project: project %>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+            <% preview.each do |c| %>
+              <%= render "conversation_card", c: c, show_folder: false, show_gear: false %>
+            <% end %>
+          </div>
+          <% if sessions.size > preview.size %>
+            <div class="mt-2 text-xs">
+              <%= link_to "View all #{sessions.size} sessions in #{project.name} →",
+                    project_conversations_path(project),
+                    class: "text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]" %>
+            </div>
+          <% end %>
+        </section>
+      <% end %>
+    </div>
+  <% end %>
+<% elsif @conversations.empty? %>
+  <%= card do %>
+    <div class="py-10 text-center text-sm text-slate-500">
+      <%= @project ? "No sessions captured for this project yet." : "No sessions captured yet." %>
+    </div>
+  <% end %>
+<% else %>
+  <%# ---- Flat (Newest), or a single project's sessions ---- %>
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+    <% @conversations.each do |c| %>
+      <%= render "conversation_card", c: c, show_folder: true, show_gear: true %>
+    <% end %>
+  </div>
+<% end %>
