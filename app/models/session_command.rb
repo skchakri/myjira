@@ -6,8 +6,11 @@ class SessionCommand < ApplicationRecord
   STATUSES = %w[pending running done failed].freeze
 
   belongs_to :conversation
+  # Files the user attached to drive the session — images / video / audio,
+  # like dropping a file into Claude CLI. The listener downloads them.
+  has_many_attached :files
 
-  validates :body, presence: true
+  validates :body, presence: true, unless: -> { files.attached? }
   validates :status, inclusion: { in: STATUSES }
 
   scope :recent, -> { order(created_at: :desc) }

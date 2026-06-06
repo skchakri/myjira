@@ -8,6 +8,25 @@
     <span class="text-[10px] text-[color:var(--color-ink-faint)] tabular ml-auto"><%= command.created_at.strftime("%-l:%M %p") %></span>
   </div>
   <p class="text-sm text-[color:var(--color-ink)] whitespace-pre-wrap"><%= command.body %></p>
+  <% if command.files.attached? %>
+    <div class="mt-1.5 flex flex-wrap gap-2">
+      <% command.files.each do |file| %>
+        <% ct = file.content_type.to_s %>
+        <% if ct.start_with?("image/") %>
+          <a href="<%= rails_blob_path(file) %>" target="_blank" rel="noopener">
+            <img src="<%= rails_blob_path(file) %>" alt="<%= file.filename %>"
+                 class="h-16 w-16 object-cover rounded-md hair-all">
+          </a>
+        <% else %>
+          <a href="<%= rails_blob_path(file) %>" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md hair-all hover:bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink-soft)]">
+            <%= ct.start_with?("video/") ? "🎬" : ct.start_with?("audio/") ? "🎵" : "📄" %>
+            <span class="truncate max-w-[160px]"><%= file.filename %></span>
+          </a>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
   <% if command.result.present? %>
     <div class="mt-1.5 pl-2.5 border-l-2 border-[color:var(--color-hair)] text-sm text-[color:var(--color-ink-soft)]">
       <%= markdown(command.result) %>

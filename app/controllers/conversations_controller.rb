@@ -46,12 +46,19 @@ class ConversationsController < ApplicationController
     end
   end
 
-  # Queue a command for this (live) session. The listener picks it up and runs it.
+  # Queue a command for this (live) session, optionally with attached files
+  # (image / video / audio — like dropping a file into Claude CLI). The listener
+  # picks it up, downloads any attachments, and runs it.
   def command
     convo = Conversation.find(params[:id])
-    body = params[:body].to_s.strip
-    if body.present?
-      convo.session_commands.create!(body: body, source: params[:source].presence || "web")
+    body  = params[:body].to_s.strip
+    files = Array(params[:files]).reject { |f| f.respond_to?(:blank?) && f.blank? }
+    if body.present? || files.any?
+      convo.session_commands.create!(
+        body: body.presence || "📎 (attached files)",
+        source: params[:source].presence || "web",
+        files: files
+      )
     end
     respond_to do |format|
       format.turbo_stream { head :no_content }   # the new command streams in via broadcast

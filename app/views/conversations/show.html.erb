@@ -64,11 +64,21 @@
       Delivered to the live session if it's running <code class="font-mono text-slate-700">/myjira-listen</code> —
       it runs the command and posts the reply here. Works only while the session is <strong>live</strong>.
     </p>
-    <%= form_with url: command_conversation_path(@conversation), method: :post, class: "flex items-end gap-2 mb-3" do |f| %>
-      <%= f.text_area :body, rows: 2, required: true,
-            placeholder: "e.g. run the tests and summarize any failures",
-            class: "flex-1 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-lg px-3 py-2 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
-      <%= f.submit "Send", class: "shrink-0 text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-4 py-2 rounded-lg cursor-pointer" %>
+    <%= form_with url: command_conversation_path(@conversation), method: :post,
+          data: { controller: "file-input", action: "reset->file-input#clear" }, class: "mb-3" do |f| %>
+      <div class="flex items-end gap-2">
+        <label title="Attach image, video, or audio"
+               class="shrink-0 grid place-items-center h-[42px] w-10 rounded-lg hair-all cursor-pointer text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-paper-sunk)]">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          <%= f.file_field :files, multiple: true, accept: "image/*,video/*,audio/*",
+                class: "hidden", data: { file_input_target: "input", action: "file-input#changed" } %>
+        </label>
+        <%= f.text_area :body, rows: 2,
+              placeholder: "Type a command, and/or attach a file…",
+              class: "flex-1 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-lg px-3 py-2 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
+        <%= f.submit "Send", class: "shrink-0 text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-4 py-2 rounded-lg cursor-pointer" %>
+      </div>
+      <p class="hidden mt-1 text-[11px] text-[color:var(--color-ink-faint)]" data-file-input-target="list"></p>
     <% end %>
     <div id="session_commands_<%= @conversation.id %>">
       <% @commands.each do |c| %><%= render "session_commands/command", command: c %><% end %>

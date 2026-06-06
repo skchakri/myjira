@@ -57,7 +57,11 @@ module Api
       def serialize(c)
         { id: c.id, body: c.body, status: c.status, result: c.result,
           source: c.source, created_at: c.created_at.iso8601(6),
-          responded_at: c.responded_at&.iso8601(6) }
+          responded_at: c.responded_at&.iso8601(6),
+          attachments: c.files.map { |f|
+            { filename: f.filename.to_s, content_type: f.content_type,
+              byte_size: f.byte_size, url: "#{base_url}#{rails_blob_path(f)}" }
+          } }
       end
 
       def parse_time(raw)
