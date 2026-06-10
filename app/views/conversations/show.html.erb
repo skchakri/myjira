@@ -30,11 +30,30 @@
     <div class="mt-1 flex items-center gap-2 text-[11px] text-[color:var(--color-ink-faint)] font-mono flex-wrap">
       <% if @conversation.model.present? %><span class="pill pill-quiet"><%= @conversation.model %></span><% end %>
       <% if @conversation.git_branch.present? %><span>⎇ <%= @conversation.git_branch %></span><% end %>
+      <% Array(@conversation.prs).each do |pr| %>
+        <%= link_to "##{pr['number']} #{pr['draft'] ? 'draft' : pr['state']}", pr["url"], target: "_blank", rel: "noopener",
+              title: pr["title"], class: "pill #{pr_pill_class(pr['state'], pr['draft'])} !py-0" %>
+      <% end %>
       <% if @conversation.cwd.present? %><span class="truncate max-w-md"><%= @conversation.cwd %></span><% end %>
       <span><%= pluralize(@conversation.message_count, "turn") %></span>
     </div>
   </div>
 </div>
+
+<% if @conversation.highlights.present? %>
+  <div class="mt-4">
+    <%= card title: "What happened this session" do %>
+      <ul class="space-y-1.5">
+        <% @conversation.highlights.each do |h| %>
+          <li class="flex items-start gap-2.5 text-sm text-[color:var(--color-ink)]">
+            <span class="shrink-0 w-4 text-center text-[color:var(--color-ink-faint)]"><%= highlight_glyph(h["kind"]) %></span>
+            <span><%= h["text"] %></span>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+<% end %>
 
 <% resume_cmd = @conversation.cwd.present? ?
      %(cd "#{@conversation.cwd}" && claude --resume #{@conversation.session_id}) :
@@ -80,6 +99,7 @@
       </div>
       <p class="hidden mt-1 text-[11px] text-[color:var(--color-ink-faint)]" data-file-input-target="list"></p>
     <% end %>
+    <div id="command_error_<%= @conversation.id %>"></div>
     <div id="session_commands_<%= @conversation.id %>">
       <% @commands.each do |c| %><%= render "session_commands/command", command: c %><% end %>
     </div>

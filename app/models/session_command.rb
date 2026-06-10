@@ -5,6 +5,13 @@
 class SessionCommand < ApplicationRecord
   STATUSES = %w[pending running done failed].freeze
 
+  # Attachment guards. The upload endpoint has no auth and the listener
+  # auto-downloads these to the host, so bound count / size / type here —
+  # the browser `accept=` filter is advisory only.
+  MAX_FILES         = 10
+  MAX_FILE_SIZE     = 25.megabytes
+  ALLOWED_FILE_TYPE = %r{\A(image|video|audio)/}
+
   belongs_to :conversation
   # Files the user attached to drive the session — images / video / audio,
   # like dropping a file into Claude CLI. The listener downloads them.
@@ -12,6 +19,7 @@ class SessionCommand < ApplicationRecord
 
   validates :body, presence: true, unless: -> { files.attached? }
   validates :status, inclusion: { in: STATUSES }
+  validate :files_within_limits
 
   scope :recent, -> { order(created_at: :desc) }
   scope :pending, -> { where(status: "pending") }
@@ -24,6 +32,17 @@ class SessionCommand < ApplicationRecord
   end
 
   private
+
+  def files_within_limits
+    return unless files.attached?
+
+    attached = files.attachments
+    errors.add(:files, "too many files (max #{MAX_FILES})") if attached.size > MAX_FILES
+    attached.each do |a|
+      errors.add(:files, "#{a.filename} exceeds #{MAX_FILE_SIZE / 1.megabyte} MB") if a.byte_size.to_i > MAX_FILE_SIZE
+      errors.add(:files, "#{a.filename} is not an image, video, or audio file") unless a.content_type.to_s.match?(ALLOWED_FILE_TYPE)
+    end
+  end
 
   def broadcast_new
     broadcast_prepend_to [conversation, :commands],

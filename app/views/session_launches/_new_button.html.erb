@@ -1,0 +1,43 @@
+<%# locals: project. A "+ New session" disclosure that queues an interactive
+    Claude CLI session in this project's repo. The host-side launcher daemon
+    spawns it in a tmux window; it appears in the grid immediately and fills in
+    live. Disabled-looking hint when myjira doesn't know the repo path yet. %>
+<details class="relative pointer-events-auto z-[3] shrink-0 group/launch">
+  <summary class="inline-flex items-center gap-1 h-6 px-2 rounded-md cursor-pointer text-[11px] font-semibold
+                  text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)]
+                  hover:bg-[color:var(--color-paper-sunk)]" title="Launch a new Claude session here">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New session
+  </summary>
+  <div class="absolute left-0 mt-1 w-[320px] paper rounded-lg shadow-xl p-3 z-30 text-left">
+    <div class="eyebrow mb-1.5">Launch Claude · <%= project.name %></div>
+    <% if project.repo_path.blank? %>
+      <p class="text-[12px] text-[color:var(--color-ink-faint)]">
+        myjira doesn't know this project's folder yet. Run a Claude session in it once —
+        the sync hook records the path — then you can launch from here.
+      </p>
+    <% else %>
+      <%= form_with url: project_session_launches_path(project), method: :post do |f| %>
+        <%= f.text_area :prompt, rows: 3, autofocus: true,
+              placeholder: "What should this session do? e.g. “run the test suite and fix failures”",
+              class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2.5 py-2 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
+        <div class="mt-2 flex items-center gap-2">
+          <label class="text-[10.5px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">model</label>
+          <%= f.select :model, SessionLaunch::MODELS.map { |m| [m, m] }, {},
+                class: "text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+          <label class="text-[10.5px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">perms</label>
+          <%= f.select :permission_mode, SessionLaunch::PERMISSION_MODES.map { |m| [m, m] }, {},
+                class: "text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+        </div>
+        <div class="mt-2.5 flex items-center justify-between gap-2">
+          <span class="text-[10.5px] text-[color:var(--color-ink-faint)] font-mono truncate" title="<%= project.repo_path %>">⌁ <%= File.basename(project.repo_path) %></span>
+          <%= f.submit "Launch", class: "shrink-0 text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3.5 py-1.5 rounded-md cursor-pointer" %>
+        </div>
+      <% end %>
+      <p class="mt-2 text-[10.5px] text-[color:var(--color-ink-faint)] leading-snug">
+        Opens an interactive <code class="font-mono">claude</code> in a tmux window on this machine.
+        The host launcher daemon must be running.
+      </p>
+    <% end %>
+  </div>
+</details>

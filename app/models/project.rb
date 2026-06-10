@@ -5,6 +5,8 @@ class Project < ApplicationRecord
   has_many :follow_up_tasks, dependent: :destroy
   has_many :browser_tasks, dependent: :destroy
   has_many :conversations, dependent: :destroy
+  has_many :session_launches, dependent: :destroy
+  has_many :agents, dependent: :destroy
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,
@@ -50,6 +52,12 @@ class Project < ApplicationRecord
 
   def default_environment
     environments.find_by(name: "Development") || environments.order(:name).first
+  end
+
+  # Triggerable agents shown for this folder: the ones discovered in its own
+  # repo, plus every global skill/agent/command (available everywhere).
+  def available_agents
+    Agent.enabled.where("agents.project_id = :id OR agents.scope = 'global'", id: id).ordered
   end
 
   def rollup

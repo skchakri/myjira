@@ -1,0 +1,6 @@
+<%# locals: message: (String or nil). Blank clears the region. %>
+<% if message.present? %>
+  <p class="mt-2 flex items-start gap-1.5 text-xs text-[color:var(--color-ink-soft)]">
+    <span class="pill pill-fail shrink-0">rejected</span><span><%= message %></span>
+  </p>
+<% end %>

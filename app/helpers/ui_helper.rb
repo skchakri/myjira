@@ -31,7 +31,11 @@ module UiHelper
     "dispatched"       => "pill-accent",
     "needs_input"      => "pill-block",
     "responded"        => "pill-pass",
-    "cancelled"        => "pill-quiet"
+    "cancelled"        => "pill-quiet",
+    # session-launch statuses (pending / failed already mapped above)
+    "launching"        => "pill-accent",
+    "launched"         => "pill-pass",
+    "canceled"         => "pill-quiet"
   }.freeze
 
   SEVERITY_CLASS = {
@@ -49,6 +53,26 @@ module UiHelper
   def severity_pill(value)
     klass = SEVERITY_CLASS[value.to_s] || "pill-quiet"
     content_tag :span, value.to_s, class: "pill #{klass}"
+  end
+
+  # Glyph for a session highlight bullet ({ "kind" => ... } from Conversation).
+  HIGHLIGHT_GLYPH = {
+    "commit" => "✓", "edit" => "✎", "test" => "▢",
+    "run" => "$", "task" => "✦", "web" => "↗"
+  }.freeze
+  def highlight_glyph(kind)
+    HIGHLIGHT_GLYPH[kind.to_s] || "•"
+  end
+
+  # Pill colour for a pull-request state badge (drafts read as quiet).
+  def pr_pill_class(state, draft = false)
+    return "pill-quiet" if draft
+    case state.to_s
+    when "open"   then "pill-pass"
+    when "merged" then "pill-accent"
+    when "closed" then "pill-fail"
+    else "pill-quiet"
+    end
   end
 
   def card(title: nil, actions: nil, &block)

@@ -66,6 +66,12 @@ module Api
         if pp[:repo_path].present? && project.repo_path != pp[:repo_path]
           project.update_columns(repo_path: pp[:repo_path])
         end
+        # Recent branches ride along only on throttled "git refresh" turns; absent
+        # key → leave the last-known list untouched (don't wipe it every turn).
+        if pp.key?(:branches)
+          project.update_columns(branches: jsonify(pp[:branches]).first(20),
+                                 branches_synced_at: Time.current)
+        end
         project
       end
 
@@ -78,6 +84,9 @@ module Api
         convo.source        = cp[:source].presence || "claude-cli"
         convo.model         = cp[:model] if cp[:model].present?
         convo.title         = cp[:title] if cp[:title].present?
+        # PRs for git_branch ride along on git-refresh turns; an explicit []
+        # clears stale PRs (e.g. after a merge), so key-present (not value) gates.
+        convo.prs           = jsonify(cp[:prs]).first(6) if cp.key?(:prs)
         convo.started_at  ||= parse_time(cp[:started_at]) || Time.current
         convo.save!
         convo
@@ -116,6 +125,18 @@ module Api
         (Time.at(raw.to_f) rescue nil)
       end
 
+      # Recursively turn permitted/unpermitted params (incl. arrays of objects)
+      # into plain JSON-able Ruby for jsonb columns — these payloads are trusted
+      # (local-only sync hook), so no per-key permitting.
+      def jsonify(val)
+        case val
+        when ActionController::Parameters then val.to_unsafe_h
+        when Array then val.map { |v| jsonify(v) }
+        when Hash then val.transform_values { |v| jsonify(v) }
+        else val
+        end
+      end
+
       def serialize(convo)
         {
           id: convo.id,
@@ -125,6 +146,9 @@ module Api
           source: convo.source,
           model: convo.model,
           git_branch: convo.git_branch,
+          prs: convo.prs,
+          last_context: convo.last_context,
+          highlights: convo.highlights,
           cwd: convo.cwd,
           message_count: convo.message_count,
           started_at: convo.started_at,

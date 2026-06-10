@@ -22,6 +22,18 @@ Rails.application.routes.draw do
     resources :follow_up_tasks, only: [:index, :edit, :update, :destroy]
     resources :browser_tasks, only: [:index, :new, :create]
     resources :conversations, only: [:index]
+    # Web → launch a new interactive Claude CLI session in this project's repo.
+    resources :session_launches, only: [:create]
+    # Web → trigger a discovered agent/skill/command (becomes a SessionLaunch).
+    resources :agents, only: [], controller: "agent_triggers" do
+      member { post :trigger }
+    end
+  end
+
+  # Launch lifecycle (cancel a queued one; auto-reloading "active launches" strip).
+  resources :session_launches, only: [] do
+    member { post :cancel }
+    collection { get :active }
   end
 
   # Captured Claude CLI conversations (one thread per CLI session).
@@ -90,6 +102,16 @@ Rails.application.routes.draw do
       # `myjira-listen` listener long-polls index and PATCHes back the result.
       get   "sessions/:session_id/commands",     to: "session_commands#index"
       patch "sessions/:session_id/commands/:id", to: "session_commands#update"
+
+      # Host-side launcher daemon: poll for queued launches, report status back.
+      resources :session_launches, only: [:update] do
+        collection { get :pending }
+      end
+
+      # Host-side daemon pushes the .claude agent/skill/command catalogue here.
+      resources :agents, only: [] do
+        collection { post :sync }
+      end
 
       resources :test_runs, only: [:show, :update] do
         member do

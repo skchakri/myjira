@@ -1,0 +1,19 @@
+<%# locals: project. (optional) agents — defaults to project.available_agents.
+    The clickable catalogue of AI agents, skills, and slash-commands available
+    in this folder's repo (plus globals). Each opens a small disclosure that
+    triggers a fresh Claude session running it. Renders nothing when empty. %>
+<% agents = local_assigns.fetch(:agents) { project.available_agents.to_a } %>
+<% if agents.any? %>
+  <section class="paper rounded-lg p-3 mb-4">
+    <div class="flex items-center gap-2 mb-2.5">
+      <span class="eyebrow">Agents in this folder</span>
+      <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= agents.size %></span>
+      <span class="ml-auto text-[10.5px] text-[color:var(--color-ink-faint)]">click to run · opens a Claude session here</span>
+    </div>
+    <div class="flex flex-wrap gap-1.5">
+      <% agents.each do |agent| %>
+        <%= render "agents/agent", agent: agent, project: project %>
+      <% end %>
+    </div>
+  </section>
+<% end %>

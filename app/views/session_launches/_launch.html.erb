@@ -1,0 +1,33 @@
+<%# locals: launch (SessionLaunch). One row in the "Launching" strip. %>
+<% color = project_color(launch.project) %>
+<div id="session_launch_<%= launch.id %>" class="paper rounded-lg p-2.5">
+  <div class="flex items-center gap-2">
+    <%= status_pill(launch.status) %>
+    <% if launch.conversation %>
+      <%= link_to launch.conversation.display_title, conversation_path(launch.conversation),
+            class: "text-[12px] font-semibold text-[color:var(--color-ink)] truncate hover:underline" %>
+    <% else %>
+      <span class="text-[12px] font-semibold text-[color:var(--color-ink)] truncate"><%= launch.prompt.to_s.truncate(70) %></span>
+    <% end %>
+    <span class="ml-auto shrink-0 text-[10.5px] font-sans font-semibold" style="color:<%= color %>;"><%= launch.project.name %></span>
+  </div>
+
+  <div class="mt-1.5 flex items-center flex-wrap gap-x-3 gap-y-1 text-[10.5px] font-mono text-[color:var(--color-ink-faint)]">
+    <% if launch.agent %>
+      <span class="text-[color:var(--color-amber-ink)] normal-case font-sans font-semibold"><%= launch.agent.glyph %> <%= launch.agent.name %></span>
+    <% end %>
+    <% if launch.status == "launched" && launch.tmux_target.present? %>
+      <span class="text-[color:var(--color-ink-soft)]">⧉ <%= launch.tmux_target %></span>
+      <span class="select-all text-[color:var(--color-ink)]">tmux attach -t <%= launch.tmux_session || "myjira" %></span>
+    <% elsif launch.status == "failed" %>
+      <span class="text-[color:var(--color-fail-ink)] normal-case font-sans"><%= launch.error.presence || "launch failed" %></span>
+    <% else %>
+      <span>queued — the host launcher daemon will pick this up</span>
+    <% end %>
+    <% unless launch.done? %>
+      <%= button_to "cancel", cancel_session_launch_path(launch), method: :post,
+            form_class: "contents",
+            class: "ml-auto text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] cursor-pointer" %>
+    <% end %>
+  </div>
+</div>

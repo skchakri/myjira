@@ -1,0 +1,40 @@
+<%# locals: agent (Agent), project (Project). One triggerable entry: a pill that
+    opens a small form to run this agent/skill/command in the project's repo.
+    Submitting posts to AgentTriggersController#trigger → SessionLaunch. %>
+<details class="relative group/agent shrink-0">
+  <summary class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md cursor-pointer list-none
+                  text-[12px] hair-all bg-[color:var(--color-paper-raised)]
+                  hover:border-[color:var(--color-amber-ink)]"
+           title="<%= agent.description.to_s.truncate(200) %>">
+    <span class="font-mono text-[color:var(--color-ink-faint)] group-hover/agent:text-[color:var(--color-amber-ink)]"><%= agent.glyph %></span>
+    <span class="font-semibold text-[color:var(--color-ink)]"><%= agent.name %></span>
+    <% if agent.scope == "global" %>
+      <span class="text-[9px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">global</span>
+    <% end %>
+  </summary>
+
+  <div class="absolute left-0 mt-1 w-[340px] paper rounded-lg shadow-xl p-3 z-30 text-left">
+    <div class="flex items-center gap-2 mb-1.5">
+      <span class="font-mono text-[color:var(--color-amber-ink)]"><%= agent.glyph %></span>
+      <span class="text-[12px] font-semibold text-[color:var(--color-ink)]"><%= agent.name %></span>
+      <span class="ml-auto pill pill-quiet !py-0 !px-1.5"><%= agent.kind %></span>
+    </div>
+    <% if agent.description.present? %>
+      <p class="text-[11px] text-[color:var(--color-ink-faint)] leading-snug mb-2 line-clamp-4"><%= agent.description %></p>
+    <% end %>
+
+    <%= form_with url: trigger_project_agent_path(project, agent), method: :post do |f| %>
+      <%= f.text_area :task, rows: 2,
+            placeholder: agent.kind == "agent" ? "What should #{agent.name} do? (optional)" : "arguments (optional)",
+            class: "w-full text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
+      <div class="mt-2 flex items-center gap-1.5">
+        <%= f.select :model, SessionLaunch::MODELS.map { |m| [m, m] },
+              { selected: SessionLaunch::MODELS.include?(agent.model) ? agent.model : "default" },
+              class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+        <%= f.select :permission_mode, SessionLaunch::PERMISSION_MODES.map { |m| [m, m] }, {},
+              class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+        <%= f.submit "Run", class: "ml-auto shrink-0 text-[12px] text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1 rounded-md cursor-pointer" %>
+      </div>
+    <% end %>
+  </div>
+</details>

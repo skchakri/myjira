@@ -53,16 +53,29 @@ class ConversationsController < ApplicationController
     convo = Conversation.find(params[:id])
     body  = params[:body].to_s.strip
     files = Array(params[:files]).reject { |f| f.respond_to?(:blank?) && f.blank? }
-    if body.present? || files.any?
-      convo.session_commands.create!(
-        body: body.presence || "📎 (attached files)",
-        source: params[:source].presence || "web",
-        files: files
-      )
-    end
+
+    # `create` (not `create!`) so a rejected upload (too big / wrong type) shows
+    # an inline message instead of a 500. A bare attachment gets a default
+    # instruction so the listener has something actionable to do with it.
+    command =
+      if body.present? || files.any?
+        convo.session_commands.create(
+          body: body.presence || "Review the attached file(s).",
+          source: params[:source].presence || "web",
+          files: files
+        )
+      end
+    error = command.errors.full_messages.to_sentence if command&.errors&.any?
+
     respond_to do |format|
-      format.turbo_stream { head :no_content }   # the new command streams in via broadcast
-      format.html { redirect_to conversation_path(convo) }
+      # On success the new command streams in via broadcast; this just clears any
+      # stale error. On failure (422) the form keeps the user's input.
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.update("command_error_#{convo.id}",
+          partial: "session_commands/error", locals: { message: error }),
+          status: (error ? :unprocessable_entity : :ok)
+      end
+      format.html { redirect_to conversation_path(convo), alert: error }
     end
   end
 

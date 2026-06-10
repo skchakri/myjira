@@ -1,0 +1,16 @@
+<%= turbo_frame_tag "active_launches" do %>
+  <% if @launches.any? %>
+    <div class="paper rounded-xl p-3 mb-5" style="border-left:4px solid var(--color-amber-ink);">
+      <div class="flex items-center gap-2 mb-2.5">
+        <span class="h-2 w-2 rounded-full shrink-0 animate-pulse" style="background:var(--color-amber-ink);"></span>
+        <span class="eyebrow">Launching</span>
+        <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= @launches.size %></span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <% @launches.each do |launch| %>
+          <%= render "session_launches/launch", launch: launch %>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+<% end %>

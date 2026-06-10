@@ -1,7 +1,7 @@
 {
   "source": "https://21st.dev/community/components",
-  "last_synced": "2026-06-06T15:21:14.583455",
-  "total_components": 5079,
+  "last_synced": "2026-06-10T12:45:36.129995",
+  "total_components": 5073,
   "categories": {
     "accordion": [
       {
@@ -790,6 +790,11 @@
         "name": "2026-W23",
         "author": "week",
         "url": "https://21st.dev/community/components/week/2026-W23"
+      },
+      {
+        "name": "2026-W24",
+        "author": "week",
+        "url": "https://21st.dev/community/components/week/2026-W24"
       },
       {
         "name": "21st-dev",
@@ -9869,11 +9874,6 @@
         "url": "https://21st.dev/community/components/shadcnspace/animated-tooltip"
       },
       {
-        "name": "animated-triple-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/animated-triple-background"
-      },
-      {
         "name": "animated-underline",
         "author": "preetsuthar17",
         "url": "https://21st.dev/community/components/preetsuthar17/animated-underline"
@@ -9977,11 +9977,6 @@
         "name": "click-trigger-particles",
         "author": "jatin-yadav05",
         "url": "https://21st.dev/community/components/jatin-yadav05/click-trigger-particles"
-      },
-      {
-        "name": "clouds-animated-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/clouds-animated-background"
       },
       {
         "name": "container-scroll-animation",
@@ -10234,11 +10229,6 @@
         "url": "https://21st.dev/community/components/daiwiikharihar17147/next-reveal"
       },
       {
-        "name": "open-ai-codex-animated-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/open-ai-codex-animated-background"
-      },
-      {
         "name": "orbiting-carousel-with-animated-icons",
         "author": "olovajs",
         "url": "https://21st.dev/community/components/olovajs/orbiting-carousel-with-animated-icons"
@@ -10317,26 +10307,6 @@
         "name": "radial-glow-background",
         "author": "meghtrix",
         "url": "https://21st.dev/community/components/meghtrix/radial-glow-background"
-      },
-      {
-        "name": "raycast-animated-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/raycast-animated-background"
-      },
-      {
-        "name": "raycast-animated-black-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/raycast-animated-black-background"
-      },
-      {
-        "name": "raycast-animated-blue-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/raycast-animated-blue-background"
-      },
-      {
-        "name": "raycast-red-blue-animated-background",
-        "author": "serjobas",
-        "url": "https://21st.dev/community/components/serjobas/raycast-red-blue-animated-background"
       },
       {
         "name": "reveal",

@@ -8,7 +8,9 @@
     </h1>
   </div>
   <div class="flex items-center gap-3">
-    <% unless @project %>
+    <% if @project %>
+      <%= render "session_launches/new_button", project: @project %>
+    <% else %>
       <div class="flex gap-1">
         <%= link_to "By folder", conversations_path,
               class: "pill #{@view == :grouped ? 'pill-accent' : 'pill-quiet'}" %>
@@ -26,10 +28,19 @@
   colour; click the ⚙ to recolour it.
 </p>
 
+<% if @project %>
+  <%= render "agents/strip", project: @project %>
+<% end %>
+
 <% unless @project %>
   <%= turbo_frame_tag "live_sessions", src: live_conversations_path,
         data: { controller: "auto-reload", auto_reload_interval_value: 15000 } %>
 <% end %>
+
+<%# In-flight launches (queued / spawning / just-launched) — auto-refreshes so the
+    attach command appears the moment the daemon spins the tmux window up. %>
+<%= turbo_frame_tag "active_launches", src: active_session_launches_path,
+      data: { controller: "auto-reload", auto_reload_interval_value: 5000 } %>
 
 <% if @grouped %>
   <%# ---- Default: grouped by folder ---- %>
@@ -50,8 +61,19 @@
             <%= link_to project.name, project_conversations_path(project),
                   class: "text-sm font-semibold hover:underline", style: "color:#{color};" %>
             <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= sessions.size %></span>
+            <%= render "session_launches/new_button", project: project %>
             <%= render "folder_gear", project: project %>
           </div>
+          <% if project.branches.present? %>
+            <div class="flex items-center flex-wrap gap-1.5 mb-2.5 -mt-0.5">
+              <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">branches</span>
+              <% project.branches.first(6).each do |b| %>
+                <span class="pill pill-quiet !py-0 !px-1.5 font-mono" title="<%= [b['subject'], b['rel']].compact.join(' · ') %>">⎇ <%= b["name"] %></span>
+              <% end %>
+              <%= link_to "all →", project_conversations_path(project),
+                    class: "text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]" %>
+            </div>
+          <% end %>
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
             <% preview.each do |c| %>
               <%= render "conversation_card", c: c, show_folder: false, show_gear: false %>
@@ -76,6 +98,24 @@
   <% end %>
 <% else %>
   <%# ---- Flat (Newest), or a single project's sessions ---- %>
+  <% if @project&.branches.present? %>
+    <div class="mb-4">
+      <%= card title: "Recent branches" do %>
+        <ul class="grid sm:grid-cols-2 gap-x-8 gap-y-1.5">
+          <% @project.branches.first(12).each do |b| %>
+            <li class="flex items-baseline gap-2 text-sm min-w-0">
+              <span class="font-mono text-[color:var(--color-ink)] shrink-0">⎇ <%= b["name"] %></span>
+              <span class="text-[11px] text-[color:var(--color-ink-faint)] truncate flex-1"><%= b["subject"] %></span>
+              <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular shrink-0"><%= b["rel"] %></span>
+            </li>
+          <% end %>
+        </ul>
+        <% if @project.branches_synced_at %>
+          <p class="mt-2.5 text-[10.5px] text-[color:var(--color-ink-faint)]">synced <%= ago(@project.branches_synced_at) %></p>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
   <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
     <% @conversations.each do |c| %>
       <%= render "conversation_card", c: c, show_folder: true, show_gear: true %>
