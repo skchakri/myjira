@@ -1,0 +1,16 @@
+<%# locals: project. The project's recurring schedules (cron triggers). The host
+    launcher daemon ticks them; each fire becomes a launched session below.
+    Renders nothing when the project has no schedules. %>
+<% schedules = project.agent_schedules.recent.includes(:agent, :last_launch).to_a %>
+<% if schedules.any? %>
+  <section class="paper rounded-lg p-3 mb-4">
+    <div class="flex items-center gap-2 mb-1.5">
+      <span class="eyebrow">Scheduled</span>
+      <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= schedules.size %></span>
+      <span class="ml-auto text-[10.5px] text-[color:var(--color-ink-faint)]">fires via the host launcher daemon</span>
+    </div>
+    <% schedules.each do |s| %>
+      <%= render "agent_schedules/schedule", schedule: s %>
+    <% end %>
+  </section>
+<% end %>

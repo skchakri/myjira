@@ -30,6 +30,7 @@
 
 <% if @project %>
   <%= render "agents/strip", project: @project %>
+  <%= render "agent_schedules/list", project: @project %>
 <% end %>
 
 <% unless @project %>

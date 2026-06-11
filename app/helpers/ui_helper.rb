@@ -120,6 +120,22 @@ module UiHelper
     t.strftime("%b %-d, %Y · %H:%M")
   end
 
+  # Readable label for the handful of common cron shapes, else the raw cron.
+  COMMON_CRONS = {
+    "* * * * *"   => "every minute",
+    "*/5 * * * *" => "every 5 min",
+    "*/15 * * * *" => "every 15 min",
+    "0 * * * *"   => "hourly",
+    "0 9 * * *"   => "daily · 09:00",
+    "0 18 * * *"  => "daily · 18:00",
+    "0 9 * * 1-5" => "weekdays · 09:00",
+    "0 0 * * 0"   => "weekly · Sun 00:00",
+    "0 0 1 * *"   => "monthly · 1st"
+  }.freeze
+  def cron_humanize(cron)
+    COMMON_CRONS[cron.to_s.strip] || cron.to_s
+  end
+
   # Short relative time — "2h ago", "3d ago", "just now"
   def ago(t)
     return "—" if t.blank?

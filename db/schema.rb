@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_10_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -41,6 +41,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
     t.uuid "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "agent_schedules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "agent_id"
+    t.datetime "created_at", null: false
+    t.string "cron", null: false
+    t.boolean "enabled", default: true, null: false
+    t.uuid "last_launch_id"
+    t.datetime "last_run_at"
+    t.string "model"
+    t.datetime "next_run_at"
+    t.string "permission_mode"
+    t.uuid "project_id", null: false
+    t.text "prompt", null: false
+    t.text "task"
+    t.datetime "updated_at", null: false
+    t.index ["agent_id"], name: "index_agent_schedules_on_agent_id"
+    t.index ["enabled", "next_run_at"], name: "index_agent_schedules_on_enabled_and_next_run_at"
+    t.index ["last_launch_id"], name: "index_agent_schedules_on_last_launch_id"
+    t.index ["project_id"], name: "index_agent_schedules_on_project_id"
   end
 
   create_table "agents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -311,6 +331,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_10_000002) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agent_schedules", "agents"
+  add_foreign_key "agent_schedules", "projects"
+  add_foreign_key "agent_schedules", "session_launches", column: "last_launch_id"
   add_foreign_key "agents", "projects"
   add_foreign_key "browser_messages", "browser_tasks"
   add_foreign_key "browser_tasks", "conversations"

@@ -1,0 +1,24 @@
+<%# locals: schedule (AgentSchedule). One row in a project's Scheduled list. %>
+<div id="agent_schedule_<%= schedule.id %>"
+     class="flex items-center gap-2 text-[12px] py-2 hair-b last:border-b-0 <%= 'opacity-55' unless schedule.enabled? %>">
+  <span class="font-mono text-[color:var(--color-amber-ink)] shrink-0"><%= schedule.agent&.glyph || "⏱" %></span>
+  <span class="font-semibold text-[color:var(--color-ink)] truncate max-w-[38%]" title="<%= schedule.prompt %>">
+    <%= schedule.agent&.name || schedule.prompt.to_s.truncate(48) %>
+  </span>
+  <span class="pill pill-quiet !py-0 !px-1.5 font-mono shrink-0" title="<%= schedule.cron %>"><%= cron_humanize(schedule.cron) %></span>
+  <span class="text-[10.5px] text-[color:var(--color-ink-faint)] shrink-0 truncate">
+    next <%= format_time(schedule.next_run_at) %><% if schedule.last_run_at %> · last <%= ago(schedule.last_run_at) %><% end %>
+  </span>
+
+  <div class="ml-auto flex items-center gap-2 shrink-0">
+    <%= button_to (schedule.enabled? ? "pause" : "resume"), toggle_agent_schedule_path(schedule), method: :post,
+          form_class: "contents",
+          class: "text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] cursor-pointer" %>
+    <%= button_to "run now", run_now_agent_schedule_path(schedule), method: :post,
+          form_class: "contents",
+          class: "text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)] cursor-pointer" %>
+    <%= button_to "✕", agent_schedule_path(schedule), method: :delete,
+          form_class: "contents", data: { turbo_confirm: "Remove this schedule?" },
+          class: "text-[11px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] cursor-pointer" %>
+  </div>
+</div>

@@ -28,6 +28,16 @@ Rails.application.routes.draw do
     resources :agents, only: [], controller: "agent_triggers" do
       member { post :trigger }
     end
+    # Web → schedule a recurring trigger in this project's repo.
+    resources :agent_schedules, only: [:create]
+  end
+
+  # Schedule lifecycle (pause/resume, run once now, remove).
+  resources :agent_schedules, only: [:destroy] do
+    member do
+      post :toggle
+      post :run_now
+    end
   end
 
   # Launch lifecycle (cancel a queued one; auto-reloading "active launches" strip).
@@ -111,6 +121,11 @@ Rails.application.routes.draw do
       # Host-side daemon pushes the .claude agent/skill/command catalogue here.
       resources :agents, only: [] do
         collection { post :sync }
+      end
+
+      # Host-side daemon ticks this each loop; myjira fires any due schedules.
+      resources :agent_schedules, only: [] do
+        collection { post :tick }
       end
 
       resources :test_runs, only: [:show, :update] do

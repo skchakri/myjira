@@ -37,6 +37,29 @@ class SessionLaunch < ApplicationRecord
       .or(where(status: "launched").where(launched_at: 12.minutes.ago..))
   }
 
+  # Queue a launch in `project`'s repo and pre-create the placeholder
+  # Conversation it binds to (so it shows in the grid the instant it's queued and
+  # fills in live once the daemon spawns `claude --session-id`). Single path for
+  # the "＋ New session" button, agent triggers, and scheduled fires.
+  def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
+                  agent: nil, title: nil, source: "launched")
+    transaction do
+      launch = project.session_launches.create!(
+        prompt: prompt, model: model, permission_mode: permission_mode, agent: agent
+      )
+      convo = project.conversations.create!(
+        session_id: launch.session_id,
+        source: source,
+        title: (title.presence || prompt.split("\n").map(&:strip).find(&:present?).to_s).truncate(80),
+        cwd: project.repo_path,
+        started_at: Time.current,
+        last_message_at: Time.current
+      )
+      launch.update!(conversation: convo)
+      launch
+    end
+  end
+
   def done?
     %w[launched failed canceled].include?(status)
   end

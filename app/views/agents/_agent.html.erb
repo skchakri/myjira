@@ -24,6 +24,7 @@
     <% end %>
 
     <%= form_with url: trigger_project_agent_path(project, agent), method: :post do |f| %>
+      <%= hidden_field_tag :agent_id, agent.id %>
       <%= f.text_area :task, rows: 2,
             placeholder: agent.kind == "agent" ? "What should #{agent.name} do? (optional)" : "arguments (optional)",
             class: "w-full text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
@@ -34,6 +35,14 @@
         <%= f.select :permission_mode, SessionLaunch::PERMISSION_MODES.map { |m| [m, m] }, {},
               class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
         <%= f.submit "Run", class: "ml-auto shrink-0 text-[12px] text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1 rounded-md cursor-pointer" %>
+      </div>
+      <div class="mt-2 flex items-center gap-1.5 pt-2 hair-t">
+        <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)] shrink-0">on cron</span>
+        <%= text_field_tag :cron, nil, placeholder: "0 9 * * *", autocomplete: "off",
+              title: "5-field cron · e.g. 0 9 * * * (daily 09:00), 0 9 * * 1-5 (weekdays), 0 * * * * (hourly)",
+              class: "flex-1 min-w-0 text-[11px] font-mono bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none focus:border-[color:var(--color-amber-ink)]" %>
+        <%= f.submit "Schedule", formaction: project_agent_schedules_path(project), formmethod: "post",
+              class: "shrink-0 text-[12px] text-[color:var(--color-ink)] bg-[color:var(--color-paper-raised)] hair-all hover:border-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)] px-3 py-1 rounded-md cursor-pointer" %>
       </div>
     <% end %>
   </div>

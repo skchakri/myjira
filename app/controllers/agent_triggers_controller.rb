@@ -16,20 +16,10 @@ class AgentTriggersController < ApplicationController
     model  = params[:model].presence || agent.launch_model || "default"
     perms  = params[:permission_mode].presence || "default"
 
-    ActiveRecord::Base.transaction do
-      launch = project.session_launches.create!(
-        prompt: prompt, model: model, permission_mode: perms, agent: agent
-      )
-      convo = project.conversations.create!(
-        session_id: launch.session_id,
-        source: "launched",
-        title: "#{agent.glyph} #{agent.name} · #{prompt}".truncate(80),
-        cwd: project.repo_path,
-        started_at: Time.current,
-        last_message_at: Time.current
-      )
-      launch.update!(conversation: convo)
-    end
+    SessionLaunch.queue!(
+      project: project, prompt: prompt, model: model, permission_mode: perms,
+      agent: agent, title: "#{agent.glyph} #{agent.name} · #{prompt}"
+    )
 
     redirect_back fallback_location: project_conversations_path(project),
       notice: "Triggering #{agent.name} in #{project.name} — it'll open in a tmux window and appear below."

@@ -7,6 +7,7 @@ class Project < ApplicationRecord
   has_many :conversations, dependent: :destroy
   has_many :session_launches, dependent: :destroy
   has_many :agents, dependent: :destroy
+  has_many :agent_schedules, dependent: :destroy
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,

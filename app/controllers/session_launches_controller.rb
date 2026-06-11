@@ -16,22 +16,12 @@ class SessionLaunchesController < ApplicationController
         alert: "No repo path known for #{project.name} yet — run Claude in that folder once so myjira learns where it is."
     end
 
-    ActiveRecord::Base.transaction do
-      launch = project.session_launches.create!(
-        prompt: prompt,
-        model: params[:model].presence || "default",
-        permission_mode: params[:permission_mode].presence || "default"
-      )
-      convo = project.conversations.create!(
-        session_id: launch.session_id,
-        source: "launched",
-        title: prompt.split("\n").map(&:strip).find(&:present?).to_s.truncate(80),
-        cwd: project.repo_path,
-        started_at: Time.current,
-        last_message_at: Time.current
-      )
-      launch.update!(conversation: convo)
-    end
+    SessionLaunch.queue!(
+      project: project,
+      prompt: prompt,
+      model: params[:model].presence || "default",
+      permission_mode: params[:permission_mode].presence || "default"
+    )
 
     redirect_back fallback_location: project_conversations_path(project),
       notice: "Launching a Claude session in #{project.name} — it'll open in a tmux window and appear below."
