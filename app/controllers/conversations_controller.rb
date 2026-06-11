@@ -27,6 +27,9 @@ class ConversationsController < ApplicationController
     @project = @conversation.project
     @messages = @conversation.conversation_messages.to_a
     @commands = @conversation.session_commands.recent.limit(50)
+  rescue ActiveRecord::RecordNotFound
+    # A stale link (e.g. a session that was cleaned up) shouldn't 500.
+    redirect_to conversations_path, alert: "That session no longer exists."
   end
 
   # Kick off a short spoken-friendly summary (background → Claude CLI). The panel

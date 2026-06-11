@@ -32,8 +32,10 @@
         <%= f.select :model, SessionLaunch::MODELS.map { |m| [m, m] },
               { selected: SessionLaunch::MODELS.include?(agent.model) ? agent.model : "default" },
               class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
-        <%= f.select :permission_mode, SessionLaunch::PERMISSION_MODES.map { |m| [m, m] }, {},
-              class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+        <%= f.select :permission_mode, SessionLaunch::PERMISSION_MODES.map { |m| [m, m] },
+              { selected: "bypassPermissions" },
+              class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none",
+              title: "bypassPermissions lets the agent run hands-off (the daemon auto-confirms the safety prompt). Pick a safer mode to approve actions yourself in the tmux window." %>
         <%= f.submit "Run", class: "ml-auto shrink-0 text-[12px] text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1 rounded-md cursor-pointer" %>
       </div>
       <div class="mt-2 flex items-center gap-1.5 pt-2 hair-t">
