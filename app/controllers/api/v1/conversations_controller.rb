@@ -59,12 +59,18 @@ module Api
       def upsert_project!
         pp = params.require(:project)
         slug = pp[:slug].to_s
-        project = Project.find_or_create_by!(slug: slug) do |p|
+        repo = pp[:repo_path].presence
+        # Reconcile by repo_path first: the same checkout can arrive under two
+        # slug conventions (e.g. a client set up as "pyr-avon" vs. the cwd-derived
+        # capture slug "avon-pyr"). Reusing the existing project for this folder
+        # keeps conversations from forking a duplicate of an already-known repo.
+        project = (Project.find_by(repo_path: repo) if repo)
+        project ||= Project.find_or_create_by!(slug: slug) do |p|
           p.name      = pp[:name].presence || slug
-          p.repo_path = pp[:repo_path]
+          p.repo_path = repo
         end
-        if pp[:repo_path].present? && project.repo_path != pp[:repo_path]
-          project.update_columns(repo_path: pp[:repo_path])
+        if repo.present? && project.repo_path != repo
+          project.update_columns(repo_path: repo)
         end
         # Recent branches ride along only on throttled "git refresh" turns; absent
         # key → leave the last-known list untouched (don't wipe it every turn).
