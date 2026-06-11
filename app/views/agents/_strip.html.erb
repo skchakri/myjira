@@ -1,9 +1,29 @@
-<%# locals: project. (optional) agents — defaults to project.available_agents.
-    The clickable catalogue of AI agents, skills, and slash-commands available
-    in this folder's repo (plus globals). Each opens a small disclosure that
-    triggers a fresh Claude session running it. Renders nothing when empty. %>
-<% agents = local_assigns.fetch(:agents) { project.available_agents.to_a } %>
-<% if agents.any? %>
+<%# locals: project. Optional: agents (defaults to project.available_agents),
+    collapsed (default false). The clickable catalogue of AI agents/skills/
+    commands available in this folder's repo (plus globals). Each opens a small
+    disclosure that triggers a fresh Claude session running it.
+      collapsed=false → an always-open card (the focused project page).
+      collapsed=true  → a discreet "◆ agents N" disclosure (the grouped hub,
+                        where every folder gets one and space is tight). %>
+<% agents    = local_assigns.fetch(:agents) { project.available_agents.to_a } %>
+<% collapsed = local_assigns.fetch(:collapsed, false) %>
+
+<% if agents.any? && collapsed %>
+  <details class="mb-2.5 -mt-0.5 group/agents">
+    <summary class="inline-flex items-center gap-1.5 cursor-pointer list-none
+                    text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]
+                    hover:text-[color:var(--color-ink)]">
+      <span class="font-mono text-[11px] text-[color:var(--color-amber-ink)]">◆</span> agents
+      <span class="tabular"><%= agents.size %></span>
+      <span class="group-open/agents:hidden">— click to run</span>
+    </summary>
+    <div class="flex flex-wrap gap-1.5 mt-1.5">
+      <% agents.each do |agent| %>
+        <%= render "agents/agent", agent: agent, project: project %>
+      <% end %>
+    </div>
+  </details>
+<% elsif agents.any? %>
   <section class="paper rounded-lg p-3 mb-4">
     <div class="flex items-center gap-2 mb-2.5">
       <span class="eyebrow">Agents in this folder</span>

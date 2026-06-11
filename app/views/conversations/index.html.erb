@@ -74,6 +74,7 @@
                     class: "text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]" %>
             </div>
           <% end %>
+          <%= render "agents/strip", project: project, collapsed: true %>
           <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
             <% preview.each do |c| %>
               <%= render "conversation_card", c: c, show_folder: false, show_gear: false %>
