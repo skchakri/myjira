@@ -1,0 +1,36 @@
+<%# locals: project. A disclosure with a small form: kebab name + plain-English
+    brief → AgentBuildsController#create queues a session that authors
+    .claude/agents/<name>.md here. %>
+<details class="relative shrink-0">
+  <summary class="inline-flex items-center gap-1 h-7 px-2.5 rounded-md cursor-pointer list-none
+                  text-[11px] hair-all bg-[color:var(--color-paper-raised)]
+                  hover:border-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)]">
+    <span class="font-mono">✚</span> New agent
+  </summary>
+
+  <div class="absolute right-0 mt-1 w-[360px] paper rounded-lg shadow-xl p-3 z-30 text-left">
+    <div class="text-[12px] font-semibold text-[color:var(--color-ink)] mb-1.5">Have Claude write an agent</div>
+    <%= form_with url: project_agent_builds_path(project), method: :post do |f| %>
+      <%= f.text_field :name, autocomplete: "off", placeholder: "kebab-name · e.g. test-triage",
+            class: "w-full text-[12px] font-mono bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 mb-2 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] outline-none focus:border-[color:var(--color-amber-ink)]" %>
+      <%= f.text_area :description, rows: 3,
+            placeholder: "What should it do? e.g. “Triage failing tests: run the suite, find the first real failure, and propose a fix.”",
+            class: "w-full text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] outline-none focus:border-[color:var(--color-amber-ink)] resize-y" %>
+      <div class="mt-2 flex items-center gap-1.5">
+        <%= f.select :category,
+              [["auto category", ""]] + Agent::CATEGORIES.map { |c| [Agent::CATEGORY_LABELS[c], c] },
+              {}, class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none",
+              title: "Category for the strip (Claude also writes it into the file)" %>
+        <%= f.select :model, SessionLaunch::MODELS.map { |m| [m, m] }, { selected: "default" },
+              class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none",
+              title: "Which model authors the agent file" %>
+        <%= f.submit "Author with Claude",
+              class: "ml-auto shrink-0 text-[12px] text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1 rounded-md cursor-pointer" %>
+      </div>
+      <p class="mt-1.5 text-[10px] text-[color:var(--color-ink-faint)] leading-snug">
+        Opens a Claude session in this folder that writes
+        <span class="font-mono">.claude/agents/&lt;name&gt;.md</span>. It shows up here after the next sync.
+      </p>
+    <% end %>
+  </div>
+</details>

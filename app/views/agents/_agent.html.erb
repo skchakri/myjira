@@ -47,5 +47,16 @@
               class: "shrink-0 text-[12px] text-[color:var(--color-ink)] bg-[color:var(--color-paper-raised)] hair-all hover:border-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)] px-3 py-1 rounded-md cursor-pointer" %>
       </div>
     <% end %>
+
+    <div class="mt-2 pt-2 hair-t flex items-center gap-2">
+      <span class="text-[9.5px] uppercase tracking-wide text-[color:var(--color-ink-faint)]"><%= agent.category_label %></span>
+      <% if agent.scope != "global" %>
+        <%= button_to project_agent_path(project, agent), method: :delete,
+              form: { data: { turbo_confirm: "Remove #{agent.name}? This deletes its .claude/agents file." } },
+              class: "ml-auto text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-red-500 cursor-pointer" do %>
+          ✕ remove
+        <% end %>
+      <% end %>
+    </div>
   </div>
 </details>

@@ -1,0 +1,8 @@
+<%# locals: project. One click → queue a Claude session that analyses this repo
+    plus its captured activity and writes proposed agents into .claude/agents/. %>
+<%= button_to suggest_project_agent_builds_path(project), method: :post,
+      class: "inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[11px] hair-all bg-[color:var(--color-paper-raised)] hover:border-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)] cursor-pointer",
+      form: { data: { turbo_confirm: "Analyse #{project.name} and let Claude propose agents? It opens a session here and writes files into .claude/agents/." } },
+      title: "Analyse this folder's code + recent Claude activity and propose tailored agents" do %>
+  <span class="font-mono">✨</span> Suggest agents
+<% end %>

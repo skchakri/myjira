@@ -24,9 +24,15 @@ Rails.application.routes.draw do
     resources :conversations, only: [:index]
     # Web → launch a new interactive Claude CLI session in this project's repo.
     resources :session_launches, only: [:create]
-    # Web → trigger a discovered agent/skill/command (becomes a SessionLaunch).
-    resources :agents, only: [], controller: "agent_triggers" do
+    # Web → trigger a discovered agent/skill/command (becomes a SessionLaunch),
+    # or remove one from this folder's strip.
+    resources :agents, only: [:destroy], controller: "agent_triggers" do
       member { post :trigger }
+    end
+    # Web → have Claude author an agent (create) or analyse the repo and propose
+    # several (suggest); each queues a SessionLaunch that writes .claude/agents/.
+    resources :agent_builds, only: [:create] do
+      collection { post :suggest }
     end
     # Web → schedule a recurring trigger in this project's repo.
     resources :agent_schedules, only: [:create]

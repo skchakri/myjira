@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_17_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -68,6 +68,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000001) do
   end
 
   create_table "agents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "category"
     t.datetime "created_at", null: false
     t.text "description"
     t.datetime "discovered_at"
@@ -80,6 +81,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_000001) do
     t.string "source_path"
     t.jsonb "tools", default: [], null: false
     t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_agents_on_category"
     t.index ["enabled"], name: "index_agents_on_enabled"
     t.index ["kind", "name"], name: "index_agents_on_global_kind_name", unique: true, where: "(project_id IS NULL)"
     t.index ["project_id", "kind", "name"], name: "index_agents_on_project_kind_name", unique: true
