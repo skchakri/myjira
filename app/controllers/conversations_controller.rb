@@ -18,7 +18,7 @@ class ConversationsController < ApplicationController
 
   # Auto-refreshing "Live now" strip (loaded into a Turbo Frame on the index).
   def live
-    @live_conversations = Conversation.live.recent.includes(:project).limit(12)
+    @live_conversations = Conversation.live.recent.includes(:project).limit(Conversation::LIVE_STRIP_LIMIT)
     render layout: false
   end
 

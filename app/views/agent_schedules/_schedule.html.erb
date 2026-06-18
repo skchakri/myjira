@@ -10,6 +10,14 @@
     next <%= format_time(schedule.next_run_at) %><% if schedule.last_run_at %> · last <%= ago(schedule.last_run_at) %><% end %>
   </span>
 
+  <% if schedule.last_error.present? && schedule.last_status != "ok" %>
+    <span class="text-[10.5px] font-semibold shrink-0 truncate max-w-[30%]"
+          style="color:var(--color-fail-ink);"
+          title="<%= schedule.last_error %><%= " (failed at #{format_time(schedule.last_failed_at)})" if schedule.last_failed_at %>">
+      ⚠ <%= schedule.last_status == "skipped" ? "skipped" : "failed" %><%= " ×#{schedule.consecutive_failures}" if schedule.consecutive_failures.to_i > 1 %>
+    </span>
+  <% end %>
+
   <div class="ml-auto flex items-center gap-2 shrink-0">
     <%= button_to (schedule.enabled? ? "pause" : "resume"), toggle_agent_schedule_path(schedule), method: :post,
           form_class: "contents",

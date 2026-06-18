@@ -26,10 +26,25 @@ class Conversation < ApplicationRecord
   # "Live" = synced a turn very recently. The Stop hook updates last_message_at
   # at the end of each turn, so this tracks sessions active in the last few min.
   LIVE_WINDOW = 8.minutes
+  LIVE_STRIP_LIMIT = 12
   scope :live, -> { where("COALESCE(last_message_at, created_at) > ?", LIVE_WINDOW.ago) }
 
   def live?
     (last_message_at || created_at) > LIVE_WINDOW.ago
+  end
+
+  # Push the "Live now" strip to everyone on the Conversations index. Called after
+  # each sync so a session appears (and its turn count / age updates) the instant a
+  # turn lands, instead of waiting on the frame's slow reload. Targets the same
+  # "live_sessions" frame the index renders; the periodic reload stays as the
+  # stale-eviction backstop.
+  def self.broadcast_live_strip!
+    Turbo::StreamsChannel.broadcast_update_to(
+      "live_sessions",
+      target: "live_sessions",
+      partial: "conversations/live_strip",
+      locals: { live_conversations: live.recent.includes(:project).limit(LIVE_STRIP_LIMIT) }
+    )
   end
 
   # Title comes from Claude's own ai-title when present; otherwise fall back to

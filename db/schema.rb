@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_10_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_17_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -45,11 +45,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_10_000003) do
 
   create_table "agent_schedules", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "agent_id"
+    t.integer "consecutive_failures", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "cron", null: false
     t.boolean "enabled", default: true, null: false
+    t.text "last_error"
+    t.datetime "last_failed_at"
     t.uuid "last_launch_id"
     t.datetime "last_run_at"
+    t.string "last_status"
     t.string "model"
     t.datetime "next_run_at"
     t.string "permission_mode"
