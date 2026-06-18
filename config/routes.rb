@@ -36,6 +36,9 @@ Rails.application.routes.draw do
     end
     # Web → schedule a recurring trigger in this project's repo.
     resources :agent_schedules, only: [:create]
+    # Web → add an MCP server (one-click from the catalog, or a custom spec);
+    # files an McpInstall the host daemon runs with `claude mcp add`.
+    resources :mcp_installs, only: [:create]
   end
 
   # Schedule lifecycle (pause/resume, run once now, remove).
@@ -44,6 +47,14 @@ Rails.application.routes.draw do
       post :toggle
       post :run_now
     end
+  end
+
+  # Remove a configured MCP server (files a `claude mcp remove` for the daemon).
+  resources :mcp_servers, only: [:destroy]
+
+  # Auto-reloading "Configuring MCP" strip (in-flight installs across projects).
+  resources :mcp_installs, only: [] do
+    collection { get :active }
   end
 
   # Launch lifecycle (cancel a queued one; auto-reloading "active launches" strip).
@@ -59,6 +70,7 @@ Rails.application.routes.draw do
       patch :rename
       post :summarize
       post :command   # web → queue a command for the live session
+      get :document   # open a file this session created (?path=…)
     end
   end
 
@@ -132,6 +144,16 @@ Rails.application.routes.draw do
       # Host-side daemon ticks this each loop; myjira fires any due schedules.
       resources :agent_schedules, only: [] do
         collection { post :tick }
+      end
+
+      # Host-side daemon: poll for queued MCP add/remove requests, report back.
+      resources :mcp_installs, only: [:update] do
+        collection { get :pending }
+      end
+
+      # Host-side daemon pushes the current `claude mcp list` catalogue here.
+      resources :mcp_servers, only: [] do
+        collection { post :sync }
       end
 
       resources :test_runs, only: [:show, :update] do

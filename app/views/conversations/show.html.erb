@@ -1,4 +1,5 @@
 <% content_for :title, @conversation.display_title %>
+<% content_for :page_bg, project_page_bg(@project) %>
 
 <%= turbo_stream_from [@conversation, :messages] %>
 <%= turbo_stream_from [@conversation, :commands] %>
@@ -48,6 +49,24 @@
           <li class="flex items-start gap-2.5 text-sm text-[color:var(--color-ink)]">
             <span class="shrink-0 w-4 text-center text-[color:var(--color-ink-faint)]"><%= highlight_glyph(h["kind"]) %></span>
             <span><%= h["text"] %></span>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+<% end %>
+
+<% docs = @conversation.document_paths %>
+<% if docs.any? %>
+  <div class="mt-4">
+    <%= card title: "Documents from this session" do %>
+      <ul class="space-y-1.5">
+        <% docs.each do |path| %>
+          <li class="flex items-center gap-2.5 text-sm min-w-0">
+            <span class="shrink-0 w-4 text-center text-[color:var(--color-ink-faint)]">▤</span>
+            <%= link_to File.basename(path), document_conversation_path(@conversation, path: path),
+                  target: "_blank", rel: "noopener", class: "ink-link shrink-0" %>
+            <span class="truncate text-[11px] font-mono text-[color:var(--color-ink-faint)]"><%= File.dirname(path) %></span>
           </li>
         <% end %>
       </ul>

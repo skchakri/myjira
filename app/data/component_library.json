@@ -1,7 +1,7 @@
 {
   "source": "https://21st.dev/community/components",
-  "last_synced": "2026-06-10T19:24:58.441795",
-  "total_components": 5073,
+  "last_synced": "2026-06-18T12:00:52.444650",
+  "total_components": 5077,
   "categories": {
     "accordion": [
       {
@@ -795,6 +795,11 @@
         "name": "2026-W24",
         "author": "week",
         "url": "https://21st.dev/community/components/week/2026-W24"
+      },
+      {
+        "name": "2026-W25",
+        "author": "week",
+        "url": "https://21st.dev/community/components/week/2026-W25"
       },
       {
         "name": "21st-dev",
@@ -10841,6 +10846,11 @@
         "url": "https://21st.dev/community/components/hardikkashiyani123456788/flow-gradient-hero-section"
       },
       {
+        "name": "flow-hero-1",
+        "author": "cnippet.dev",
+        "url": "https://21st.dev/community/components/cnippet.dev/flow-hero-1"
+      },
+      {
         "name": "flux-card-hero",
         "author": "muhammad-binsalman",
         "url": "https://21st.dev/community/components/muhammad-binsalman/flux-card-hero"
@@ -20342,6 +20352,11 @@
         "url": "https://21st.dev/community/components/Shatlyk1011/team-member-card"
       },
       {
+        "name": "terminal-card",
+        "author": "cnippet.dev",
+        "url": "https://21st.dev/community/components/cnippet.dev/terminal-card"
+      },
+      {
         "name": "testimonial-card",
         "author": "dhileepkumargm",
         "url": "https://21st.dev/community/components/dhileepkumargm/testimonial-card"
@@ -24614,6 +24629,11 @@
         "name": "aurora-pricing",
         "author": "s",
         "url": "https://21st.dev/community/components/s/aurora-pricing"
+      },
+      {
+        "name": "boxly-pricing-1",
+        "author": "cnippet.dev",
+        "url": "https://21st.dev/community/components/cnippet.dev/boxly-pricing-1"
       },
       {
         "name": "calendar-planner",

@@ -1,0 +1,224 @@
+{
+  "version": 1,
+  "note": "Curated MCP servers for one-click add. Specs are best-effort and editable — adjust command/args/url/inputs as upstream packages change. `popular: true` entries feed the top-10 gallery; the rest show under \"More\". `auth`: none = installs unattended; token = daemon configures it with the secret you enter; oauth = the server registers, then you authenticate once inside a Claude session (the daemon can't do the browser flow). `inputs[].target`: env (a -e KEY=val secret/value), arg (appended to the stdio command), header (an -H \"Name: value\"), or url (substituted into the endpoint).",
+  "servers": [
+    {
+      "key": "context7",
+      "title": "Context7",
+      "name": "context7",
+      "category": "Docs & context",
+      "transport": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "command": null,
+      "args": [],
+      "auth": "none",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://context7.com",
+      "description": "Pulls up-to-date, version-specific docs and code examples for any library straight into context."
+    },
+    {
+      "key": "sequential-thinking",
+      "title": "Sequential Thinking",
+      "name": "sequential-thinking",
+      "category": "Reasoning",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "auth": "none",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+      "description": "A structured step-by-step reasoning tool for breaking hard problems into revisable thoughts."
+    },
+    {
+      "key": "fetch",
+      "title": "Fetch",
+      "name": "fetch",
+      "category": "Web",
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "auth": "none",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "description": "Fetches a URL and converts the page to clean markdown for the model to read. Requires uv/uvx on the host."
+    },
+    {
+      "key": "playwright",
+      "title": "Playwright",
+      "name": "playwright",
+      "category": "Browser",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "auth": "none",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/microsoft/playwright-mcp",
+      "description": "Drives a real browser (navigate, click, type, snapshot) via Playwright's accessibility tree."
+    },
+    {
+      "key": "filesystem",
+      "title": "Filesystem",
+      "name": "filesystem",
+      "category": "Files",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+      "auth": "none",
+      "inputs": [
+        {
+          "key": "root_path",
+          "label": "Allowed directory",
+          "target": "arg",
+          "secret": false,
+          "default": "/home/kalyan/platform",
+          "help": "Absolute path the server is allowed to read/write. Pass more than one by adding the rest in the custom form."
+        }
+      ],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "description": "Sandboxed read/write access to one or more directories you explicitly allow."
+    },
+    {
+      "key": "memory",
+      "title": "Memory",
+      "name": "memory",
+      "category": "Knowledge",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "auth": "none",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "description": "A persistent knowledge-graph memory the model can write entities and relations into across sessions."
+    },
+    {
+      "key": "github",
+      "title": "GitHub",
+      "name": "github",
+      "category": "Dev",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "auth": "token",
+      "inputs": [
+        {
+          "key": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "label": "GitHub personal access token",
+          "target": "env",
+          "secret": true,
+          "help": "Create at github.com/settings/tokens (repo scope). Stored encrypted."
+        }
+      ],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/github",
+      "description": "Read/write GitHub: repos, issues, PRs, code search, and file contents."
+    },
+    {
+      "key": "postgres",
+      "title": "PostgreSQL",
+      "name": "postgres",
+      "category": "Data",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "auth": "token",
+      "inputs": [
+        {
+          "key": "connection_url",
+          "label": "Connection string",
+          "target": "arg",
+          "secret": true,
+          "default": "postgresql://root:password@host.docker.internal:5432/myapp_development",
+          "help": "Full postgres:// URL. Read-only schema + query access."
+        }
+      ],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/postgres",
+      "description": "Inspect schema and run read-only SQL against a PostgreSQL database."
+    },
+    {
+      "key": "brave-search",
+      "title": "Brave Search",
+      "name": "brave-search",
+      "category": "Search",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+      "auth": "token",
+      "inputs": [
+        {
+          "key": "BRAVE_API_KEY",
+          "label": "Brave Search API key",
+          "target": "env",
+          "secret": true,
+          "help": "Get a free key at api-dashboard.search.brave.com. Stored encrypted."
+        }
+      ],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search",
+      "description": "Web and local search via the Brave Search API."
+    },
+    {
+      "key": "sentry",
+      "title": "Sentry",
+      "name": "sentry",
+      "category": "Monitoring",
+      "transport": "http",
+      "url": "https://mcp.sentry.dev/mcp",
+      "command": null,
+      "args": [],
+      "auth": "oauth",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": true,
+      "homepage": "https://mcp.sentry.dev",
+      "description": "Query Sentry issues and errors. Registers now; authenticate once via /mcp inside a Claude session."
+    },
+    {
+      "key": "notion",
+      "title": "Notion",
+      "name": "notion",
+      "category": "Docs & context",
+      "transport": "http",
+      "url": "https://mcp.notion.com/mcp",
+      "command": null,
+      "args": [],
+      "auth": "oauth",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": false,
+      "homepage": "https://developers.notion.com",
+      "description": "Read and write Notion pages and databases. OAuth — authenticate once inside a Claude session."
+    },
+    {
+      "key": "linear",
+      "title": "Linear",
+      "name": "linear",
+      "category": "Project tracking",
+      "transport": "http",
+      "url": "https://mcp.linear.app/mcp",
+      "command": null,
+      "args": [],
+      "auth": "oauth",
+      "inputs": [],
+      "default_scope": "user",
+      "popular": false,
+      "homepage": "https://linear.app/docs",
+      "description": "Manage Linear issues, projects, and cycles. OAuth — authenticate once inside a Claude session."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+<% content_for :title, File.basename(@path) %>
+<% content_for :page_bg, project_page_bg(@conversation.project) %>
+
+<div class="flex items-baseline justify-between mb-4">
+  <div class="min-w-0">
+    <div class="text-xs text-[color:var(--color-ink-faint)] font-mono">
+      <%= link_to @conversation.project.name, @conversation.project, class: "hover:underline" %> /
+      <%= link_to @conversation.display_title.truncate(48), conversation_path(@conversation), class: "hover:underline" %> /
+      document
+    </div>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)] truncate"><%= File.basename(@path) %></h1>
+    <div class="mt-1 text-[11px] text-[color:var(--color-ink-faint)] font-mono truncate"><%= @path %></div>
+  </div>
+</div>
+
+<% if @missing %>
+  <%= card do %>
+    <p class="text-sm text-[color:var(--color-ink-soft)]">
+      This document was created by the session at
+      <code class="font-mono"><%= @path %></code>, but the file isn't readable from here anymore —
+      it may have been moved or deleted, or it lives outside the folders myjira can see.
+    </p>
+  <% end %>
+<% else %>
+  <%= card do %>
+    <% if @render_markdown %>
+      <div class="text-sm leading-relaxed text-[color:var(--color-ink)] max-w-none">
+        <%= markdown(@content) %>
+      </div>
+    <% else %>
+      <pre class="whitespace-pre-wrap break-words text-[12px] leading-relaxed font-mono text-[color:var(--color-ink)]"><%= @content %></pre>
+    <% end %>
+  <% end %>
+<% end %>

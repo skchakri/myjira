@@ -8,6 +8,8 @@ class Project < ApplicationRecord
   has_many :session_launches, dependent: :destroy
   has_many :agents, dependent: :destroy
   has_many :agent_schedules, dependent: :destroy
+  has_many :mcp_servers, dependent: :destroy
+  has_many :mcp_installs, dependent: :destroy
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,
@@ -59,6 +61,14 @@ class Project < ApplicationRecord
   # repo, plus every global skill/agent/command (available everywhere).
   def available_agents
     Agent.enabled.where("agents.project_id = :id OR agents.scope = 'global'", id: id).ordered
+  end
+
+  # MCP servers shown for this folder: the ones configured in its own repo
+  # (project/local scope), plus every user-scope (global) server.
+  def available_mcp_servers
+    McpServer.enabled
+             .where("mcp_servers.project_id = :id OR mcp_servers.scope = 'user'", id: id)
+             .ordered
   end
 
   def rollup

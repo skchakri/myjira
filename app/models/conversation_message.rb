@@ -22,6 +22,20 @@ class ConversationMessage < ApplicationRecord
     payload.is_a?(Hash) ? payload["tool"] : nil
   end
 
+  # Document-ish files (reports, plans, exports) — not source code, so a Write
+  # to one of these reads as "Claude produced a document you'd want to open".
+  DOCUMENT_EXTENSIONS = %w[
+    .md .markdown .mdx .txt .rst .adoc .html .htm .pdf .csv .tsv .docx .xlsx .pptx
+  ].freeze
+
+  # Absolute path of a document this turn created via Write, or nil. Drives the
+  # clickable link in the transcript and the "Documents" card on the show page.
+  def document_path
+    return nil unless kind == "tool" && tool_name == "Write"
+    path = payload.dig("input", "file_path").to_s
+    path if path.start_with?("/") && DOCUMENT_EXTENSIONS.include?(File.extname(path).downcase)
+  end
+
   private
 
   # Live-append new turns to anyone watching the conversation (mirrors the

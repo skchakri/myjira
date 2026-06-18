@@ -193,6 +193,48 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
     t.index ["test_result_id"], name: "index_follow_up_tasks_on_test_result_id"
   end
 
+  create_table "mcp_installs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "action", default: "add", null: false
+    t.jsonb "args", default: [], null: false
+    t.string "catalog_key"
+    t.string "command"
+    t.datetime "created_at", null: false
+    t.text "env"
+    t.text "error"
+    t.jsonb "header", default: [], null: false
+    t.datetime "installed_at"
+    t.string "name", null: false
+    t.uuid "project_id"
+    t.string "scope", default: "user", null: false
+    t.string "status", default: "pending", null: false
+    t.string "transport", default: "stdio", null: false
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.index ["project_id"], name: "index_mcp_installs_on_project_id"
+    t.index ["status"], name: "index_mcp_installs_on_status"
+  end
+
+  create_table "mcp_servers", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.jsonb "args", default: [], null: false
+    t.string "command"
+    t.datetime "created_at", null: false
+    t.datetime "discovered_at"
+    t.boolean "enabled", default: true, null: false
+    t.jsonb "env_keys", default: [], null: false
+    t.string "name", null: false
+    t.uuid "project_id"
+    t.string "scope", default: "user", null: false
+    t.string "status", default: "pending", null: false
+    t.text "status_detail"
+    t.string "transport", default: "stdio", null: false
+    t.datetime "updated_at", null: false
+    t.string "url"
+    t.index ["enabled"], name: "index_mcp_servers_on_enabled"
+    t.index ["project_id", "scope", "name"], name: "index_mcp_servers_on_project_scope_name", unique: true
+    t.index ["project_id"], name: "index_mcp_servers_on_project_id"
+    t.index ["scope", "name"], name: "index_mcp_servers_on_global_scope_name", unique: true, where: "(project_id IS NULL)"
+  end
+
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.jsonb "branches", default: [], null: false
     t.datetime "branches_synced_at"
@@ -350,6 +392,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
   add_foreign_key "follow_up_tasks", "projects"
   add_foreign_key "follow_up_tasks", "tasks"
   add_foreign_key "follow_up_tasks", "test_results"
+  add_foreign_key "mcp_installs", "projects"
+  add_foreign_key "mcp_servers", "projects"
   add_foreign_key "session_commands", "conversations"
   add_foreign_key "session_launches", "agents"
   add_foreign_key "session_launches", "conversations"

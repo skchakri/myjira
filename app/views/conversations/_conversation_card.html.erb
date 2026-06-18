@@ -3,8 +3,16 @@
     decoration on the conversation card itself. %>
 <% show_folder = local_assigns.fetch(:show_folder, true)
    show_gear   = local_assigns.fetch(:show_gear, true)
-   color = project_color(c.project) %>
-<div class="conv-card paper relative rounded-xl p-4 hover:shadow-md transition-shadow">
+   color = project_color(c.project)
+   # The folder's colour feeds a left "spine" on every card (--folder), so the
+   # card reads as part of its group even before any tint is applied.
+   card_styles = [ "--folder:#{color}" ]
+   # Light wash of the folder's colour — only when one was set via the gear.
+   if (card_bg = project_card_bg(c.project))
+     card_styles << "background-color:#{card_bg}"
+     card_styles << "border:1px solid #{project_card_border(c.project)}"
+   end %>
+<div class="conv-card paper relative rounded-xl p-4" style="<%= card_styles.join(';') %>">
 
   <%# whole-card click target (sits under the content; gear opts back in) %>
   <%= link_to "".html_safe, conversation_path(c),

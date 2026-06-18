@@ -1,0 +1,57 @@
+<%# locals: project. Hand-enter an MCP server: transport, command (stdio) or URL
+    (http/sse), args (one per line), env + header key/value pairs, and scope.
+    Posts to McpInstallsController#create with no catalog_key (compose_custom). %>
+<% field_class = "w-full text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+<% pair_class  = "min-w-0 flex-1 text-[11px] font-mono bg-[color:var(--color-paper-raised)] hair-all rounded px-1.5 py-1 outline-none focus:border-[color:var(--color-amber-ink)]" %>
+<%= form_with url: project_mcp_installs_path(project), method: :post, class: "mt-2 space-y-2" do %>
+  <div class="flex gap-1.5">
+    <label class="flex-1">
+      <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">name</span>
+      <%= text_field_tag :name, nil, placeholder: "my-server", autocomplete: "off", class: field_class %>
+    </label>
+    <label class="shrink-0">
+      <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">transport</span>
+      <%= select_tag :transport, options_for_select(McpInstall::TRANSPORTS.map { |t| [t, t] }, "stdio"),
+            class: "block text-[12px] bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-[5px] outline-none" %>
+    </label>
+  </div>
+
+  <label class="block">
+    <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">command <span class="normal-case">(stdio)</span> or URL <span class="normal-case">(http/sse)</span></span>
+    <div class="flex gap-1.5">
+      <%= text_field_tag :command, nil, placeholder: "npx", autocomplete: "off", class: field_class %>
+      <%= text_field_tag :url, nil, placeholder: "https://…/mcp", autocomplete: "off", class: field_class %>
+    </div>
+  </label>
+
+  <label class="block">
+    <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">args <span class="normal-case">(one per line)</span></span>
+    <%= text_area_tag :args, nil, rows: 2, placeholder: "-y\n@scope/my-mcp-server", class: "#{field_class} font-mono resize-y" %>
+  </label>
+
+  <div>
+    <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">env <span class="normal-case">(secrets, stored encrypted)</span></span>
+    <% 2.times do %>
+      <div class="flex gap-1.5 mt-1">
+        <%= text_field_tag "mcp_env[][key]", nil, placeholder: "KEY", autocomplete: "off", class: pair_class %>
+        <%= text_field_tag "mcp_env[][value]", nil, placeholder: "value", autocomplete: "off", class: pair_class %>
+      </div>
+    <% end %>
+  </div>
+
+  <div>
+    <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">headers <span class="normal-case">(http/sse)</span></span>
+    <div class="flex gap-1.5 mt-1">
+      <%= text_field_tag "mcp_header[][key]", nil, placeholder: "Authorization", autocomplete: "off", class: pair_class %>
+      <%= text_field_tag "mcp_header[][value]", nil, placeholder: "Bearer …", autocomplete: "off", class: pair_class %>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-1.5 pt-1">
+    <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">scope</span>
+    <%= select_tag :scope, options_for_select(McpInstall::SCOPES.map { |s| [s, s] }, "user"),
+          class: "text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded px-1.5 py-1 outline-none",
+          title: "user = all projects · project = this repo's .mcp.json · local = this repo, private" %>
+    <%= submit_tag "Add server", class: "ml-auto shrink-0 text-[12px] text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1 rounded-md cursor-pointer" %>
+  </div>
+<% end %>

@@ -1,0 +1,43 @@
+<%# locals: project. The "＋ Add MCP server" disclosure: a one-click gallery of
+    the top catalog servers, a "More" list, and a custom-add form. Every add posts
+    to McpInstallsController#create on this project's route. %>
+<details class="relative shrink-0 group/add">
+  <summary class="inline-flex items-center gap-1 h-7 px-2.5 rounded-md cursor-pointer list-none
+                  text-[12px] font-semibold hair-all bg-[color:var(--color-paper-raised)]
+                  text-[color:var(--color-amber-ink)] hover:border-[color:var(--color-amber-ink)]">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add MCP server
+  </summary>
+
+  <div class="absolute left-0 mt-1 w-[480px] max-h-[74vh] overflow-y-auto paper rounded-lg shadow-xl p-3 z-30 text-left">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="eyebrow">Top servers · one click</span>
+      <span class="ml-auto text-[10px] text-[color:var(--color-ink-faint)]">default scope: user (all projects)</span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <% Mcp::Catalog.top(10).each do |entry| %>
+        <%= render "mcp_servers/catalog_card", entry: entry, project: project %>
+      <% end %>
+    </div>
+
+    <% if Mcp::Catalog.rest.any? %>
+      <details class="mt-3">
+        <summary class="cursor-pointer text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]">
+          More servers (<%= Mcp::Catalog.rest.size %>)
+        </summary>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+          <% Mcp::Catalog.rest.each do |entry| %>
+            <%= render "mcp_servers/catalog_card", entry: entry, project: project %>
+          <% end %>
+        </div>
+      </details>
+    <% end %>
+
+    <details class="mt-3 pt-2 hair-t">
+      <summary class="cursor-pointer text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]">
+        Custom server
+      </summary>
+      <%= render "mcp_servers/custom_form", project: project %>
+    </details>
+  </div>
+</details>

@@ -1,0 +1,49 @@
+<%# locals: project. Optional: servers (defaults to project.available_mcp_servers),
+    collapsed (default false). The MCP servers configured for this folder (its
+    .mcp.json) plus user-scope globals, each shown with a live status dot. Adds and
+    removes file an McpInstall the host daemon runs with `claude mcp add/remove`.
+      collapsed=false → an always-open card with the full "Add MCP server" gallery
+                        (the focused project page).
+      collapsed=true  → a discreet "⛓ mcp N" disclosure (the grouped hub); the
+                        "+ add" there links to the focused page rather than
+                        embedding the whole gallery per folder. %>
+<% servers   = local_assigns.fetch(:servers) { project.available_mcp_servers.to_a } %>
+<% collapsed = local_assigns.fetch(:collapsed, false) %>
+
+<% if collapsed %>
+  <details class="mb-2.5 -mt-0.5 group/mcp">
+    <summary class="inline-flex items-center gap-1.5 cursor-pointer list-none
+                    text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]
+                    hover:text-[color:var(--color-ink)]">
+      <span class="font-mono text-[11px] text-[color:var(--color-amber-ink)]">⛓</span> mcp
+      <span class="tabular"><%= servers.size %></span>
+      <span class="group-open/mcp:hidden">— click to manage</span>
+    </summary>
+    <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+      <% servers.each do |server| %>
+        <%= render "mcp_servers/server", server: server, project: project %>
+      <% end %>
+      <%= link_to project_conversations_path(project),
+            class: "shrink-0 inline-flex items-center gap-1 h-7 px-2.5 rounded-md text-[12px] font-semibold
+                    hair-all bg-[color:var(--color-paper-raised)] text-[color:var(--color-amber-ink)]
+                    hover:border-[color:var(--color-amber-ink)]" do %>＋ add<% end %>
+    </div>
+  </details>
+<% else %>
+  <section class="paper rounded-lg p-3 mb-4">
+    <div class="flex items-center gap-2 mb-2.5">
+      <span class="eyebrow">MCP servers</span>
+      <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= servers.size %></span>
+      <span class="ml-auto text-[10.5px] text-[color:var(--color-ink-faint)]">give Claude new tools &amp; data sources · configured via the host daemon</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5">
+      <% if servers.empty? %>
+        <span class="text-[11px] text-[color:var(--color-ink-faint)]">None yet —</span>
+      <% end %>
+      <% servers.each do |server| %>
+        <%= render "mcp_servers/server", server: server, project: project %>
+      <% end %>
+      <%= render "mcp_servers/add", project: project %>
+    </div>
+  </section>
+<% end %>

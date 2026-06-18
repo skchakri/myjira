@@ -82,6 +82,32 @@ class ConversationsController < ApplicationController
     end
   end
 
+  # Open a document this session created (?path=…). Only paths recorded as
+  # Write tool calls in this conversation are served — the transcript is the
+  # allowlist, so this never reads arbitrary files. Markdown/text render in a
+  # viewer page; HTML/PDF and friends stream inline.
+  INLINE_TEXT_EXTENSIONS = %w[.md .markdown .mdx .txt .rst .adoc .csv .tsv].freeze
+
+  def document
+    @conversation = Conversation.find(params[:id])
+    # Match against the conversation's own records so the served path comes
+    # from the DB, never straight from the request.
+    @path = @conversation.document_paths.find { |p| p == params[:path].to_s }
+    return redirect_to conversation_path(@conversation), alert: "That document isn't part of this session." unless @path
+
+    @missing = !File.file?(@path)
+    ext = File.extname(@path).downcase
+    if @missing || INLINE_TEXT_EXTENSIONS.include?(ext)
+      @content = @missing ? nil : File.read(@path)
+      @render_markdown = %w[.md .markdown .mdx].include?(ext)
+      render :document
+    else
+      send_file @path, disposition: "inline"
+    end
+  rescue ActiveRecord::RecordNotFound
+    redirect_to conversations_path, alert: "That session no longer exists."
+  end
+
   # Set/clear the user-given session name (blank → back to the auto title).
   # The CLI statusline picks this up by session_id.
   def rename

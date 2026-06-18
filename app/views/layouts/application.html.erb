@@ -169,7 +169,7 @@
       </aside>
 
       <!-- ========== Main pane ========== -->
-      <main class="flex-1 min-w-0">
+      <main class="flex-1 min-w-0" <%= tag.attributes(style: "background:#{content_for(:page_bg)};") if content_for?(:page_bg) %>>
         <% if notice.present? || alert.present? %>
           <div class="px-10 pt-6 -mb-2">
             <% if notice.present? %>

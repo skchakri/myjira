@@ -1,0 +1,23 @@
+<%# locals: install (McpInstall). One row in the "Configuring MCP" strip. %>
+<div id="mcp_install_<%= install.id %>" class="paper rounded-lg p-2.5">
+  <div class="flex items-center gap-2">
+    <%= status_pill(install.status) %>
+    <span class="text-[12px] font-semibold text-[color:var(--color-ink)] truncate">
+      <%= "remove " if install.action == "remove" %><%= install.name %>
+    </span>
+    <span class="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]"><%= install.scope %></span>
+  </div>
+
+  <div class="mt-1.5 flex items-center flex-wrap gap-x-3 gap-y-1 text-[10.5px] font-mono text-[color:var(--color-ink-faint)]">
+    <% if install.status == "failed" %>
+      <span class="text-[color:var(--color-fail-ink)] normal-case font-sans"><%= install.error.presence || "install failed" %></span>
+    <% elsif install.status == "installed" %>
+      <span class="text-[color:var(--color-pass-ink)] normal-case font-sans">done — claude mcp <%= install.action %> ok</span>
+    <% else %>
+      <span>queued — the host daemon will run <code>claude mcp <%= install.action %></code></span>
+    <% end %>
+    <% if install.project %>
+      <span class="ml-auto font-sans"><%= install.project.name %></span>
+    <% end %>
+  </div>
+</div>
