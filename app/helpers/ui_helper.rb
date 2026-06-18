@@ -35,7 +35,11 @@ module UiHelper
     # session-launch statuses (pending / failed already mapped above)
     "launching"        => "pill-accent",
     "launched"         => "pill-pass",
-    "canceled"         => "pill-quiet"
+    "canceled"         => "pill-quiet",
+    # mcp server / install statuses (pending / failed / canceled already mapped)
+    "connected"        => "pill-pass",
+    "installing"       => "pill-accent",
+    "installed"        => "pill-pass"
   }.freeze
 
   SEVERITY_CLASS = {
@@ -314,6 +318,46 @@ module UiHelper
 
   def project_color(project)
     project.color.presence || FOLDER_PALETTE[project.slug.to_s.sum % FOLDER_PALETTE.size]
+  end
+
+  # A pale wash of a folder's colour, for tinting that project's conversation
+  # cards so they read as one group at a glance. Uses the *resolved* colour —
+  # the one set via the gear, or the auto-palette colour otherwise — so every
+  # folder's cards tint, each to its own colour.
+  def project_card_bg(project)
+    mix_with_white(project_color(project), 0.10) # ~10% colour, 90% white → light tint
+  end
+
+  # Slightly stronger wash for the hairline border of a tinted card, so its edge
+  # doesn't dissolve against the page.
+  def project_card_border(project)
+    mix_with_white(project_color(project), 0.28)
+  end
+
+  # Whole-page wash of a folder's colour for project-scoped pages, mixed into
+  # the warm paper tone (not white) so it sits naturally under the raised cards.
+  # Views opt in via `content_for :page_bg, project_page_bg(@project)`.
+  PAPER_HEX = "#F7F4ED".freeze
+
+  def project_page_bg(project)
+    mix_hex(project_color(project), PAPER_HEX, 0.08)
+  end
+
+  # Mix a #RRGGBB hex toward white by `ratio` (0 = white, 1 = the colour).
+  def mix_with_white(hex, ratio)
+    mix_hex(hex, "#FFFFFF", ratio)
+  end
+
+  # Mix `hex` over `base_hex` by `ratio` (0 = base, 1 = the colour).
+  def mix_hex(hex, base_hex, ratio)
+    rgb  = hex.to_s.delete("#")
+    base = base_hex.to_s.delete("#")
+    return nil unless rgb.length == 6 && base.length == 6
+    mix = ->(c, b) { (c * ratio + b * (1 - ratio)).round.clamp(0, 255) }
+    format("#%02X%02X%02X",
+           mix.call(rgb[0, 2].to_i(16), base[0, 2].to_i(16)),
+           mix.call(rgb[2, 2].to_i(16), base[2, 2].to_i(16)),
+           mix.call(rgb[4, 2].to_i(16), base[4, 2].to_i(16)))
   end
 
   # Counts for the pinned "Browser Tasks" relay row in the sidebar.

@@ -1,0 +1,14 @@
+<%# locals: server (McpServer), project (Project). One configured MCP server: a
+    status-dotted pill; hover shows transport + endpoint; ✕ files a remove. %>
+<div class="relative group/srv shrink-0 inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md
+            text-[12px] hair-all bg-[color:var(--color-paper-raised)]"
+     title="<%= [server.transport, server.endpoint_label].reject(&:blank?).join(" · ") %>">
+  <span class="text-[11px] leading-none <%= server.status == "connected" ? "text-[color:var(--color-pass-ink)]" : server.status == "failed" ? "text-[color:var(--color-fail-ink)]" : "text-[color:var(--color-ink-faint)]" %>"
+        title="<%= [server.status, server.status_detail].reject(&:blank?).join(" — ") %>"><%= server.status_glyph %></span>
+  <span class="font-semibold text-[color:var(--color-ink)]"><%= server.name %></span>
+  <span class="text-[9px] uppercase tracking-wide text-[color:var(--color-ink-faint)]"><%= server.global? ? "global" : server.scope %></span>
+  <%= button_to mcp_server_path(server), method: :delete,
+        form: { class: "contents", data: { turbo_confirm: "Remove MCP server “#{server.name}” (#{server.scope})? This runs `claude mcp remove`." } },
+        class: "ml-0.5 text-[11px] leading-none text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] cursor-pointer opacity-0 group-hover/srv:opacity-100 transition-opacity",
+        title: "Remove" do %>✕<% end %>
+</div>

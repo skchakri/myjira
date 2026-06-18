@@ -57,6 +57,12 @@ class Conversation < ApplicationRecord
     "Session #{session_id.first(8)}"
   end
 
+  # Unique document files this session created (Write tool → doc extension),
+  # in creation order. Doubles as the allowlist for the document viewer route.
+  def document_paths
+    conversation_messages.where(kind: "tool").filter_map(&:document_path).uniq
+  end
+
   # Recompute the denormalised rollup after a sync batch: counts, the "last
   # context" subline, and the distilled highlights. Done here (one extra pass
   # over this session's messages) so the index list never touches messages.

@@ -22,7 +22,11 @@
   <div id="conversation_message_<%= message.id %>" class="flex items-start gap-2.5">
     <span class="shrink-0 w-7 grid place-items-center text-[color:var(--color-ink-faint)] text-xs mt-0.5"><%= icon %></span>
     <div class="min-w-0 flex-1">
-      <pre class="whitespace-pre-wrap break-words text-[12px] leading-relaxed font-mono text-[color:var(--color-ink-soft)] bg-[color:var(--color-paper-sunk)] hair-all rounded-lg px-2.5 py-1.5"><%= message.body %></pre>
+      <% if (doc = message.document_path) %>
+        <pre class="whitespace-pre-wrap break-words text-[12px] leading-relaxed font-mono text-[color:var(--color-ink-soft)] bg-[color:var(--color-paper-sunk)] hair-all rounded-lg px-2.5 py-1.5">Write <%= link_to doc, document_conversation_path(message.conversation_id, path: doc), target: "_blank", rel: "noopener", class: "ink-link", title: "Open #{File.basename(doc)}" %></pre>
+      <% else %>
+        <pre class="whitespace-pre-wrap break-words text-[12px] leading-relaxed font-mono text-[color:var(--color-ink-soft)] bg-[color:var(--color-paper-sunk)] hair-all rounded-lg px-2.5 py-1.5"><%= message.body %></pre>
+      <% end %>
     </div>
   </div>
 <% else %>

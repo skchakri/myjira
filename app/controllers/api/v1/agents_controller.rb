@@ -7,7 +7,9 @@ module Api
     #
     #   POST /api/v1/agents/sync
     #     { project: "<slug>"|null, scope: "project"|"global",
-    #       agents: [ { kind:, name:, description:, model:, tools:, source_path: } ] }
+    #       agents: [ { kind:, name:, description:, category:, model:, tools:, source_path: } ] }
+    #
+    # `category` is optional — when absent we infer one with Agent.classify.
     #
     # Idempotent full-set upsert per (project, scope): entries present are
     # created/updated; entries in that bucket the daemon no longer reports are
@@ -28,6 +30,7 @@ module Api
           agent.assign_attributes(
             scope: scope,
             description: a["description"],
+            category: a["category"].presence || Agent.classify(name, a["description"], a["tools"]),
             model: a["model"].presence,
             tools: Array(a["tools"]),
             source_path: a["source_path"],

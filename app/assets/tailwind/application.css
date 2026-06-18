@@ -167,6 +167,46 @@ details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 .conv-card:has(details[open]), .conv-group-head:has(details[open]) { position: relative; z-index: 40; }
 
+/* ---------------------------------------------------------------
+   Conversation cards — a left "spine" in the folder's colour (set via
+   --folder inline) so every card carries its folder identity even when
+   it isn't tinted, tying each group together at a glance. On hover the
+   whole card lifts with a warm shadow (replaces the cool Tailwind
+   shadow-md), signalling the entire card is one click target.
+--------------------------------------------------------------- */
+.conv-card {
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+  box-shadow: inset 3px 0 0 0 var(--folder, transparent);
+}
+.conv-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--folder, var(--color-ink)) 32%, var(--color-hair));
+  box-shadow:
+    inset 3px 0 0 0 var(--folder, var(--color-ink-faint)),
+    0 2px 4px rgba(26, 24, 20, 0.05),
+    0 12px 24px -10px rgba(26, 24, 20, 0.18);
+}
+
+/* Generic warm lift for the smaller clickable paper tiles (Live-now strip,
+   launch tiles) — same paper character, no folder spine. */
+.lift { transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+.lift:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-ink) 16%, var(--color-hair));
+  box-shadow: 0 1px 2px rgba(26, 24, 20, 0.04), 0 8px 18px -8px rgba(26, 24, 20, 0.15);
+}
+
+/* Respect users who ask for less motion: keep the styles, drop the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .conv-card:hover, .lift:hover { transform: none; }
+}
+
 /* per-message speak icon: filled while reading aloud */
 .say-btn[data-speaking="true"] {
   background: var(--color-amber-ink) !important;

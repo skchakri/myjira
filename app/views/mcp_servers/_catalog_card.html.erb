@@ -1,0 +1,52 @@
+<%# locals: entry (Hash from Mcp::Catalog), project (Project). One catalog server
+    with a one-click Add — collecting any required inputs (secret tokens, paths)
+    and a per-add scope. Posts to McpInstallsController#create with catalog_key. %>
+<% input_field_class = "w-full text-[11px] bg-[color:var(--color-paper-raised)] hair-all rounded px-1.5 py-1 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+<div class="paper rounded-md p-2.5 hair-all">
+  <div class="flex items-baseline gap-1.5">
+    <span class="text-[12px] font-semibold text-[color:var(--color-ink)]"><%= entry["title"] %></span>
+    <span class="text-[9px] uppercase tracking-wide text-[color:var(--color-ink-faint)]"><%= entry["category"] %></span>
+    <% if entry["auth"] == "token" %>
+      <span class="pill pill-quiet !py-0 !px-1.5 !text-[8.5px]" title="Needs a key — stored encrypted">key</span>
+    <% elsif entry["auth"] == "oauth" %>
+      <span class="pill pill-quiet !py-0 !px-1.5 !text-[8.5px]" title="OAuth — authenticate in Claude after">oauth</span>
+    <% end %>
+    <% if entry["homepage"].present? %>
+      <%= link_to "↗", entry["homepage"], target: "_blank", rel: "noopener",
+            class: "ml-auto text-[11px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)]",
+            title: entry["homepage"] %>
+    <% end %>
+  </div>
+  <p class="text-[10.5px] text-[color:var(--color-ink-faint)] leading-snug mt-0.5 line-clamp-3"><%= entry["description"] %></p>
+
+  <%= form_with url: project_mcp_installs_path(project), method: :post, class: "mt-2" do %>
+    <%= hidden_field_tag :catalog_key, entry["key"] %>
+    <% Array(entry["inputs"]).each do |input| %>
+      <label class="block mt-1.5">
+        <span class="text-[10px] text-[color:var(--color-ink-soft)]"><%= input["label"] %></span>
+        <% field_name = "inputs[#{input["key"]}]" %>
+        <% if input["secret"] %>
+          <%= password_field_tag field_name, nil, autocomplete: "off", class: input_field_class %>
+        <% else %>
+          <%= text_field_tag field_name, input["default"], class: input_field_class %>
+        <% end %>
+      </label>
+      <% if input["help"].present? %>
+        <p class="text-[9.5px] text-[color:var(--color-ink-faint)] leading-snug mt-0.5"><%= input["help"] %></p>
+      <% end %>
+    <% end %>
+
+    <div class="flex items-center gap-1.5 mt-2">
+      <%= select_tag :scope, options_for_select(McpInstall::SCOPES.map { |s| [s, s] }, entry["default_scope"].presence || "user"),
+            class: "text-[10.5px] bg-[color:var(--color-paper-raised)] hair-all rounded px-1 py-1 outline-none",
+            title: "user = all projects · project = this repo's .mcp.json · local = this repo, private" %>
+      <%= submit_tag "Add", class: "ml-auto shrink-0 text-[12px] text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1 rounded-md cursor-pointer" %>
+    </div>
+
+    <% if entry["auth"] == "oauth" %>
+      <p class="text-[9.5px] text-[color:var(--color-ink-faint)] leading-snug mt-1.5">
+        Registers now — run <code class="font-mono">/mcp</code> in a Claude session to authenticate.
+      </p>
+    <% end %>
+  <% end %>
+</div>
