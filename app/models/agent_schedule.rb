@@ -37,6 +37,8 @@ class AgentSchedule < ApplicationRecord
   # Queue a launch in the project's repo and roll next_run_at forward. Returns
   # the SessionLaunch, or nil when the project has no known repo path (in which
   # case we still advance next_run_at so a repo-less schedule doesn't hot-loop).
+  # Raises if the launch itself can't be queued — the tick wraps each schedule so
+  # one failure is recorded (see #note_failure!) without aborting the batch.
   def fire!(now: Time.current)
     launch =
       if project.repo_path.present?
@@ -50,8 +52,30 @@ class AgentSchedule < ApplicationRecord
           source: "scheduled"
         )
       end
-    update!(last_launch: launch || last_launch, last_run_at: now, next_run_at: next_occurrence(now))
+    update!(
+      last_launch: launch || last_launch,
+      last_run_at: now,
+      next_run_at: next_occurrence(now),
+      last_status: launch ? "ok" : "skipped",
+      last_error: launch ? nil : "Project has no repo_path — nothing to launch.",
+      consecutive_failures: launch ? 0 : consecutive_failures
+    )
     launch
+  end
+
+  # Record a failed fire and still roll next_run_at forward, so a persistently
+  # broken schedule retries at its next scheduled time instead of hot-looping
+  # every daemon tick (and never blocks sibling schedules). update_columns skips
+  # validations/callbacks — we're recovering from an error, not re-saving.
+  def note_failure!(error, now: Time.current)
+    update_columns(
+      last_status: "failed",
+      last_error: error.to_s.truncate(500),
+      last_failed_at: now,
+      consecutive_failures: consecutive_failures.to_i + 1,
+      next_run_at: next_occurrence(now),
+      updated_at: now
+    )
   end
 
   private

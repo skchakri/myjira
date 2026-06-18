@@ -1,0 +1,29 @@
+<%# locals: live_conversations. Inner body of the "Live now" strip. Rendered
+    initially via the frame's src, pushed live by Turbo Stream broadcasts from the
+    conversation sync (Conversation.broadcast_live_strip!), and reloaded on a slow
+    timer purely as a backstop for evicting sessions that have gone stale. %>
+<% if live_conversations.any? %>
+  <div class="paper rounded-xl p-3 mb-5" style="border-left:4px solid var(--color-pass-ink);">
+    <div class="flex items-center gap-2 mb-2.5">
+      <span class="live-dot"></span>
+      <span class="eyebrow">Live now</span>
+      <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= live_conversations.size %></span>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+      <% live_conversations.each do |c| %>
+        <%= link_to conversation_path(c),
+              class: "lift paper rounded-lg p-2.5 block" do %>
+          <div class="flex items-center gap-1.5">
+            <span class="live-dot shrink-0"></span>
+            <span class="text-[12px] font-semibold text-[color:var(--color-ink)] truncate"><%= c.display_title %></span>
+          </div>
+          <div class="mt-1 flex items-center gap-2 text-[10.5px] font-mono text-[color:var(--color-ink-faint)]">
+            <span class="font-sans font-semibold" style="color:<%= project_color(c.project) %>;"><%= c.project.name %></span>
+            <span><%= pluralize(c.message_count, "turn") %></span>
+            <span class="ml-auto tabular"><%= ago(c.last_message_at || c.created_at) %></span>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+<% end %>

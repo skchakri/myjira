@@ -34,8 +34,12 @@
 <% end %>
 
 <% unless @project %>
+  <%# Live via Turbo Stream — the strip is pushed the instant any session syncs a
+      turn. The frame's src + slow auto-reload is only a backstop that evicts
+      sessions which have gone stale (no push can fire once activity stops). %>
+  <%= turbo_stream_from "live_sessions" %>
   <%= turbo_frame_tag "live_sessions", src: live_conversations_path,
-        data: { controller: "auto-reload", auto_reload_interval_value: 15000 } %>
+        data: { controller: "auto-reload", auto_reload_interval_value: 60000 } %>
 <% end %>
 
 <%# In-flight launches (queued / spawning / just-launched) — auto-refreshes so the

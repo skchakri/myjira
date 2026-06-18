@@ -40,6 +40,8 @@ module Api
         convo   = upsert_conversation!(project)
         inserted = append_messages!(convo)
         convo.refresh_counts!
+        # Push the refreshed "Live now" strip to the Conversations index in real time.
+        Conversation.broadcast_live_strip!
 
         render json: {
           ok: true,
