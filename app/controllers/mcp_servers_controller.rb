@@ -3,6 +3,13 @@
 # the next sync confirms it's gone from Claude's config, then it's disabled.
 # Adding servers lives in McpInstallsController#create.
 class McpServersController < ApplicationController
+  # Turbo-frame body: just this project's configured-server pills. Auto-reloaded
+  # by the strip so an install/remove shows up without a full page refresh.
+  def index
+    @project = Project.where(slug: params[:project_id]).or(Project.where(id: params[:project_id])).first!
+    render layout: false
+  end
+
   def destroy
     server  = McpServer.find(params[:id])
     project = server.project

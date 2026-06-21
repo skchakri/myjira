@@ -1,0 +1,5 @@
+<%# Turbo-frame reload target for a project's server pills (auto-refresh / lazy).
+    Same frame id the strip renders, so a reload swaps just the pills. %>
+<%= turbo_frame_tag "mcp_list_#{@project.id}", class: "contents" do %>
+  <%= render "mcp_servers/list", project: @project %>
+<% end %>

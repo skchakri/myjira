@@ -20,6 +20,13 @@
       <span class="group-open/mcp:hidden">— click to manage</span>
     </summary>
     <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+      <%# Pills inline: the count above already loads available_mcp_servers, so a
+          lazy turbo frame saved no query and (being display:contents → 0×0 box)
+          never tripped its IntersectionObserver. The hub can't add/remove here —
+          "＋ add" links to the focused page — so no auto-reload is needed. %>
+      <% if servers.empty? %>
+        <span class="text-[11px] text-[color:var(--color-ink-faint)]">None yet —</span>
+      <% end %>
       <% servers.each do |server| %>
         <%= render "mcp_servers/server", server: server, project: project %>
       <% end %>
@@ -37,12 +44,10 @@
       <span class="ml-auto text-[10.5px] text-[color:var(--color-ink-faint)]">give Claude new tools &amp; data sources · configured via the host daemon</span>
     </div>
     <div class="flex flex-wrap items-center gap-1.5">
-      <% if servers.empty? %>
-        <span class="text-[11px] text-[color:var(--color-ink-faint)]">None yet —</span>
-      <% end %>
-      <% servers.each do |server| %>
-        <%= render "mcp_servers/server", server: server, project: project %>
-      <% end %>
+      <%# Auto-reloading frame: an install/remove appears here within a few seconds
+          (the daemon syncs right after it runs `claude mcp add/remove`). %>
+      <%= turbo_frame_tag "mcp_list_#{project.id}", src: project_mcp_servers_path(project),
+            class: "contents", data: { controller: "auto-reload", auto_reload_interval_value: 6000 } %>
       <%= render "mcp_servers/add", project: project %>
     </div>
   </section>

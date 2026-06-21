@@ -39,6 +39,9 @@ Rails.application.routes.draw do
     # Web → add an MCP server (one-click from the catalog, or a custom spec);
     # files an McpInstall the host daemon runs with `claude mcp add`.
     resources :mcp_installs, only: [:create]
+    # Turbo-frame source for this folder's configured-server pills — auto-reloads
+    # so added/removed servers appear without a full page reload.
+    resources :mcp_servers, only: [:index]
   end
 
   # Schedule lifecycle (pause/resume, run once now, remove).

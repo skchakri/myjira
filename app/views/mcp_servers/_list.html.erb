@@ -1,0 +1,10 @@
+<%# locals: project. Just the configured-server pills (+ empty hint) — the inner
+    content of the auto-refreshing "mcp_list" turbo frame, so newly added/removed
+    servers appear without a full page reload. %>
+<% servers = project.available_mcp_servers.to_a %>
+<% if servers.empty? %>
+  <span class="text-[11px] text-[color:var(--color-ink-faint)]">None yet —</span>
+<% end %>
+<% servers.each do |server| %>
+  <%= render "mcp_servers/server", server: server, project: project %>
+<% end %>
