@@ -1,12 +1,25 @@
-<%# locals: project. A disclosure with a small form: kebab name + plain-English
-    brief → AgentBuildsController#create queues a session that authors
-    .claude/agents/<name>.md here. %>
-<details class="relative shrink-0">
-  <summary class="inline-flex items-center gap-1 h-7 px-2.5 rounded-md cursor-pointer list-none
-                  text-[11px] hair-all bg-[color:var(--color-paper-raised)]
-                  hover:border-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)]">
-    <span class="font-mono">✚</span> New agent
-  </summary>
+<%# locals: project. Optional: compact (default false). A disclosure with a small
+    form: kebab name + plain-English brief → AgentBuildsController#create queues a
+    session that authors .claude/agents/<name>.md here.
+      compact=false → bordered pill for the focused project's agents card.
+      compact=true  → ghost pill matching the landing-hub folder header (sits
+                      beside "New session"); z-[3] floats its panel over siblings. %>
+<% compact = local_assigns.fetch(:compact, false) %>
+<details class="relative shrink-0 <%= "pointer-events-auto z-[3]" if compact %>">
+  <% if compact %>
+    <summary class="inline-flex items-center gap-1 h-6 px-2 rounded-md cursor-pointer list-none
+                    text-[11px] font-semibold text-[color:var(--color-ink-faint)]
+                    hover:text-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-paper-sunk)]"
+             title="Have Claude write an agent for this folder">
+      <span class="font-mono">✚</span> New agent
+    </summary>
+  <% else %>
+    <summary class="inline-flex items-center gap-1 h-7 px-2.5 rounded-md cursor-pointer list-none
+                    text-[11px] hair-all bg-[color:var(--color-paper-raised)]
+                    hover:border-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)]">
+      <span class="font-mono">✚</span> New agent
+    </summary>
+  <% end %>
 
   <div class="absolute right-0 mt-1 w-[360px] paper rounded-lg shadow-xl p-3 z-30 text-left">
     <div class="text-[12px] font-semibold text-[color:var(--color-ink)] mb-1.5">Have Claude write an agent</div>
