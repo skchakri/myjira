@@ -69,12 +69,12 @@
           <%# Relay channel %>
           <% relay = browser_relay_stats
              relay_active = controller_name == "browser_tasks"
-             relay_dot = if relay[:waiting].positive? then "dot-fail"
-                         elsif relay[:open].positive? then "dot-pass"
-                         else "dot-idle"
+             relay_dot, relay_label = if relay[:waiting].positive? then ["dot-fail", "waiting on you"]
+                         elsif relay[:open].positive? then ["dot-pass", "active"]
+                         else ["dot-idle", "idle"]
                          end %>
           <%= link_to browser_tasks_path, class: "clink #{relay_active ? 'clink-active' : ''}" do %>
-            <span class="dot <%= relay_dot %>" title="relay"></span>
+            <span class="dot <%= relay_dot %>" role="img" aria-label="Relay status: <%= relay_label %>" title="Relay status: <%= relay_label %>"></span>
             <span class="truncate">Browser Tasks</span>
             <% if relay[:open].positive? %>
               <span class="ml-auto text-[10.5px] tabular font-mono <%= relay[:waiting].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
@@ -88,7 +88,7 @@
           <%# Conversations hub — every CLI session, grouped by project %>
           <% convo_active = controller_name == "conversations" %>
           <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
-            <span class="dot dot-idle" title="conversations"></span>
+            <span class="dot dot-idle" aria-hidden="true"></span>
             <span class="truncate">Conversations</span>
             <% if conversations_total.positive? %>
               <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-ink-faint)]"><%= conversations_total %></span>
@@ -117,14 +117,14 @@
           <% sidebar_clients.each do |project|
                health  = client_health(project)
                active  = (params[:slug] == project.slug) || (params[:id] == project.slug && controller_name == "projects")
-               dot_cls = if health[:failing] || health[:critical_gaps].positive?
-                           "dot-fail"
+               dot_cls, health_label = if health[:failing] || health[:critical_gaps].positive?
+                           ["dot-fail", "failing"]
                          elsif health[:blocked] || health[:total_gaps].positive?
-                           "dot-block"
+                           ["dot-block", "needs attention"]
                          elsif health[:plans].zero?
-                           "dot-idle"
+                           ["dot-idle", "no test plans"]
                          else
-                           "dot-pass"
+                           ["dot-pass", "healthy"]
                          end
           %>
             <%= link_to client_path(project.slug),
@@ -133,7 +133,7 @@
                     client_filter_target: "row",
                     hay: "#{project.name} #{project.slug}"
                   } do %>
-              <span class="dot <%= dot_cls %>" title="health"></span>
+              <span class="dot <%= dot_cls %>" role="img" aria-label="Health: <%= health_label %>" title="Health: <%= health_label %>"></span>
               <span class="truncate"><%= project.name %></span>
               <% if health[:total_gaps].positive? %>
                 <span class="ml-auto text-[10.5px] tabular font-mono <%= health[:critical_gaps].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
@@ -174,12 +174,12 @@
           <div class="px-10 pt-6 -mb-2">
             <% if notice.present? %>
               <div class="paper flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span class="dot dot-pass"></span><span><%= notice %></span>
+                <span class="dot dot-pass" aria-hidden="true"></span><span><%= notice %></span>
               </div>
             <% end %>
             <% if alert.present? %>
               <div class="paper flex items-center gap-3 px-4 py-2.5 text-sm mt-2">
-                <span class="dot dot-fail"></span><span><%= alert %></span>
+                <span class="dot dot-fail" aria-hidden="true"></span><span><%= alert %></span>
               </div>
             <% end %>
           </div>

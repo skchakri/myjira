@@ -1,7 +1,7 @@
 <%# locals: conversation — inner content of the summary panel (replaced by the job) %>
 <% if conversation.summary.present? %>
   <div class="flex items-center gap-1.5 mb-1.5 text-[11px] text-[color:var(--color-ink-faint)]">
-    <span class="dot dot-pass"></span>
+    <span class="dot dot-pass" aria-hidden="true"></span>
     Summarized <%= conversation.summarized_at&.strftime("%-l:%M %p") %>
     <button type="button" data-action="speak#play"
             class="ml-1 inline-flex items-center gap-1 text-[color:var(--color-amber-ink)] hover:underline cursor-pointer">🔊 Play</button>
