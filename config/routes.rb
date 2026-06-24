@@ -59,7 +59,7 @@ Rails.application.routes.draw do
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
-    post "jira_imports", to: "jira_imports#create", as: :jira_imports
+    post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
   end
 
   # Global Jira connection (singleton credentials for ticket import).
