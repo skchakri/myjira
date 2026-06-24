@@ -325,6 +325,15 @@ html[data-theme="dark"] {
 main { background-color: var(--page-bg, transparent); }
 html[data-theme="dark"] main { background-color: var(--color-paper); }
 
+/* Conversation cards wash their folder colour over the *themed* paper token,
+   so the tint is light on paper and dark on the night canvas — the
+   var(--color-ink) title never ends up light-on-light. The accent comes from
+   an inline --card-accent set by the card partial. */
+.conv-card-tinted {
+  background-color: color-mix(in srgb, var(--card-accent) 10%, var(--color-paper-raised));
+  border-color: color-mix(in srgb, var(--card-accent) 28%, var(--color-hair));
+}
+
 /* Dark canvas texture — soft warm washes + a faint light grain (the light
    grain is invisible on dark, so it is re-tinted bright at low opacity). */
 html[data-theme="dark"] body {
