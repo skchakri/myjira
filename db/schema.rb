@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_23_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -193,6 +193,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_000002) do
     t.index ["test_result_id"], name: "index_follow_up_tasks_on_test_result_id"
   end
 
+  create_table "jira_connections", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "api_token"
+    t.datetime "created_at", null: false
+    t.string "email"
+    t.string "site_url"
+    t.datetime "updated_at", null: false
+  end
+
   create_table "mcp_installs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action", default: "add", null: false
     t.jsonb "args", default: [], null: false
@@ -315,6 +323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_23_000002) do
     t.text "description"
     t.uuid "environment_id"
     t.string "external_ref"
+    t.string "external_url"
     t.datetime "finished_at"
     t.text "implementation_notes"
     t.datetime "implemented_at"
