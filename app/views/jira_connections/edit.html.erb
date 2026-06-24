@@ -1,0 +1,32 @@
+<% content_for :title, "Jira connection" %>
+
+<div class="max-w-xl">
+  <div class="eyebrow">Settings</div>
+  <h1 class="font-display text-[32px] leading-tight tracking-tight mt-1 mb-4">Jira connection</h1>
+  <p class="text-sm text-[color:var(--color-ink-soft)] mb-5">
+    Credentials myjira uses to import tickets from Atlassian Jira Cloud. Create an API token at
+    <a href="https://id.atlassian.com/manage-profile/security/api-tokens" class="text-[color:var(--color-amber-ink)] underline" target="_blank" rel="noopener">id.atlassian.com</a>.
+  </p>
+
+  <%= form_with model: @connection, url: jira_connection_path, method: :patch, scope: :jira_connection, class: "paper p-5 space-y-4" do |f| %>
+    <label class="block">
+      <span class="eyebrow block mb-1">Site URL</span>
+      <%= f.url_field :site_url, placeholder: "https://your-site.atlassian.net",
+            class: "w-full hair-all rounded px-3 py-2 text-sm bg-[color:var(--color-paper-raised)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+    </label>
+    <label class="block">
+      <span class="eyebrow block mb-1">Atlassian email</span>
+      <%= f.email_field :email, placeholder: "you@example.com",
+            class: "w-full hair-all rounded px-3 py-2 text-sm bg-[color:var(--color-paper-raised)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+    </label>
+    <label class="block">
+      <span class="eyebrow block mb-1">API token</span>
+      <%= f.password_field :api_token, value: "", autocomplete: "off",
+            placeholder: @connection.api_token.present? ? "•••••••• (leave blank to keep)" : "Paste your API token",
+            class: "w-full hair-all rounded px-3 py-2 text-sm bg-[color:var(--color-paper-raised)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+    </label>
+    <div class="flex justify-end pt-1">
+      <%= f.submit "Save", class: "pill pill-accent cursor-pointer" %>
+    </div>
+  <% end %>
+</div>
