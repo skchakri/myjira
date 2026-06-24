@@ -7,6 +7,21 @@
     <%= csp_meta_tag %>
     <%= yield :head %>
 
+    <%# Night mode: resolve the stored preference and set the theme on <html>
+        synchronously, before first paint, so there is no flash of light mode. %>
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem("myjira-theme") || "auto";
+          var dark = pref === "dark" ||
+            (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
+
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -173,11 +188,12 @@
             <span class="font-mono">localhost:1200</span>
             <span class="pill pill-quiet">local</span>
           </div>
+          <%= render "layouts/theme_toggle" %>
         </div>
       </aside>
 
       <!-- ========== Main pane ========== -->
-      <main class="flex-1 min-w-0" <%= tag.attributes(style: "background:#{content_for(:page_bg)};") if content_for?(:page_bg) %>>
+      <main class="flex-1 min-w-0" <%= tag.attributes(style: "--page-bg:#{content_for(:page_bg)};") if content_for?(:page_bg) %>>
         <% if notice.present? || alert.present? %>
           <div class="px-10 pt-6 -mb-2">
             <% if notice.present? %>

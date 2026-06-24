@@ -279,3 +279,120 @@ details > summary::-webkit-details-marker { display: none; }
 .rise-2 { animation-delay: 90ms; }
 .rise-3 { animation-delay: 140ms; }
 .rise-4 { animation-delay: 190ms; }
+
+/* ===============================================================
+   NIGHT MODE
+   A warm-dark mirror of the paper palette. The whole app reads from
+   the --color-* tokens, so re-defining them under html[data-theme="dark"]
+   cascades to every view, component class and color-mix wash. The
+   resolved theme ("light" | "dark") is set on <html> by an inline
+   <head> script before first paint (see the layout) and toggled by the
+   theme Stimulus controller; the preference (light | dark | auto) lives
+   in localStorage. Native form controls / scrollbars follow via
+   color-scheme.
+=============================================================== */
+html { color-scheme: light; }
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #1A1714;
+  --color-paper-sunk: #15120F;
+  --color-paper-raised: #221E19;
+  --color-ink: #F2ECE0;
+  --color-ink-soft: #C9C1B2;
+  --color-ink-faint: #968D7C;
+  --color-hair: #332E27;
+  --color-hair-soft: #2A2520;
+
+  --color-amber-ink: #E0834A;
+  --color-amber-ink-hover: #EC9560;
+  --color-amber-wash: #3A2418;
+
+  --color-pass-ink: #6BBF8F;
+  --color-pass-wash: #1B2E22;
+  --color-fail-ink: #E97070;
+  --color-fail-wash: #3A1E1E;
+  --color-block-ink: #D9A24E;
+  --color-block-wash: #322716;
+  --color-skip-ink: #A89E8C;
+  --color-skip-wash: #2A2520;
+}
+
+/* The main pane carries a faint per-project wash via an inline --page-bg.
+   In dark mode we flatten it to the dark paper so the tint never leaks a
+   light surface onto the dark canvas. */
+main { background-color: var(--page-bg, transparent); }
+html[data-theme="dark"] main { background-color: var(--color-paper); }
+
+/* Dark canvas texture — soft warm washes + a faint light grain (the light
+   grain is invisible on dark, so it is re-tinted bright at low opacity). */
+html[data-theme="dark"] body {
+  background-image:
+    radial-gradient(circle at 0% 0%, rgba(224, 131, 74, 0.06), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(0, 0, 0, 0.28), transparent 40%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.92 0 0 0 0 0.86 0 0 0 0.025 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ---------------------------------------------------------------
+   Dark compatibility layer — a handful of CRUD/form views still use
+   raw slate/white Tailwind utilities instead of the paper tokens.
+   These remaps are scoped to dark mode only (zero effect on light),
+   mapping the cool greys onto the warm token palette so those pages
+   read correctly on the dark canvas. bg-slate-900 / text-slate-100 are
+   intentionally left alone — they are dark code panels and primary
+   buttons that should stay dark in both themes.
+--------------------------------------------------------------- */
+html[data-theme="dark"] .bg-white { background-color: var(--color-paper-raised); }
+html[data-theme="dark"] .bg-slate-50 { background-color: var(--color-paper-sunk); }
+html[data-theme="dark"] .bg-slate-100 { background-color: var(--color-paper-sunk); }
+
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-800 { color: var(--color-ink); }
+html[data-theme="dark"] .text-slate-700,
+html[data-theme="dark"] .text-slate-600 { color: var(--color-ink-soft); }
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400 { color: var(--color-ink-faint); }
+
+html[data-theme="dark"] .border-slate-300,
+html[data-theme="dark"] .border-slate-200 { border-color: var(--color-hair); }
+
+html[data-theme="dark"] .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--color-hair-soft);
+}
+
+html[data-theme="dark"] .hover\:bg-slate-50:hover { background-color: var(--color-paper-sunk); }
+html[data-theme="dark"] .hover\:text-slate-900:hover,
+html[data-theme="dark"] .hover\:text-slate-800:hover { color: var(--color-ink); }
+html[data-theme="dark"] .hover\:text-slate-700:hover { color: var(--color-ink-soft); }
+html[data-theme="dark"] .hover\:border-slate-300:hover { border-color: var(--color-hair); }
+
+html[data-theme="dark"] .focus\:border-slate-500:focus { border-color: var(--color-amber-ink); }
+html[data-theme="dark"] .focus\:ring-slate-500:focus { --tw-ring-color: var(--color-amber-ink); }
+
+/* ---------------------------------------------------------------
+   Theme toggle — segmented control in the sidebar footer.
+--------------------------------------------------------------- */
+.theme-seg-group {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-paper-sunk);
+  border: 1px solid var(--color-hair);
+  border-radius: 6px;
+}
+.theme-seg {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 20px;
+  border-radius: 4px;
+  color: var(--color-ink-faint);
+  cursor: pointer;
+  transition: background-color 120ms, color 120ms;
+}
+.theme-seg:hover { color: var(--color-ink); }
+.theme-seg-on {
+  background: var(--color-paper-raised);
+  color: var(--color-amber-ink);
+  box-shadow: 0 1px 2px rgba(26, 24, 20, 0.10);
+}
+html[data-theme="dark"] .theme-seg-on { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.40); }
