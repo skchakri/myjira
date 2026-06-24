@@ -1,0 +1,65 @@
+<% stopped = Setting.autopilot_stopped? %>
+<div class="paper mt-5 px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-3">
+  <%= form_with url: board_autopilot_path(project), method: :patch, scope: :project,
+        data: { controller: "auto-submit" }, class: "flex flex-wrap items-center gap-x-5 gap-y-2" do |f| %>
+    <label class="flex items-center gap-2 text-sm">
+      <%= f.check_box :autopilot_enabled, checked: project.autopilot_enabled?, data: { action: "change->auto-submit#submit" } %>
+      <span class="font-medium">Autopilot</span>
+    </label>
+    <label class="flex items-center gap-2 text-sm text-[color:var(--color-ink-soft)]">
+      <%= f.check_box :autopilot_paused, checked: project.autopilot_paused?, data: { action: "change->auto-submit#submit" } %>
+      <span>Paused</span>
+    </label>
+    <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-faint)]">
+      <span>Daily cap</span>
+      <%= f.number_field :autopilot_daily_cap, value: project.autopilot_daily_cap, min: 1, max: 100,
+            data: { action: "change->auto-submit#submit" },
+            class: "w-16 hair-all rounded px-1.5 py-0.5 bg-transparent text-[color:var(--color-ink)]" %>
+    </label>
+    <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-soft)]" title="Run the daily review agent that auto-creates backlog items">
+      <%= f.check_box :autopilot_review_enabled, checked: project.autopilot_review_enabled?, data: { action: "change->auto-submit#submit" } %>
+      <span>Review agent</span>
+    </label>
+    <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-faint)]" title="Branch agents fork from and target PRs at">
+      <span>Base</span>
+      <%= f.text_field :base_branch, value: project.base_branch, placeholder: "main",
+            data: { action: "change->auto-submit#submit" },
+            class: "w-28 hair-all rounded px-1.5 py-0.5 bg-transparent text-[color:var(--color-ink)] font-mono" %>
+    </label>
+  <% end %>
+
+  <div class="text-xs text-[color:var(--color-ink-faint)] font-mono tabular">
+    <%= project.autopilot_runs_today %>/<%= project.autopilot_daily_cap %> runs today
+  </div>
+
+  <% if project.inflight_board_launch? %>
+    <span class="pill pill-accent"><span class="live-dot" style="width:6px;height:6px"></span>&nbsp;working…</span>
+  <% end %>
+
+  <% status_label =
+       if stopped then "globally stopped"
+       elsif project.autopilot_active? then "active"
+       elsif !project.autopilot_enabled? then "off"
+       elsif project.autopilot_paused? then "paused"
+       elsif !project.autopilot_under_cap? then "cap reached"
+       else "idle" end %>
+  <span class="text-xs text-[color:var(--color-ink-faint)]">status:
+    <strong class="text-[color:var(--color-ink-soft)]"><%= status_label %></strong></span>
+
+  <div class="ml-auto flex items-center gap-2">
+    <%= button_to "Run next ▶", board_tick_path(project), method: :post,
+          class: "pill pill-quiet cursor-pointer", title: "Advance the pipeline one step now" %>
+    <% if stopped %>
+      <%= button_to "Resume all", autopilot_resume_all_path, method: :post, class: "pill pill-pass cursor-pointer" %>
+    <% else %>
+      <%= button_to "Stop all", autopilot_stop_all_path, method: :post, class: "pill pill-fail cursor-pointer" %>
+    <% end %>
+  </div>
+</div>
+
+<% if stopped %>
+  <div class="mt-2 paper px-4 py-2 text-sm flex items-center gap-2" style="border-color: var(--color-fail-ink)">
+    <span class="dot dot-fail" aria-hidden="true"></span>
+    Autopilot is stopped across all projects — no new agents will launch until you resume.
+  </div>
+<% end %>

@@ -1,0 +1,12 @@
+<details <%= "open" if open %> class="paper overflow-hidden">
+  <summary class="flex items-center gap-3 px-3 py-2 cursor-pointer select-none hair-b bg-[color:var(--color-paper-sunk)]">
+    <%= board_state_pill(state) %>
+    <span class="text-xs text-[color:var(--color-ink-faint)] tabular"><%= items.size %></span>
+    <span class="ml-auto eyebrow"><%= state.tr("_", " ") %></span>
+  </summary>
+  <ul data-sortable-list data-board-state="<%= state %>" class="divide-y divide-[color:var(--color-hair)] min-h-[8px]">
+    <% items.each do |item| %>
+      <%= render "boards/item", item: item %>
+    <% end %>
+  </ul>
+</details>

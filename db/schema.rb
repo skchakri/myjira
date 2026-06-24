@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_23_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -236,8 +236,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
   end
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.integer "autopilot_daily_cap", default: 10, null: false
+    t.boolean "autopilot_enabled", default: false, null: false
+    t.boolean "autopilot_paused", default: false, null: false
+    t.boolean "autopilot_review_enabled", default: true, null: false
+    t.integer "autopilot_runs_count", default: 0, null: false
+    t.date "autopilot_runs_on"
+    t.string "base_branch"
     t.jsonb "branches", default: [], null: false
     t.datetime "branches_synced_at"
+    t.string "category"
     t.string "color"
     t.datetime "created_at", null: false
     t.string "default_base_url"
@@ -246,6 +254,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
     t.string "repo_path"
     t.string "slug", null: false
     t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_projects_on_category"
     t.index ["slug"], name: "index_projects_on_slug", unique: true
   end
 
@@ -271,11 +280,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
     t.datetime "launched_at"
     t.string "model"
     t.string "permission_mode"
+    t.string "pipeline_step"
     t.uuid "project_id", null: false
     t.text "prompt", null: false
     t.string "repo_path", null: false
     t.string "session_id", null: false
     t.string "status", default: "pending", null: false
+    t.uuid "task_id"
     t.string "tmux_target"
     t.datetime "updated_at", null: false
     t.index ["agent_id"], name: "index_session_launches_on_agent_id"
@@ -283,15 +294,42 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
     t.index ["project_id"], name: "index_session_launches_on_project_id"
     t.index ["session_id"], name: "index_session_launches_on_session_id", unique: true
     t.index ["status"], name: "index_session_launches_on_status"
+    t.index ["task_id"], name: "index_session_launches_on_task_id"
+  end
+
+  create_table "settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "key", null: false
+    t.datetime "updated_at", null: false
+    t.text "value"
+    t.index ["key"], name: "index_settings_on_key", unique: true
   end
 
   create_table "tasks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "agent_notes"
+    t.string "agent_role", default: "unassigned", null: false
+    t.integer "autopilot_attempts", default: 0, null: false
+    t.string "board_state", default: "pending", null: false
+    t.string "branch_name"
     t.datetime "created_at", null: false
     t.text "description"
     t.uuid "environment_id"
     t.string "external_ref"
+    t.datetime "finished_at"
     t.text "implementation_notes"
     t.datetime "implemented_at"
+    t.string "item_type", default: "task", null: false
+    t.uuid "last_conversation_id"
+    t.uuid "last_test_run_id"
+    t.datetime "picked_up_at"
+    t.text "plan"
+    t.datetime "plan_updated_at"
+    t.integer "position"
+    t.text "pr_diff"
+    t.integer "pr_number"
+    t.string "pr_state"
+    t.datetime "pr_synced_at"
+    t.string "pr_url"
     t.string "priority", default: "normal"
     t.uuid "project_id", null: false
     t.string "source", default: "claude-cli"
@@ -300,6 +338,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
     t.datetime "updated_at", null: false
     t.index ["environment_id"], name: "index_tasks_on_environment_id"
     t.index ["external_ref"], name: "index_tasks_on_external_ref"
+    t.index ["item_type"], name: "index_tasks_on_item_type"
+    t.index ["last_conversation_id"], name: "index_tasks_on_last_conversation_id"
+    t.index ["last_test_run_id"], name: "index_tasks_on_last_test_run_id"
+    t.index ["project_id", "board_state"], name: "index_tasks_on_project_id_and_board_state"
+    t.index ["project_id", "position"], name: "index_tasks_on_project_id_and_position"
     t.index ["project_id"], name: "index_tasks_on_project_id"
     t.index ["status"], name: "index_tasks_on_status"
   end
@@ -398,6 +441,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_18_000003) do
   add_foreign_key "session_launches", "agents"
   add_foreign_key "session_launches", "conversations"
   add_foreign_key "session_launches", "projects"
+  add_foreign_key "session_launches", "tasks", on_delete: :nullify
   add_foreign_key "tasks", "environments"
   add_foreign_key "tasks", "projects"
   add_foreign_key "test_cases", "tasks"

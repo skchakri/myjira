@@ -30,6 +30,11 @@
       <%= f.label :default_base_url, class: "block text-sm font-medium text-slate-700 mb-1" %>
       <%= f.text_field :default_base_url, placeholder: "http://localhost:3000", class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm font-mono" %>
     </div>
+    <div>
+      <%= f.label :category, class: "block text-sm font-medium text-slate-700 mb-1" %>
+      <%= f.select :category, Project::CATEGORIES, { include_blank: "(auto from path)" }, class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm" %>
+      <p class="mt-1 text-xs text-slate-500">workspace group shown in the sidebar.</p>
+    </div>
   </div>
   <div class="flex items-center gap-2 pt-2">
     <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>

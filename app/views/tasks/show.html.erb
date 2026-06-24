@@ -30,6 +30,43 @@
       <% end %>
     <% end %>
 
+    <% if @task.attachments.attached? %>
+      <%= card title: "Attachments" do %>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <% @task.attachments.each do |att| %>
+            <% type = att.content_type.to_s %>
+            <% if type.start_with?("image/") %>
+              <a href="<%= url_for(att) %>" target="_blank" rel="noopener" class="block">
+                <%= image_tag att, alt: att.filename.to_s, loading: "lazy",
+                      class: "h-28 w-full object-cover rounded-md border border-slate-200" %>
+                <span class="block mt-1 text-xs text-slate-500 truncate"><%= att.filename %></span>
+              </a>
+            <% elsif type.start_with?("video/") %>
+              <div>
+                <video src="<%= url_for(att) %>" controls preload="metadata"
+                       class="h-28 w-full object-cover rounded-md border border-slate-200 bg-black"></video>
+                <span class="block mt-1 text-xs text-slate-500 truncate"><%= att.filename %></span>
+              </div>
+            <% elsif type.start_with?("audio/") %>
+              <div class="col-span-2 sm:col-span-3">
+                <audio src="<%= url_for(att) %>" controls preload="metadata" class="w-full"></audio>
+                <span class="block mt-1 text-xs text-slate-500 truncate"><%= att.filename %></span>
+              </div>
+            <% else %>
+              <a href="<%= url_for(att) %>" target="_blank" rel="noopener"
+                 class="flex items-center gap-2 p-2 rounded-md border border-slate-200 hover:bg-slate-50">
+                <span class="text-lg shrink-0" aria-hidden="true">📄</span>
+                <span class="min-w-0">
+                  <span class="block text-xs font-medium text-slate-800 truncate"><%= att.filename %></span>
+                  <span class="block text-[11px] text-slate-400"><%= number_to_human_size(att.byte_size) %></span>
+                </span>
+              </a>
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+
     <%= card title: "Implementation notes" do %>
       <% if @task.implementation_notes.present? %>
         <pre class="whitespace-pre-wrap text-sm text-slate-800 font-mono leading-relaxed"><%= @task.implementation_notes %></pre>

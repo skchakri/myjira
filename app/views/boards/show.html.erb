@@ -1,0 +1,58 @@
+<% content_for :title, "#{@project.name} · Board" %>
+<% content_for :page_bg, project_page_bg(@project) %>
+<% content_for :head do %>
+  <meta name="turbo-refresh-method" content="morph">
+  <meta name="turbo-refresh-scroll" content="preserve">
+<% end %>
+
+<%= turbo_stream_from [@project, :board] %>
+
+<% view = params[:view] == "kanban" ? "kanban" : "table" %>
+
+<!-- ===== Header ===== -->
+<div class="flex items-end justify-between gap-6">
+  <div class="min-w-0">
+    <div class="flex items-center gap-2 eyebrow">
+      <%= link_to "clients", clients_path, class: "hover:text-[color:var(--color-ink)]" %>
+      <span>/</span>
+      <%= link_to @project.name, client_path(@project.slug), class: "hover:text-[color:var(--color-ink)] truncate" %>
+      <span>/</span>
+      <span class="text-[color:var(--color-ink-soft)]">board</span>
+    </div>
+    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Board</h1>
+    <%= render "projects/repo_path", project: @project %>
+  </div>
+  <div class="flex items-center gap-3 shrink-0">
+    <div class="flex hair-all rounded-md overflow-hidden text-xs">
+      <%= link_to "Table", board_path(@project, view: "table"),
+            class: "px-3 py-1.5 #{view == 'table' ? 'bg-[color:var(--color-ink)] text-[color:var(--color-paper)]' : 'text-[color:var(--color-ink-soft)] hover:bg-[color:var(--color-paper-sunk)]'}" %>
+      <%= link_to "Kanban", board_path(@project, view: "kanban"),
+            class: "px-3 py-1.5 #{view == 'kanban' ? 'bg-[color:var(--color-ink)] text-[color:var(--color-paper)]' : 'text-[color:var(--color-ink-soft)] hover:bg-[color:var(--color-paper-sunk)]'}" %>
+    </div>
+  </div>
+</div>
+
+<!-- secondary nav: the board is the landing; these reach the rest of the project -->
+<nav class="mt-2 flex items-center gap-4 text-[11px] font-mono text-[color:var(--color-ink-faint)]">
+  <%= link_to "Test plans", project_test_plans_path(@project), class: "hover:text-[color:var(--color-amber-ink)]" %>
+  <span aria-hidden="true">·</span>
+  <%= link_to "Conversations", project_conversations_path(@project), class: "hover:text-[color:var(--color-amber-ink)]" %>
+  <span aria-hidden="true">·</span>
+  <%= link_to "Follow-ups", project_follow_up_tasks_path(@project), class: "hover:text-[color:var(--color-amber-ink)]" %>
+  <span aria-hidden="true">·</span>
+  <%= link_to "Overview", client_path(@project.slug), class: "hover:text-[color:var(--color-amber-ink)]" %>
+</nav>
+
+<%= render "boards/autopilot", project: @project %>
+<%= render "boards/add_item", project: @project %>
+
+<!-- ===== Board ===== -->
+<div data-controller="sortable" data-sortable-url-value="<%= board_reorder_path(@project) %>" class="mt-5">
+  <% if view == "kanban" %>
+    <%= render "boards/kanban", project: @project %>
+  <% else %>
+    <%= render "boards/table", project: @project, groups: @groups %>
+  <% end %>
+</div>
+
+<turbo-frame id="board_modal"></turbo-frame>

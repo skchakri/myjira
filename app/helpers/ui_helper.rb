@@ -54,6 +54,47 @@ module UiHelper
     content_tag :span, value.to_s.tr("_", " "), class: "pill #{klass}"
   end
 
+  # --- Project Board ---------------------------------------------------------
+  BOARD_STATE_CLASS = {
+    "pending" => "pill-quiet", "planned" => "pill-accent", "in_progress" => "pill-accent",
+    "waiting" => "pill-block", "hold" => "pill-skip", "in_review" => "pill-pass",
+    "failed" => "pill-fail", "done" => "pill-pass"
+  }.freeze
+
+  ITEM_TYPE_CLASS = {
+    "task" => "pill-quiet", "feature" => "pill-accent", "issue" => "pill-fail", "ask" => "pill-block"
+  }.freeze
+
+  AGENT_ROLE_LABELS = {
+    "engineering" => "Engineering", "debugger" => "Debugger",
+    "answer_only" => "Answer", "unassigned" => "—"
+  }.freeze
+
+  def board_state_pill(state)
+    klass = BOARD_STATE_CLASS[state.to_s] || "pill-quiet"
+    label = Task::BOARD_STATE_LABELS[state.to_s] || state.to_s.tr("_", " ")
+    live = state.to_s == "in_progress"
+    content_tag :span, class: "pill #{klass}" do
+      (live ? content_tag(:span, "", class: "live-dot", style: "width:6px;height:6px") : "".html_safe) + label
+    end
+  end
+
+  def item_type_chip(item_type)
+    klass = ITEM_TYPE_CLASS[item_type.to_s] || "pill-quiet"
+    glyph = Task::ITEM_TYPE_GLYPHS[item_type.to_s] || "•"
+    content_tag :span, "#{glyph} #{item_type}", class: "pill #{klass}"
+  end
+
+  def agent_role_label(role)
+    AGENT_ROLE_LABELS[role.to_s] || role.to_s.tr("_", " ")
+  end
+
+  # Pill for the Tests column from the latest run's status (nil → not run yet).
+  def test_run_chip(run)
+    return content_tag(:span, "—", class: "text-[color:var(--color-ink-faint)]") if run.nil?
+    status_pill(run.status)
+  end
+
   def severity_pill(value)
     klass = SEVERITY_CLASS[value.to_s] || "pill-quiet"
     content_tag :span, value.to_s, class: "pill #{klass}"
@@ -303,6 +344,12 @@ module UiHelper
 
   def sidebar_clients
     @sidebar_clients ||= Project.clients.order(:name).to_a
+  end
+
+  # Sidebar projects grouped by workspace category, in display order, empties dropped.
+  def sidebar_clients_by_category
+    grouped = sidebar_clients.group_by { |p| p.category.presence || "other" }
+    Project::CATEGORY_ORDER.filter_map { |c| [c, grouped[c]] if grouped[c].present? }
   end
 
   # Distinct, pleasant folder-accent colours. A project's saved `color` wins;

@@ -14,10 +14,22 @@ module Api
           fired  << result[:info] if result[:status] == :fired
           failed << result[:info] if result[:status] == :failed
         end
-        render json: { ok: true, fired: fired.size, failed: failed.size, schedules: fired, failures: failed }
+        # Piggyback board autopilot on the heartbeat the daemon already sends, so
+        # the pipeline advances with no extra daemon change. Never let it break the
+        # schedule tick.
+        autopilot = safe_autopilot_tick
+        render json: { ok: true, fired: fired.size, failed: failed.size,
+                       schedules: fired, failures: failed, autopilot: autopilot }
       end
 
       private
+
+      def safe_autopilot_tick
+        Autopilot::Orchestrator.tick!
+      rescue StandardError => e
+        Rails.logger.error("[autopilot] tick from schedule heartbeat failed: #{e.class} #{e.message}")
+        { ok: false, error: e.message }
+      end
 
       # Fire one due schedule in its own locked transaction. A failure here is
       # caught and recorded against the schedule (next_run_at rolled forward) so a

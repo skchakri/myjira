@@ -1,0 +1,18 @@
+<% grouped = project.board_items.group_by(&:board_state) %>
+<div class="flex gap-3 overflow-x-auto pb-3">
+  <% Task::BOARD_GROUP_ORDER.each do |state| %>
+    <% items = grouped[state] || [] %>
+    <div class="shrink-0 w-72">
+      <div class="flex items-center gap-2 mb-2 px-1">
+        <%= board_state_pill(state) %>
+        <span class="text-xs text-[color:var(--color-ink-faint)] tabular"><%= items.size %></span>
+      </div>
+      <ul data-sortable-list data-board-state="<%= state %>"
+          class="paper min-h-[64px] divide-y divide-[color:var(--color-hair)]">
+        <% items.each do |item| %>
+          <%= render "boards/kanban_card", item: item %>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+</div>

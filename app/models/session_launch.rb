@@ -12,11 +12,16 @@ class SessionLaunch < ApplicationRecord
   # the daemon re-validates before interpolating into the tmux command.
   MODELS           = %w[default opus sonnet haiku].freeze
   PERMISSION_MODES = %w[default acceptEdits plan bypassPermissions].freeze
+  # Which board pipeline step this launch is (nil for plain "＋ New session"s).
+  # triage = the lightweight "you dumped context, I'll assign title/type/priority" pass.
+  PIPELINE_STEPS   = %w[triage review planning engineering debugger answer].freeze
 
   belongs_to :project
   belongs_to :conversation, optional: true
   # Set when this launch came from clicking an agent in the project's strip.
   belongs_to :agent, optional: true
+  # Set when this launch is a board pipeline step working a specific item.
+  belongs_to :task, optional: true
 
   before_validation :assign_session_id, on: :create
   before_validation :inherit_repo_path, on: :create
@@ -27,6 +32,7 @@ class SessionLaunch < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :model, inclusion: { in: MODELS }, allow_blank: true
   validates :permission_mode, inclusion: { in: PERMISSION_MODES }, allow_blank: true
+  validates :pipeline_step, inclusion: { in: PIPELINE_STEPS }, allow_blank: true
 
   scope :recent,  -> { order(created_at: :desc) }
   scope :pending, -> { where(status: "pending") }
@@ -42,10 +48,11 @@ class SessionLaunch < ApplicationRecord
   # fills in live once the daemon spawns `claude --session-id`). Single path for
   # the "＋ New session" button, agent triggers, and scheduled fires.
   def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
-                  agent: nil, title: nil, source: "launched")
+                  agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil)
     transaction do
       launch = project.session_launches.create!(
-        prompt: prompt, model: model, permission_mode: permission_mode, agent: agent
+        prompt: prompt, model: model, permission_mode: permission_mode, agent: agent,
+        task: task, pipeline_step: pipeline_step
       )
       convo = project.conversations.create!(
         session_id: launch.session_id,
@@ -56,6 +63,9 @@ class SessionLaunch < ApplicationRecord
         last_message_at: Time.current
       )
       launch.update!(conversation: convo)
+      # Link the conversation to the board item so its Session column opens this
+      # thread the instant the step is queued (it fills in live as the agent runs).
+      task&.update_columns(last_conversation_id: convo.id, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
       launch
     end
   end

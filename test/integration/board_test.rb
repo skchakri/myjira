@@ -1,0 +1,187 @@
+require "test_helper"
+
+# End-to-end board behaviour: rendering, inline edits, drag-reorder, modals,
+# the manual pipeline pick-up, and autopilot controls.
+class BoardTest < ActionDispatch::IntegrationTest
+  setup do
+    @project = Project.create!(name: "Board Test", slug: "board-test-#{SecureRandom.hex(3)}",
+                               repo_path: "/tmp/board-test")
+    @a = @project.tasks.create!(title: "Issue A", item_type: "issue", board_state: "pending")
+    @b = @project.tasks.create!(title: "Feature B", item_type: "feature", board_state: "planned",
+                                agent_role: "engineering")
+  end
+
+  test "projects are categorized by repo path" do
+    assert_equal "pyr", Project.category_for("/home/kalyan/platform/clients/monat/pyr")
+    assert_equal "icentris", Project.category_for("/home/kalyan/platform/icentris/etl")
+    assert_equal "skchakri", Project.category_for("/home/kalyan/platform/skchakri/ownsites")
+    assert_equal "skchakri", Project.category_for("/home/kalyan/pyr-docker")
+    assert_equal "other", Project.category_for("/home/kalyan/Downloads")
+    p = Project.create!(name: "Cat", slug: "cat-#{SecureRandom.hex(3)}",
+                        repo_path: "/home/kalyan/platform/clients/foo/pyr")
+    assert_equal "pyr", p.category, "category is auto-assigned on create"
+  end
+
+  test "gap importer moves open follow-ups onto the board" do
+    fu = @project.follow_up_tasks.create!(title: "Login throws 500 on SSO", kind: "bug",
+                                          severity: "high", status: "open")
+    res = Board::GapImporter.import(@project)
+    assert_equal 1, res[:created]
+    item = @project.tasks.find_by(title: "Login throws 500 on SSO")
+    assert_equal "issue", item.item_type
+    assert_equal "high", item.priority
+    assert_equal "pending", item.board_state
+    assert_equal "resolved", fu.reload.status, "moved gap is resolved off the open list"
+    assert_equal item.id, fu.task_id, "gap links to its board item"
+  end
+
+  test "table board renders with its items" do
+    get board_path(@project)
+    assert_response :success
+    assert_select "[data-controller='sortable']"
+    assert_match @a.title, response.body
+    assert_match @b.title, response.body
+  end
+
+  test "kanban view renders sortable lists" do
+    get board_path(@project, view: "kanban")
+    assert_response :success
+    assert_select "[data-sortable-list]"
+  end
+
+  test "create_item appends a pending item at the bottom of the queue" do
+    assert_difference -> { @project.tasks.count }, 1 do
+      post board_items_path(@project), params: { task: { title: "New ask", item_type: "ask", priority: "high" } }
+    end
+    item = @project.tasks.order(:position).last
+    assert_equal "New ask", item.title
+    assert_equal "ask", item.item_type
+    assert_equal "pending", item.board_state
+    assert item.position > @b.position
+  end
+
+  test "create_item attaches uploaded context files to the new item" do
+    file = fixture_file_upload("context-note.txt", "text/plain")
+    assert_difference -> { @project.tasks.count }, 1 do
+      post board_items_path(@project),
+           params: { task: { title: "With context", description: "see attached", attachments: [file] } }
+    end
+    item = @project.tasks.find_by!(title: "With context")
+    assert item.attachments.attached?
+    assert_equal 1, item.attachments.size
+    assert_equal "context-note.txt", item.attachments.first.filename.to_s
+
+    # The board row shows an attachment indicator…
+    get board_path(@project)
+    assert_select "li[data-id='#{item.id}']", text: /📎/
+    # …and the item page renders the gallery.
+    get project_task_path(@project, item)
+    assert_match "Attachments", response.body
+    assert_match "context-note.txt", response.body
+  end
+
+  test "create_item with a blank title derives a placeholder and queues a triage agent" do
+    assert_difference -> { @project.tasks.count } => 1,
+                      -> { SessionLaunch.where(pipeline_step: "triage").count } => 1 do
+      post board_items_path(@project),
+           params: { task: { title: "", item_type: "task",
+                             description: "Client emailed: checkout throws a 500 when the coupon is expired. Urgent." } }
+    end
+    item = @project.tasks.order(:created_at).last
+    assert_equal "pending", item.board_state
+    assert item.title.present?, "a placeholder title is derived from the dumped context"
+    assert_match(/checkout/i, item.title)
+    launch = SessionLaunch.where(pipeline_step: "triage").last
+    assert_equal item.id, launch.task_id
+    assert_includes launch.prompt, "/board-triage #{item.id}"
+  end
+
+  test "create_item with an explicit title skips triage" do
+    assert_no_difference -> { SessionLaunch.where(pipeline_step: "triage").count } do
+      post board_items_path(@project), params: { task: { title: "Explicit title", description: "some context" } }
+    end
+    assert_equal "Explicit title", @project.tasks.order(:created_at).last.title
+  end
+
+  test "create_item with a blank title and no context does not queue triage" do
+    assert_no_difference -> { SessionLaunch.where(pipeline_step: "triage").count } do
+      post board_items_path(@project), params: { task: { title: "", description: "" } }
+    end
+    assert_equal "Untitled item", @project.tasks.order(:created_at).last.title
+  end
+
+  test "api exposes attachment urls so the triage agent can read images" do
+    @a.attachments.attach(io: StringIO.new("png-bytes"), filename: "shot.png", content_type: "image/png")
+    get "/api/v1/projects/#{@project.slug}/tasks/#{@a.id}"
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal 1, body["attachments"].size
+    att = body["attachments"].first
+    assert_equal "shot.png", att["filename"]
+    assert_equal "image/png", att["content_type"]
+    assert_match %r{/rails/active_storage/}, att["url"]
+  end
+
+  test "update_item changes board_state inline (204 + persisted)" do
+    patch board_item_path(@project, @a), params: { task: { board_state: "hold" } }
+    assert_response :no_content
+    assert_equal "hold", @a.reload.board_state
+  end
+
+  test "reorder persists new positions and a moved item's new state" do
+    post board_reorder_path(@project), params: { order: [@b.id, @a.id], moved_id: @a.id, moved_state: "in_progress" }
+    assert_response :ok
+    assert_equal 1, @b.reload.position
+    assert_equal 2, @a.reload.position
+    assert_equal "in_progress", @a.board_state
+  end
+
+  test "plan and pr modals render content" do
+    @b.update!(plan: "## Step 1\nDo it", pr_url: "https://github.com/x/y/pull/1",
+               pr_number: 1, pr_state: "open", pr_diff: "+ added line")
+    get board_item_plan_path(@project, @b)
+    assert_response :success
+    assert_match "Step 1", response.body
+
+    get board_item_pr_path(@project, @b)
+    assert_response :success
+    assert_match "Open on GitHub", response.body
+    assert_match "added line", response.body
+  end
+
+  test "pick_up on a planned engineering item queues an engineering launch" do
+    assert_difference -> { SessionLaunch.where(pipeline_step: "engineering").count }, 1 do
+      post board_item_pick_up_path(@project, @b)
+    end
+    assert_redirected_to board_path(@project)
+    launch = SessionLaunch.where(pipeline_step: "engineering").last
+    assert_equal @b.id, launch.task_id
+    assert_not_nil @b.reload.last_conversation_id, "pick_up should link the item to its session"
+  end
+
+  test "pick_up on a pending item queues a planning launch" do
+    assert_difference -> { SessionLaunch.where(pipeline_step: "planning").count }, 1 do
+      post board_item_pick_up_path(@project, @a)
+    end
+  end
+
+  test "autopilot controls persist" do
+    patch board_autopilot_path(@project), params: { project: { autopilot_enabled: "1", autopilot_daily_cap: "5" } }
+    assert_response :no_content
+    @project.reload
+    assert @project.autopilot_enabled?
+    assert_equal 5, @project.autopilot_daily_cap
+  end
+
+  test "global stop and resume flip the kill switch" do
+    post autopilot_stop_all_path
+    assert Setting.autopilot_stopped?
+    post autopilot_resume_all_path
+    assert_not Setting.autopilot_stopped?
+  end
+
+  test "run_tests without a plan redirects with an alert" do
+    post board_item_run_tests_path(@project, @b)
+    assert_redirected_to board_path(@project)
+  end
+end

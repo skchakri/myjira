@@ -11,11 +11,18 @@ class Project < ApplicationRecord
   has_many :mcp_servers, dependent: :destroy
   has_many :mcp_installs, dependent: :destroy
 
+  # Workspace grouping. pyr = per-client iCentris/pyr checkouts; skchakri =
+  # personal apps; icentris = the iCentris platform; other = anything else.
+  CATEGORIES     = %w[pyr skchakri icentris other].freeze
+  CATEGORY_ORDER = %w[skchakri pyr icentris other].freeze
+
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,
     format: { with: /\A[a-z0-9][a-z0-9\-_]*\z/, message: "must be lowercase, digits, - or _" }
+  validates :category, inclusion: { in: CATEGORIES }, allow_nil: true
 
   before_validation :derive_slug, on: :create
+  before_validation :assign_category, on: :create
   after_create :ensure_default_environments!
 
   # A "client" is a project with real myjira work — tasks, test plans, gaps, or
@@ -37,6 +44,16 @@ class Project < ApplicationRecord
     { name: "Stage",       base_url: nil },
     { name: "Prod",        base_url: nil }
   ].freeze
+
+  # Derive a workspace category from a repo path (the bucketing rule, reused by
+  # the backfill migration and on create).
+  def self.category_for(repo_path)
+    path = repo_path.to_s
+    return "pyr"      if path.include?("/platform/clients")
+    return "icentris" if path.include?("/platform/icentris")
+    return "skchakri" if path.match?(%r{/platform/skchakri|/platform/quapt|/pyr-docker|/platform/aws})
+    "other"
+  end
 
   def to_param
     slug
@@ -81,10 +98,80 @@ class Project < ApplicationRecord
     }
   end
 
+  # --- Project Board / Autopilot ---------------------------------------------
+
+  # A board launch is considered in flight while it is queued/launching, or while
+  # its session is actively running — judged by recent conversation activity (a
+  # quiet session is treated as finished) rather than a flat timeout, so the next
+  # step starts promptly once an agent goes idle.
+  BOARD_LAUNCH_BUSY_WINDOW = 8.minutes
+
+  def board_items
+    tasks.with_attached_attachments.board_ordered
+  end
+
+  # Branch agents fork from and target PRs at. Defaults to main when unset.
+  def base_branch_or_default
+    base_branch.presence || "main"
+  end
+
+  # Items grouped by board_state in the board's display order; empty groups dropped.
+  def board_groups
+    grouped = board_items.group_by(&:board_state)
+    Task::BOARD_GROUP_ORDER.filter_map do |state|
+      items = grouped[state]
+      [state, items] if items.present?
+    end
+  end
+
+  # Next item the autopilot orchestrator should act on (first-come-first-out).
+  def next_board_item
+    tasks.actionable.board_ordered.first
+  end
+
+  def autopilot_runs_today
+    autopilot_runs_on == Date.current ? autopilot_runs_count.to_i : 0
+  end
+
+  def autopilot_under_cap?
+    autopilot_runs_today < autopilot_daily_cap.to_i
+  end
+
+  # Autopilot may launch for this project only when enabled, not paused, not
+  # globally stopped, and under the daily cap.
+  def autopilot_active?
+    autopilot_enabled? && !autopilot_paused? && !Setting.autopilot_stopped? && autopilot_under_cap?
+  end
+
+  # True while a board pipeline step is still running for this project (enforces
+  # the one-item-at-a-time guardrail).
+  def inflight_board_launch?
+    board_launches = session_launches.where.not(pipeline_step: nil)
+    return true if board_launches.where(status: %w[pending launching]).exists?
+
+    board_launches.where(status: "launched").joins(:conversation)
+                  .where("COALESCE(conversations.last_message_at, session_launches.launched_at) >= ?",
+                         BOARD_LAUNCH_BUSY_WINDOW.ago).exists?
+  end
+
+  # Roll the daily counter forward, resetting it on a new day.
+  def bump_autopilot_runs!
+    today = Date.current
+    if autopilot_runs_on == today
+      increment!(:autopilot_runs_count)
+    else
+      update!(autopilot_runs_on: today, autopilot_runs_count: 1)
+    end
+  end
+
   private
 
   def derive_slug
     return if slug.present?
     self.slug = name.to_s.downcase.strip.gsub(/[^a-z0-9]+/, "-").squeeze("-").gsub(/\A-|-\z/, "")
+  end
+
+  def assign_category
+    self.category ||= self.class.category_for(repo_path)
   end
 end

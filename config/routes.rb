@@ -44,6 +44,27 @@ Rails.application.routes.draw do
     resources :mcp_servers, only: [:index]
   end
 
+  # Project board — the priority queue of typed work items for a folder, plus its
+  # autopilot controls. Defined with an explicit :project_id (rather than nested
+  # in `resources :projects`) so the helpers are board_path(project) /
+  # board_item_path(project, item), and item actions sit cleanly under board/items.
+  scope "projects/:project_id" do
+    get   "board",                     to: "boards#show",        as: :board
+    post  "board/reorder",             to: "boards#reorder",     as: :board_reorder
+    post  "board/tick",                to: "boards#tick_now",    as: :board_tick
+    patch "board/autopilot",           to: "boards#autopilot",   as: :board_autopilot
+    post  "board/items",               to: "boards#create_item", as: :board_items
+    patch "board/items/:id",           to: "boards#update_item", as: :board_item
+    post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
+    post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
+    get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
+    get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
+  end
+
+  # Global autopilot kill switch — stop/resume every project's pipeline at once.
+  post "autopilot/stop_all",   to: "boards#stop_all",   as: :autopilot_stop_all
+  post "autopilot/resume_all", to: "boards#resume_all", as: :autopilot_resume_all
+
   # Schedule lifecycle (pause/resume, run once now, remove).
   resources :agent_schedules, only: [:destroy] do
     member do
@@ -108,6 +129,7 @@ Rails.application.routes.draw do
       resources :projects, only: [:index, :show, :create, :update] do
         resources :environments, only: [:index, :show, :create, :update]
         resources :tasks,        only: [:index, :show, :create, :update] do
+          member { post :finish } # agent signals "coding done" → fire the test leg
           resources :follow_up_tasks, only: [:index, :create], path: "follow_ups"
         end
         resources :test_plans, only: [:index, :show, :create, :update] do
@@ -148,6 +170,12 @@ Rails.application.routes.draw do
       resources :agent_schedules, only: [] do
         collection { post :tick }
       end
+
+      # Host-side daemon ticks this each loop; myjira advances each autopilot
+      # project's board pipeline by one step (one item at a time). GET status is
+      # a read-only snapshot for the board header / debugging.
+      post "autopilot/tick",   to: "autopilot#tick"
+      get  "autopilot/status", to: "autopilot#status"
 
       # Host-side daemon: poll for queued MCP add/remove requests, report back.
       resources :mcp_installs, only: [:update] do

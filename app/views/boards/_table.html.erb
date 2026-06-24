@@ -1,0 +1,11 @@
+<% if groups.empty? %>
+  <div class="paper p-10 text-center text-sm text-[color:var(--color-ink-faint)]">
+    No items yet. Add one above, or let the review agent populate the backlog.
+  </div>
+<% else %>
+  <div class="space-y-3">
+    <% groups.each do |state, items| %>
+      <%= render "boards/group", state: state, items: items, open: state != "done" %>
+    <% end %>
+  </div>
+<% end %>

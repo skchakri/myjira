@@ -1,0 +1,25 @@
+<li data-sortable-item data-id="<%= item.id %>" draggable="true"
+    class="px-2.5 py-2 bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)] cursor-grab">
+  <div class="flex items-center gap-1.5">
+    <%= item_type_chip(item.item_type) %>
+    <% if item.pr? %>
+      <%= link_to "##{item.pr_number}", board_item_pr_path(item.project, item),
+            data: { turbo_frame: "board_modal" }, class: "ml-auto pill #{pr_pill_class(item.pr_state)}" %>
+    <% end %>
+  </div>
+  <%= link_to item.title, [item.project, item],
+        class: "block mt-1 text-[13px] leading-snug text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)]" %>
+  <div class="flex items-center gap-2 mt-1.5 text-[11px] text-[color:var(--color-ink-faint)]">
+    <% if item.has_plan? %>
+      <%= link_to "📋", board_item_plan_path(item.project, item), data: { turbo_frame: "board_modal" }, title: "Plan" %>
+    <% end %>
+    <% if item.last_conversation %>
+      <%= link_to "↗", conversation_path(item.last_conversation), title: "Session" %>
+    <% end %>
+    <% if item.last_test_run %><%= test_run_chip(item.last_test_run) %><% end %>
+    <% if item.actionable? %>
+      <%= button_to "▶", board_item_pick_up_path(item.project, item), method: :post,
+            class: "ml-auto text-xs px-1.5 hair-all rounded cursor-pointer", title: "Pick up" %>
+    <% end %>
+  </div>
+</li>

@@ -1,0 +1,77 @@
+<li data-sortable-item data-id="<%= item.id %>" draggable="true"
+    class="flex items-center gap-3 px-3 py-2 bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]">
+  <span class="cursor-grab text-[color:var(--color-ink-faint)] select-none shrink-0" title="Drag to reprioritise" aria-hidden="true">⠿</span>
+
+  <span class="shrink-0"><%= item_type_chip(item.item_type) %></span>
+
+  <div class="min-w-0 flex-1">
+    <%= link_to item.title, [item.project, item],
+          class: "text-sm text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] truncate block font-medium" %>
+    <div class="flex items-center gap-2 mt-0.5 text-[11px] text-[color:var(--color-ink-faint)]">
+      <% if item.agent_role != "unassigned" %><span><%= agent_role_label(item.agent_role) %></span><% end %>
+      <% if item.attachments.attached? %><span title="<%= item.attachments.size %> attachment(s)">📎 <%= item.attachments.size %></span><% end %>
+      <% if item.branch_name.present? %><span class="font-mono truncate max-w-[140px]">⎇ <%= item.branch_name %></span><% end %>
+      <% if item.board_state == "failed" && item.agent_notes.present? %>
+        <span class="text-[color:var(--color-fail-ink)] truncate max-w-[260px]" title="<%= item.agent_notes %>"><%= item.agent_notes %></span>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Status (inline editable) -->
+  <%= form_with url: board_item_path(item.project, item), method: :patch, scope: :task,
+        data: { controller: "auto-submit" }, class: "shrink-0" do |f| %>
+    <%= f.select :board_state,
+          options_for_select(Task::BOARD_STATES.map { |s| [Task::BOARD_STATE_LABELS[s], s] }, item.board_state),
+          {}, { data: { action: "change->auto-submit#submit" }, "aria-label": "Status for #{item.title}",
+                class: "text-[11px] font-mono bg-transparent hair-all rounded px-1.5 py-0.5 text-[color:var(--color-ink-soft)]" } %>
+  <% end %>
+
+  <!-- Plan -->
+  <div class="shrink-0 w-6 text-center">
+    <% if item.has_plan? %>
+      <%= link_to "📋", board_item_plan_path(item.project, item), data: { turbo_frame: "board_modal" }, class: "text-sm", title: "Implementation plan" %>
+    <% else %>
+      <span class="opacity-30 text-sm" title="No plan yet">📋</span>
+    <% end %>
+  </div>
+
+  <!-- PR -->
+  <div class="shrink-0 w-14 text-center">
+    <% if item.pr? %>
+      <%= link_to "##{item.pr_number || 'PR'}", board_item_pr_path(item.project, item),
+            data: { turbo_frame: "board_modal" }, class: "pill #{pr_pill_class(item.pr_state)}", title: "PR changes" %>
+    <% else %>
+      <span class="opacity-30 text-xs">—</span>
+    <% end %>
+  </div>
+
+  <!-- Tests -->
+  <div class="shrink-0 w-16 text-center">
+    <% if item.tests_enabled? %>
+      <%= button_to board_item_run_tests_path(item.project, item), method: :post, class: "cursor-pointer", title: "Run test cases" do %>
+        <%= test_run_chip(item.last_test_run) %>
+      <% end %>
+    <% else %>
+      <span class="opacity-30 text-xs">—</span>
+    <% end %>
+  </div>
+
+  <!-- Session -->
+  <div class="shrink-0 w-6 text-center">
+    <% if item.last_conversation %>
+      <%= link_to "↗", conversation_path(item.last_conversation),
+            class: "text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)]", title: "Open cloud session" %>
+    <% else %>
+      <span class="opacity-30">↗</span>
+    <% end %>
+  </div>
+
+  <!-- Pick up -->
+  <div class="shrink-0 w-7 text-center">
+    <% if item.actionable? %>
+      <%= button_to "▶", board_item_pick_up_path(item.project, item), method: :post,
+            class: "text-xs px-1.5 py-0.5 hair-all rounded text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-amber-ink)] cursor-pointer",
+            title: "Pick up — run #{Board::Pipeline.next_step_for(item)} agent" %>
+    <% end %>
+  </div>
+</li>

@@ -9,8 +9,10 @@ class TestRun < ApplicationRecord
 
   before_create :set_started_at
   after_create :seed_results
+  after_create_commit :link_to_board_items
   after_update :propagate_status_to_tasks, if: :saved_change_to_status?
   after_update_commit :broadcast_header, if: -> { saved_change_to_status? || saved_change_to_passed_count? || saved_change_to_failed_count? || saved_change_to_blocked_count? || saved_change_to_skipped_count? }
+  after_update_commit :broadcast_board, if: :saved_change_to_status?
 
   def broadcast_header
     broadcast_replace_to [self, :results],
@@ -54,6 +56,24 @@ class TestRun < ApplicationRecord
     test_plan.tasks.where(status: movable).find_each do |task|
       task.update!(status: target)
     end
+  end
+
+  # Point every board item attached to this plan at this run, so the board's
+  # Tests column reflects the latest run. board_state itself stays owned by the
+  # agent/human — the run never overrides it here.
+  def link_to_board_items
+    test_plan.tasks.find_each do |task|
+      task.update_columns(last_test_run_id: id, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+    end
+  end
+
+  # Refresh any board showing items attached to this plan when the run resolves.
+  def broadcast_board
+    test_plan.tasks.includes(:project).map(&:project).uniq.each do |project|
+      Turbo::StreamsChannel.broadcast_refresh_to([project, :board])
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[board] test-run broadcast failed: #{e.message}")
   end
 
   def set_started_at

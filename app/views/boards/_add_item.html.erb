@@ -1,0 +1,90 @@
+<%# Rich "New board item" composer: a trigger button + a modal form carrying the
+    full context — title, type, priority, a description, and drag-drop / paste /
+    browse attachments with live previews. Posts multipart and redirects back. %>
+<div data-controller="item-form" class="mt-3">
+  <button type="button" data-action="item-form#open"
+          class="pill pill-accent cursor-pointer inline-flex items-center gap-1.5">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    New item
+  </button>
+
+  <!-- Modal -->
+  <div data-item-form-target="overlay"
+       class="hidden fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+       style="background: rgba(26,24,20,0.55)"
+       data-action="click->item-form#backdrop">
+    <div role="dialog" aria-modal="true" aria-labelledby="new-item-heading"
+         class="paper w-full max-w-2xl mt-8 sm:mt-12" style="box-shadow: 0 24px 60px -20px rgba(26,24,20,0.5)">
+      <header class="flex items-center justify-between px-5 py-3 hair-b">
+        <div class="min-w-0">
+          <div class="eyebrow">New board item</div>
+          <div id="new-item-heading" class="text-sm font-medium">Dump the context — we'll title it</div>
+        </div>
+        <button type="button" data-action="item-form#close" aria-label="Close"
+                class="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] text-lg leading-none px-1">✕</button>
+      </header>
+
+      <%= form_with url: board_items_path(project), method: :post, scope: :task,
+            class: "p-5 space-y-4" do |f| %>
+        <!-- The dump: description + attachments are the hero. Title/type/priority below are optional. -->
+        <label class="block">
+          <span class="eyebrow block mb-1">Context</span>
+          <%= f.text_area :description, rows: 8,
+                data: { item_form_target: "autofocus", action: "paste->item-form#paste" },
+                placeholder: "Paste everything — the client's email thread, logs, links, acceptance criteria. Paste images straight in too. Leave the title blank and we'll read all of this to assign a title, type & priority.",
+                class: "w-full hair-all rounded px-3 py-2.5 text-sm bg-[color:var(--color-paper-raised)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y leading-relaxed" %>
+        </label>
+
+        <div>
+          <span class="eyebrow block mb-1">Attachments</span>
+          <div data-item-form-target="dropzone" role="button" tabindex="0"
+               aria-label="Add attachments: drag files here, paste, or press Enter to browse"
+               data-action="click->item-form#browse keydown->item-form#dropzoneKey dragover->item-form#dragover dragleave->item-form#dragleave drop->item-form#drop"
+               class="border-2 border-dashed border-[color:var(--color-hair)] rounded-lg px-4 py-6 text-center cursor-pointer bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)] focus:outline-none focus:ring-2 focus:ring-[color:var(--color-amber-ink)] transition-colors">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="mx-auto mb-1.5 text-[color:var(--color-ink-faint)]" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
+            <div class="text-sm text-[color:var(--color-ink-soft)]">Drag &amp; drop, paste, or <span class="text-[color:var(--color-amber-ink)] underline">browse</span></div>
+            <div class="text-[11px] text-[color:var(--color-ink-faint)] mt-1">Images, video, audio, PDFs &amp; docs — up to <%= Task::MAX_ATTACHMENTS %> files, <%= Task::MAX_ATTACHMENT_SIZE / 1.megabyte %> MB each</div>
+          </div>
+          <%= f.file_field :attachments, multiple: true,
+                data: { item_form_target: "input", action: "item-form#changed" }, class: "hidden" %>
+          <div data-item-form-target="previews" class="hidden grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3" aria-live="polite"></div>
+        </div>
+
+        <!-- Optional overrides. Leave the title blank to let triage assign all three. -->
+        <details class="rounded-lg bg-[color:var(--color-paper-sunk)] px-3 py-2">
+          <summary class="cursor-pointer text-[11px] text-[color:var(--color-ink-faint)] select-none">
+            Set title / type / priority yourself (optional)
+          </summary>
+          <div class="mt-3 space-y-3">
+            <label class="block">
+              <span class="eyebrow block mb-1">Title</span>
+              <%= f.text_field :title, placeholder: "Leave blank — assigned from your context",
+                    class: "w-full hair-all rounded px-3 py-2 text-sm bg-[color:var(--color-paper-raised)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+            </label>
+            <div class="flex flex-wrap gap-3">
+              <label class="flex-1 min-w-[140px]">
+                <span class="eyebrow block mb-1">Type</span>
+                <%= f.select :item_type,
+                      options_for_select(Task::ITEM_TYPES.map { |t| ["#{Task::ITEM_TYPE_GLYPHS[t]} #{t}", t] }, "task"),
+                      {}, class: "w-full hair-all rounded px-2 py-2 text-sm bg-[color:var(--color-paper-raised)]" %>
+              </label>
+              <label class="flex-1 min-w-[140px]">
+                <span class="eyebrow block mb-1">Priority</span>
+                <%= f.select :priority, options_for_select(Task::PRIORITIES, "normal"),
+                      {}, class: "w-full hair-all rounded px-2 py-2 text-sm bg-[color:var(--color-paper-raised)]" %>
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <span class="text-[11px] text-[color:var(--color-ink-faint)]">✨ Title, type &amp; priority are assigned from your context — edit anytime.</span>
+          <div class="flex items-center gap-2">
+            <button type="button" data-action="item-form#close" class="pill pill-quiet cursor-pointer">Cancel</button>
+            <%= f.submit "Add item", data: { turbo_submits_with: "Adding…" }, class: "pill pill-accent cursor-pointer" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
