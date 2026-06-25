@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :plan, :pr]
 
   def show
     @groups = @project.board_groups
@@ -80,6 +80,19 @@ class BoardsController < ApplicationController
       redirect_to test_run_path(run), notice: "Test run started."
     else
       redirect_to board_path(@project), alert: "No test plan yet for this item — an agent generates one when it finishes."
+    end
+  end
+
+  # "Approve & merge" on an in_review item: flag it so the host daemon runs
+  # `gh pr merge` (the container has no GitHub access) and flips it to done.
+  def request_merge
+    if @task.request_merge!
+      refresh_board!
+      redirect_to board_path(@project),
+                  notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
+    else
+      redirect_to board_path(@project),
+                  alert: "Can't merge: the item must be in review with an open PR."
     end
   end
 

@@ -61,6 +61,7 @@ Rails.application.routes.draw do
     patch "board/items/:id",           to: "boards#update_item", as: :board_item
     post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
+    post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
     post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
@@ -185,6 +186,11 @@ Rails.application.routes.draw do
       # a read-only snapshot for the board header / debugging.
       post "autopilot/tick",   to: "autopilot#tick"
       get  "autopilot/status", to: "autopilot#status"
+
+      # Host-side daemon: reconcile in_review PRs. GET = what to merge/poll;
+      # POST = apply the gh outcomes (merge done, externally merged/closed).
+      get  "board/pr_sync", to: "board#pr_sync"
+      post "board/pr_sync", to: "board#pr_sync_apply"
 
       # Host-side daemon: poll for queued MCP add/remove requests, report back.
       resources :mcp_installs, only: [:update] do

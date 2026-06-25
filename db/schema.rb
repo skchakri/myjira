@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_25_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -334,6 +334,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_000004) do
     t.string "item_type", default: "task", null: false
     t.uuid "last_conversation_id"
     t.uuid "last_test_run_id"
+    t.datetime "merge_requested_at"
     t.datetime "picked_up_at"
     t.text "plan"
     t.datetime "plan_updated_at"
@@ -354,6 +355,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_000004) do
     t.index ["item_type"], name: "index_tasks_on_item_type"
     t.index ["last_conversation_id"], name: "index_tasks_on_last_conversation_id"
     t.index ["last_test_run_id"], name: "index_tasks_on_last_test_run_id"
+    t.index ["merge_requested_at"], name: "index_tasks_on_merge_requested_at"
     t.index ["project_id", "board_state"], name: "index_tasks_on_project_id_and_board_state"
     t.index ["project_id", "position"], name: "index_tasks_on_project_id_and_position"
     t.index ["project_id"], name: "index_tasks_on_project_id"

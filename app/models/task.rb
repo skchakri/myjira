@@ -67,6 +67,15 @@ class Task < ApplicationRecord
   scope :board_ordered, -> { order(Arel.sql("position ASC NULLS LAST"), :created_at) }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
   scope :on_board, -> { where.not(board_state: "done") }
+  # PR review reconciliation (run by the host daemon, which has GitHub access).
+  # awaiting_merge = human clicked "Approve & merge"; the daemon runs `gh pr merge`.
+  # pr_pollable    = in_review PRs to poll for an external (GitHub-side) merge/close.
+  scope :awaiting_merge, -> { where(board_state: "in_review").where.not(merge_requested_at: nil) }
+  scope :pr_pollable, lambda { |stale_before|
+    where(board_state: "in_review", merge_requested_at: nil)
+      .where.not(pr_url: [nil, ""])
+      .where("pr_synced_at IS NULL OR pr_synced_at < ?", stale_before)
+  }
 
   after_update_commit :broadcast_board, if: :saved_change_to_board_state?
 
@@ -93,6 +102,30 @@ class Task < ApplicationRecord
 
   def pr?
     pr_url.present?
+  end
+
+  # Human approved the PR on the board — queued for the daemon to `gh pr merge`.
+  def merge_requested?
+    merge_requested_at.present?
+  end
+
+  # "Approve & merge": flag an in_review item for the daemon to merge its PR.
+  def request_merge!
+    return false unless board_state == "in_review" && pr_url.present?
+    update!(merge_requested_at: Time.current)
+  end
+
+  # Daemon reports `gh pr merge` succeeded → close the item out as merged+done.
+  def complete_merge!
+    assign_attributes(pr_state: "merged", merge_requested_at: nil)
+    mark_done!
+  end
+
+  # Daemon reports the merge failed (conflicts, failing checks, …) → stay in
+  # review with a note so the human can resolve it on GitHub and retry.
+  def fail_merge!(note)
+    update!(merge_requested_at: nil, pr_synced_at: Time.current,
+            agent_notes: "Auto-merge failed: #{note}".truncate(500))
   end
 
   def has_plan?
