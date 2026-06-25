@@ -10,7 +10,11 @@ Rails.application.routes.draw do
   get "/c/:slug",  to: "clients#show",  as: :client
 
   resources :projects do
-    member { patch :color }
+    member do
+      patch :color
+      patch :archive
+      patch :unarchive
+    end
     resources :environments, except: [:index]
     resources :tasks, except: [:index] do
       resources :follow_up_tasks, only: [:new, :create], controller: "follow_up_tasks", as: :follow_ups

@@ -42,6 +42,13 @@ class Project < ApplicationRecord
     )
   }
 
+  # Archive is an axis orthogonal to `clients`: chain them, e.g.
+  # `Project.clients.active` for the sidebar / default index, and
+  # `Project.clients.archived` for the "Show archived" view. Archive wins over
+  # `listed` — an archived project is hidden from the nav even when pinned.
+  scope :active,   -> { where(archived_at: nil) }
+  scope :archived, -> { where.not(archived_at: nil) }
+
   DEFAULT_ENVIRONMENTS = [
     { name: "Development", base_url: nil },
     { name: "Stage",       base_url: nil },
@@ -76,6 +83,21 @@ class Project < ApplicationRecord
 
   def default_environment
     environments.find_by(name: "Development") || environments.order(:name).first
+  end
+
+  def archived?
+    archived_at.present?
+  end
+
+  # Retire / restore a project. Archiving hides it from the nav and the default
+  # projects index without touching its board or history; unarchiving brings it
+  # straight back.
+  def archive!
+    update!(archived_at: Time.current)
+  end
+
+  def unarchive!
+    update!(archived_at: nil)
   end
 
   # Triggerable agents shown for this folder: the ones discovered in its own

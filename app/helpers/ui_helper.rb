@@ -343,13 +343,20 @@ module UiHelper
   end
 
   def sidebar_clients
-    @sidebar_clients ||= Project.clients.order(:name).to_a
+    @sidebar_clients ||= Project.clients.active.order(:name).to_a
   end
 
-  # Sidebar projects grouped by workspace category, in display order, empties dropped.
-  def sidebar_clients_by_category
-    grouped = sidebar_clients.group_by { |p| p.category.presence || "other" }
+  # Group a set of projects by workspace category, in display order, empties
+  # dropped. Shared by the sidebar and the projects index so both categorise the
+  # same way.
+  def projects_by_category(projects)
+    grouped = projects.group_by { |p| p.category.presence || "other" }
     Project::CATEGORY_ORDER.filter_map { |c| [c, grouped[c]] if grouped[c].present? }
+  end
+
+  # Sidebar projects grouped by workspace category.
+  def sidebar_clients_by_category
+    projects_by_category(sidebar_clients)
   end
 
   # Distinct, pleasant folder-accent colours. A project's saved `color` wins;

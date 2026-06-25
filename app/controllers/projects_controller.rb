@@ -1,8 +1,11 @@
 class ProjectsController < ApplicationController
-  before_action :set_project, only: [:show, :edit, :update, :destroy, :color]
+  before_action :set_project, only: [:show, :edit, :update, :destroy, :color, :archive, :unarchive]
 
   def index
-    @projects = Project.clients.order(:name)
+    @show_archived  = ActiveModel::Type::Boolean.new.cast(params[:archived])
+    @archived_count = Project.clients.archived.count
+    scope = @show_archived ? Project.clients.archived : Project.clients.active
+    @projects = scope.order(:name)
   end
 
   def show
@@ -37,6 +40,19 @@ class ProjectsController < ApplicationController
   def destroy
     @project.destroy
     redirect_to projects_path, notice: "Project deleted."
+  end
+
+  # Retire a project: hides it from the sidebar nav and the default projects
+  # index (still reachable by URL, board/history intact). Returns to wherever the
+  # button was clicked — the project page or the index.
+  def archive
+    @project.archive!
+    redirect_back fallback_location: projects_path, notice: "Project archived."
+  end
+
+  def unarchive
+    @project.unarchive!
+    redirect_back fallback_location: projects_path, notice: "Project unarchived."
   end
 
   # Recolor a folder from the conversation cards' gear menu. Accepts a hex value
