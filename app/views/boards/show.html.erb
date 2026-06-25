@@ -23,6 +23,7 @@
     <%= render "projects/repo_path", project: @project %>
   </div>
   <div class="flex items-center gap-3 shrink-0">
+    <%= render "boards/jira_import", project: @project %>
     <div class="flex hair-all rounded-md overflow-hidden text-xs">
       <%= link_to "Table", board_path(@project, view: "table"),
             class: "px-3 py-1.5 #{view == 'table' ? 'bg-[color:var(--color-ink)] text-[color:var(--color-paper)]' : 'text-[color:var(--color-ink-soft)] hover:bg-[color:var(--color-paper-sunk)]'}" %>

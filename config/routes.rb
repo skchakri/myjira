@@ -59,7 +59,12 @@ Rails.application.routes.draw do
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
+    post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
   end
+
+  # Global Jira connection (singleton credentials for ticket import).
+  get   "jira/connection/edit", to: "jira_connections#edit",   as: :edit_jira_connection
+  patch "jira/connection",      to: "jira_connections#update", as: :jira_connection
 
   # Global autopilot kill switch — stop/resume every project's pipeline at once.
   post "autopilot/stop_all",   to: "boards#stop_all",   as: :autopilot_stop_all

@@ -1,0 +1,50 @@
+<%# "Import from Jira": a header button that reveals a modal with a single URL
+    field. Posts to JiraImportsController#create and redirects back to the board. %>
+<div data-controller="jira-import" class="inline-block">
+  <button type="button" data-action="jira-import#open"
+          class="pill pill-quiet cursor-pointer inline-flex items-center gap-1.5">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+    Import from Jira
+  </button>
+
+  <div data-jira-import-target="overlay"
+       class="hidden fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto"
+       style="background: rgba(26,24,20,0.55)"
+       data-action="click->jira-import#backdrop">
+    <div role="dialog" aria-modal="true" aria-labelledby="jira-import-heading"
+         class="paper w-full max-w-lg mt-12" style="box-shadow: 0 24px 60px -20px rgba(26,24,20,0.5)">
+      <header class="flex items-center justify-between px-5 py-3 hair-b">
+        <div class="min-w-0">
+          <div class="eyebrow">Import from Jira</div>
+          <div id="jira-import-heading" class="text-sm font-medium">Paste a Jira ticket URL</div>
+        </div>
+        <button type="button" data-action="jira-import#close" aria-label="Close"
+                class="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] text-lg leading-none px-1">✕</button>
+      </header>
+
+      <%= form_with url: project_jira_imports_path(project), method: :post, class: "p-5 space-y-4" do |f| %>
+        <label class="block">
+          <span class="eyebrow block mb-1">Ticket URL</span>
+          <%= url_field_tag :url, nil, required: true,
+                data: { jira_import_target: "input" },
+                placeholder: "https://your-site.atlassian.net/browse/PROJ-123",
+                class: "w-full hair-all rounded px-3 py-2 text-sm bg-[color:var(--color-paper-raised)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+        </label>
+
+        <% unless JiraConnection.configured? %>
+          <p class="text-[11px] text-[color:var(--color-ink-faint)]">
+            Jira isn't connected — <%= link_to "set it up", edit_jira_connection_path, class: "text-[color:var(--color-amber-ink)] underline" %> first.
+          </p>
+        <% end %>
+
+        <div class="flex items-center justify-between gap-2 pt-1">
+          <%= link_to "Jira settings", edit_jira_connection_path, class: "text-[11px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)]" %>
+          <div class="flex items-center gap-2">
+            <button type="button" data-action="jira-import#close" class="pill pill-quiet cursor-pointer">Cancel</button>
+            <%= f.submit "Import", data: { turbo_submits_with: "Importing…" }, class: "pill pill-accent cursor-pointer" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
