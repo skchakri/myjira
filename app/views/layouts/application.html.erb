@@ -76,47 +76,8 @@
           </label>
         </div>
 
-        <!-- Channels: Browser Tasks + Conversations, grouped together -->
-        <div class="px-4 pt-3 pb-1.5">
-          <span class="eyebrow">Channels</span>
-        </div>
-        <nav class="px-2 pb-1 shrink-0">
-          <%# Relay channel %>
-          <% relay = browser_relay_stats
-             relay_active = controller_name == "browser_tasks"
-             relay_dot, relay_label = if relay[:waiting].positive? then ["dot-fail", "waiting on you"]
-                         elsif relay[:open].positive? then ["dot-pass", "active"]
-                         else ["dot-idle", "idle"]
-                         end %>
-          <%= link_to browser_tasks_path, class: "clink #{relay_active ? 'clink-active' : ''}" do %>
-            <span class="dot <%= relay_dot %>" role="img" aria-label="Relay status: <%= relay_label %>" title="Relay status: <%= relay_label %>"></span>
-            <span class="truncate">Browser Tasks</span>
-            <% if relay[:open].positive? %>
-              <span class="ml-auto text-[10.5px] tabular font-mono <%= relay[:waiting].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
-                <%= relay[:open] %>
-              </span>
-            <% else %>
-              <span class="clink-slug truncate max-w-[90px]">chrome</span>
-            <% end %>
-          <% end %>
-
-          <%# Conversations hub — every CLI session, grouped by project %>
-          <% convo_active = controller_name == "conversations" %>
-          <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
-            <span class="dot dot-idle" aria-hidden="true"></span>
-            <span class="truncate">Conversations</span>
-            <% if conversations_total.positive? %>
-              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-ink-faint)]"><%= conversations_total %></span>
-            <% else %>
-              <span class="clink-slug truncate max-w-[90px]">cli</span>
-            <% end %>
-          <% end %>
-        </nav>
-
-        <div class="my-1.5 mx-3 h-px shrink-0" style="background:var(--color-hair-soft);"></div>
-
         <!-- Projects: their own nav section -->
-        <div class="px-4 pt-1 pb-1.5 flex items-center justify-between shrink-0">
+        <div class="px-4 pt-3 pb-1.5 flex items-center justify-between shrink-0">
           <span class="eyebrow">Projects</span>
           <span class="eyebrow" data-client-filter-target="count"><%= sidebar_clients.size %></span>
         </div>
@@ -171,6 +132,45 @@
           <div class="hidden px-3 py-6 text-xs text-[color:var(--color-ink-faint)] text-center" data-client-filter-target="empty">
             No match.
           </div>
+        </nav>
+
+        <div class="my-1.5 mx-3 h-px shrink-0" style="background:var(--color-hair-soft);"></div>
+
+        <!-- Channels: Browser Tasks + Conversations, grouped together -->
+        <div class="px-4 pt-1 pb-1.5 shrink-0">
+          <span class="eyebrow">Channels</span>
+        </div>
+        <nav class="px-2 pb-3 shrink-0">
+          <%# Relay channel %>
+          <% relay = browser_relay_stats
+             relay_active = controller_name == "browser_tasks"
+             relay_dot, relay_label = if relay[:waiting].positive? then ["dot-fail", "waiting on you"]
+                         elsif relay[:open].positive? then ["dot-pass", "active"]
+                         else ["dot-idle", "idle"]
+                         end %>
+          <%= link_to browser_tasks_path, class: "clink #{relay_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= relay_dot %>" role="img" aria-label="Relay status: <%= relay_label %>" title="Relay status: <%= relay_label %>"></span>
+            <span class="truncate">Browser Tasks</span>
+            <% if relay[:open].positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono <%= relay[:waiting].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
+                <%= relay[:open] %>
+              </span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">chrome</span>
+            <% end %>
+          <% end %>
+
+          <%# Conversations hub — every CLI session, grouped by project %>
+          <% convo_active = controller_name == "conversations" %>
+          <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Conversations</span>
+            <% if conversations_total.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-ink-faint)]"><%= conversations_total %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">cli</span>
+            <% end %>
+          <% end %>
         </nav>
 
         <!-- Footer -->

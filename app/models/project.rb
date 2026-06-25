@@ -12,9 +12,10 @@ class Project < ApplicationRecord
   has_many :mcp_installs, dependent: :destroy
 
   # Workspace grouping. pyr = per-client iCentris/pyr checkouts; skchakri =
-  # personal apps; icentris = the iCentris platform; other = anything else.
-  CATEGORIES     = %w[pyr skchakri icentris other].freeze
-  CATEGORY_ORDER = %w[skchakri pyr icentris other].freeze
+  # personal apps; icentris = the iCentris platform; mobile = Ionic/Capacitor
+  # mobile apps; other = anything else.
+  CATEGORIES     = %w[pyr skchakri icentris mobile other].freeze
+  CATEGORY_ORDER = %w[skchakri pyr icentris mobile other].freeze
 
   validates :name, presence: true
   validates :slug, presence: true, uniqueness: true,
@@ -25,14 +26,16 @@ class Project < ApplicationRecord
   before_validation :assign_category, on: :create
   after_create :ensure_default_environments!
 
-  # A "client" is a project with real myjira work — tasks, test plans, gaps, or
-  # relay (browser) tickets. Projects that exist only to group captured CLI
-  # conversations (the sync hook makes one per working dir) are NOT clients;
-  # they stay out of the Clients sidebar / projects index and live under
-  # Conversations instead. Self-correcting: add any real artifact and it appears.
+  # A "client" is a project that is either explicitly pinned (listed) or has real
+  # myjira work — tasks, test plans, gaps, or relay (browser) tickets. Projects
+  # that exist only to group captured CLI conversations (the sync hook makes one
+  # per working dir) are NOT clients; they stay out of the Clients sidebar /
+  # projects index and live under Conversations instead. Self-correcting: add any
+  # real artifact and it appears; or set listed to pin it in deliberately.
   scope :clients, lambda {
     where(
-      "EXISTS (SELECT 1 FROM tasks t WHERE t.project_id = projects.id) " \
+      "projects.listed = TRUE " \
+      "OR EXISTS (SELECT 1 FROM tasks t WHERE t.project_id = projects.id) " \
       "OR EXISTS (SELECT 1 FROM test_plans tp WHERE tp.project_id = projects.id) " \
       "OR EXISTS (SELECT 1 FROM follow_up_tasks f WHERE f.project_id = projects.id) " \
       "OR EXISTS (SELECT 1 FROM browser_tasks b WHERE b.project_id = projects.id)"
@@ -50,6 +53,7 @@ class Project < ApplicationRecord
   def self.category_for(repo_path)
     path = repo_path.to_s
     return "pyr"      if path.include?("/platform/clients")
+    return "mobile"   if path.include?("/platform/icentris/ionic")
     return "icentris" if path.include?("/platform/icentris")
     return "skchakri" if path.match?(%r{/platform/skchakri|/platform/quapt|/pyr-docker|/platform/aws})
     "other"

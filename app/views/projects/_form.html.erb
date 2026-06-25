@@ -36,6 +36,13 @@
       <p class="mt-1 text-xs text-slate-500">workspace group shown in the sidebar.</p>
     </div>
   </div>
+  <div class="flex items-start gap-2 pt-1">
+    <%= f.check_box :listed, class: "mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-500" %>
+    <div>
+      <%= f.label :listed, "Pin to Clients sidebar", class: "block text-sm font-medium text-slate-700" %>
+      <p class="text-xs text-slate-500">Always list this project in the sidebar, even before it has any tasks.</p>
+    </div>
+  </div>
   <div class="flex items-center gap-2 pt-2">
     <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
     <%= link_to "Cancel", projects_path, class: "text-sm text-slate-500 hover:text-slate-700 px-2" %>

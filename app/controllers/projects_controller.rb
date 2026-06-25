@@ -54,6 +54,6 @@ class ProjectsController < ApplicationController
   end
 
   def project_params
-    params.require(:project).permit(:name, :slug, :description, :repo_path, :default_base_url, :category)
+    params.require(:project).permit(:name, :slug, :description, :repo_path, :default_base_url, :category, :listed)
   end
 end
