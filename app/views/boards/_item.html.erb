@@ -14,6 +14,7 @@
       <% if item.board_state == "failed" && item.agent_notes.present? %>
         <span class="text-[color:var(--color-fail-ink)] truncate max-w-[260px]" title="<%= item.agent_notes %>"><%= item.agent_notes %></span>
       <% end %>
+      <span class="ml-auto shrink-0"><%= board_item_times(item) %></span>
     </div>
   </div>
 
