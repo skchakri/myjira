@@ -192,6 +192,33 @@ module UiHelper
     t.strftime("%b %-d")
   end
 
+  # One-line "created … · updated …" for board cards & rows. Relative times with
+  # the full timestamp as a hover tooltip. The "updated" half is dropped when the
+  # item hasn't been touched since creation (within a minute), so a brand-new item
+  # reads simply "created just now" instead of repeating itself.
+  def board_item_times(item)
+    spans = [ tag.span("created #{ago(item.created_at)}", title: format_time(item.created_at)) ]
+    if item.updated_at - item.created_at > 60
+      spans << tag.span("updated #{ago(item.updated_at)}", title: format_time(item.updated_at))
+    end
+    safe_join(spans, content_tag(:span, " · ", class: "opacity-40"))
+  end
+
+  # Present-only, ordered lifecycle timestamps for a board item — [label, time]
+  # pairs for the task detail "Timeline" card. Each entry is the moment the item
+  # entered that milestone (set by the board state-transition methods on Task);
+  # absent milestones are skipped so the list only shows what actually happened.
+  def board_item_timeline(item)
+    [
+      [ "Created",      item.created_at ],
+      [ "Picked up",    item.picked_up_at ],
+      [ "Plan updated", item.plan_updated_at ],
+      [ "Implemented",  item.implemented_at ],
+      [ "In review / done", item.finished_at ],
+      [ "Last updated", item.updated_at ]
+    ].select { |_label, t| t.present? }
+  end
+
   # Health rollup for one project — for sidebar dots and index stats.
   # Memoized per-request so the sidebar's N-client loop stays cheap.
   def client_health(project)

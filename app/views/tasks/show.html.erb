@@ -98,6 +98,17 @@
   </div>
 
   <div class="space-y-4">
+    <%= card title: "Timeline" do %>
+      <dl class="space-y-1.5">
+        <% board_item_timeline(@task).each do |label, t| %>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="text-sm text-slate-500"><%= label %></dt>
+            <dd class="text-xs font-mono text-slate-800" title="<%= ago(t) %>"><%= format_time(t) %></dd>
+          </div>
+        <% end %>
+      </dl>
+    <% end %>
+
     <%= card title: "Follow-ups & gaps" do %>
       <% if @follow_ups.empty? %>
         <p class="text-sm text-slate-500">None.</p>

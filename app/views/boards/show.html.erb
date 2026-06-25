@@ -19,7 +19,8 @@
       <span>/</span>
       <span class="text-[color:var(--color-ink-soft)]">board</span>
     </div>
-    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Board</h1>
+    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1"><%= @project.name %></h1>
+    <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">Board</p>
     <%= render "projects/repo_path", project: @project %>
   </div>
   <div class="flex items-center gap-3 shrink-0">
