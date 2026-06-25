@@ -4,7 +4,12 @@
 <div class="flex items-baseline justify-between mb-6">
   <div>
     <div class="text-xs text-slate-500 font-mono"><%= @project.slug %></div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900"><%= @project.name %></h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+      <%= @project.name %>
+      <% if @project.archived? %>
+        <span class="align-middle ml-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Archived</span>
+      <% end %>
+    </h1>
     <% if @project.description.present? %>
       <p class="mt-1 text-sm text-slate-600 max-w-2xl"><%= @project.description %></p>
     <% end %>
@@ -12,6 +17,11 @@
   <div class="flex items-center gap-2">
     <%= link_to "▦ Board", board_path(@project), class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
     <%= link_to "Edit", edit_project_path(@project), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
+    <% if @project.archived? %>
+      <%= button_to "Unarchive", unarchive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md cursor-pointer" %>
+    <% else %>
+      <%= button_to "Archive", archive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md cursor-pointer" %>
+    <% end %>
     <%= link_to "+ Task", new_project_task_path(@project), class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
     <%= link_to "+ Test plan", new_project_test_plan_path(@project), class: "text-sm text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-md" %>
   </div>

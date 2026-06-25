@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_24_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -244,6 +244,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_000003) do
   end
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "archived_at"
     t.integer "autopilot_daily_cap", default: 10, null: false
     t.boolean "autopilot_enabled", default: false, null: false
     t.boolean "autopilot_paused", default: false, null: false
@@ -263,6 +264,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_24_000003) do
     t.string "repo_path"
     t.string "slug", null: false
     t.datetime "updated_at", null: false
+    t.index ["archived_at"], name: "index_projects_on_archived_at"
     t.index ["category"], name: "index_projects_on_category"
     t.index ["listed"], name: "index_projects_on_listed"
     t.index ["slug"], name: "index_projects_on_slug", unique: true
