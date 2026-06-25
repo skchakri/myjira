@@ -74,6 +74,7 @@
                   class: "text-sm font-semibold hover:underline", style: "color:#{color};" %>
             <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= sessions.size %></span>
             <%= render "session_launches/new_button", project: project %>
+            <%= render "agents/new_button", project: project, compact: true %>
             <%= render "folder_gear", project: project %>
           </div>
           <% if project.branches.present? %>
