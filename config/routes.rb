@@ -158,6 +158,9 @@ Rails.application.routes.draw do
           member { post :finish } # agent signals "coding done" → fire the test leg
           resources :follow_up_tasks, only: [:index, :create], path: "follow_ups"
           resources :comments, only: [:index, :create]
+          # Relay/Claude-in-Chrome uploads screenshots / GIFs captured during a
+          # real browser test as base64 (or multipart) → surfaces in changelog.
+          resources :attachments, only: [:create], controller: "task_attachments"
         end
         resources :test_plans, only: [:index, :show, :create, :update] do
           resources :test_cases, only: [:index, :create, :update] do
