@@ -26,6 +26,13 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal 0, item.reload.autopilot_attempts
   end
 
+  test "a rejected item drops out of the daemon merge and poll scopes" do
+    item = in_review_item(merge_requested_at: Time.current)
+    item.reject_pr!
+    assert_not_includes Task.awaiting_merge, item, "no longer queued for gh pr merge"
+    assert_not_includes Task.pr_pollable(Time.current), item, "no longer polled for an external merge/close"
+  end
+
   test "reject_pr! with a reason logs a comment and stamps agent_notes" do
     item = in_review_item
     assert_difference -> { item.comments.count }, 1 do

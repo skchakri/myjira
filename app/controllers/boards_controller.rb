@@ -112,11 +112,15 @@ class BoardsController < ApplicationController
   end
 
   # Add an append-only note to an item (from the board or task page). Blank bodies
-  # are ignored. Always returns to the task page where the comment log lives.
+  # are rejected with a flash. Always returns to the task page where the log lives.
   def add_comment
     body = params.dig(:comment, :body).to_s.strip
-    @task.comments.create!(author: "you", body: body) if body.present?
-    redirect_to [@project, @task], notice: ("Comment added." if body.present?)
+    if body.present?
+      @task.comments.create!(author: "you", body: body)
+      redirect_to [@project, @task], notice: "Comment added."
+    else
+      redirect_to [@project, @task], alert: "Comment can't be blank."
+    end
   end
 
   # Plan + PR modals rendered into the #board_modal turbo-frame.
