@@ -143,6 +143,7 @@ Rails.application.routes.draw do
         resources :tasks,        only: [:index, :show, :create, :update] do
           member { post :finish } # agent signals "coding done" → fire the test leg
           resources :follow_up_tasks, only: [:index, :create], path: "follow_ups"
+          resources :comments, only: [:index, :create]
         end
         resources :test_plans, only: [:index, :show, :create, :update] do
           resources :test_cases, only: [:index, :create, :update] do

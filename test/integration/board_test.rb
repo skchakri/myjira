@@ -224,4 +224,33 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_redirected_to project_task_path(@project, @a)
     assert_equal "pending", @a.reload.board_state
   end
+
+  test "api creates a comment authored by an agent" do
+    assert_difference -> { @a.comments.count }, 1 do
+      post "/api/v1/projects/#{@project.slug}/tasks/#{@a.id}/comments",
+           params: { comment: { author: "engineering", body: "rebased on main, conflict resolved" } }
+    end
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert_equal "engineering", body["author"]
+    assert_equal "rebased on main, conflict resolved", body["body"]
+  end
+
+  test "api comment defaults author to agent and rejects a blank body" do
+    post "/api/v1/projects/#{@project.slug}/tasks/#{@a.id}/comments", params: { comment: { body: "ok" } }
+    assert_response :created
+    assert_equal "agent", JSON.parse(response.body)["author"]
+
+    post "/api/v1/projects/#{@project.slug}/tasks/#{@a.id}/comments", params: { comment: { body: "" } }
+    assert_response :unprocessable_entity
+  end
+
+  test "api lists comments oldest-first" do
+    @a.comments.create!(body: "one", created_at: 2.minutes.ago)
+    @a.comments.create!(body: "two")
+    get "/api/v1/projects/#{@project.slug}/tasks/#{@a.id}/comments"
+    assert_response :success
+    bodies = JSON.parse(response.body).map { |c| c["body"] }
+    assert_equal %w[one two], bodies
+  end
 end
