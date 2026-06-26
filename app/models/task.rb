@@ -63,11 +63,13 @@ class Task < ApplicationRecord
   validates :agent_role,  inclusion: { in: AGENT_ROLES }
   validate :attachments_within_limits
 
-  before_create :assign_position
-
   scope :recent, -> { order(created_at: :desc) }
-  # Priority order: lowest position first (top of the queue), oldest as tiebreak.
-  scope :board_ordered, -> { order(Arel.sql("position ASC NULLS LAST"), :created_at) }
+  # Board display order: dragged items keep their explicit position (lowest first);
+  # items the user hasn't repositioned have NULL position and default to newest-first
+  # so the most recently added item appears at the top of each status group.
+  # created_at is used (not updated_at) so the order is stable and doesn't reshuffle
+  # on every attribute touch.
+  scope :board_ordered, -> { order(Arel.sql("position ASC NULLS LAST, created_at DESC")) }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).

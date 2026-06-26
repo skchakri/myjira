@@ -51,4 +51,44 @@ class TaskTest < ActiveSupport::TestCase
     refute no_pr.reject_pr!
     assert_equal "in_review", no_pr.reload.board_state
   end
+
+  # board_ordered: default sort is newest-created first; manual position wins
+  test "board_ordered returns newest-created items first when no positions are set" do
+    # Create items with explicit created_at to avoid sub-second flakiness
+    older = @project.tasks.create!(title: "Older", item_type: "task", board_state: "pending",
+                                   created_at: 2.hours.ago)
+    newer = @project.tasks.create!(title: "Newer", item_type: "task", board_state: "pending",
+                                   created_at: 1.hour.ago)
+    newest = @project.tasks.create!(title: "Newest", item_type: "task", board_state: "pending",
+                                    created_at: 1.minute.ago)
+
+    # All three have no position (NULL) — newest should come first
+    ids = @project.tasks.board_ordered.map(&:id)
+    assert_equal [newest.id, newer.id, older.id], ids,
+                 "unpositioned items must sort newest-first (created_at DESC)"
+  end
+
+  test "board_ordered: a manually set position sorts ahead of unpositioned items" do
+    # item with position=1 must come before items with NULL position regardless of created_at
+    unpositioned_new = @project.tasks.create!(title: "Unpositioned New", item_type: "task",
+                                              board_state: "pending", created_at: 1.minute.ago)
+    pinned = @project.tasks.create!(title: "Pinned", item_type: "task",
+                                    board_state: "pending", created_at: 1.hour.ago)
+    pinned.update_column(:position, 1)
+
+    ids = @project.tasks.board_ordered.map(&:id)
+    assert_equal pinned.id, ids.first, "positioned item (position=1) must be first"
+    assert_equal unpositioned_new.id, ids.last, "unpositioned new item comes after positioned ones"
+  end
+
+  test "board_ordered: two positioned items respect their numeric position order" do
+    first_pos = @project.tasks.create!(title: "First", item_type: "task", board_state: "pending")
+    second_pos = @project.tasks.create!(title: "Second", item_type: "task", board_state: "pending")
+    first_pos.update_column(:position, 1)
+    second_pos.update_column(:position, 2)
+
+    ids = @project.tasks.board_ordered.map(&:id)
+    assert_equal first_pos.id, ids.first
+    assert_equal second_pos.id, ids.second
+  end
 end

@@ -49,15 +49,14 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_select "[data-sortable-list]"
   end
 
-  test "create_item appends a pending item at the bottom of the queue" do
+  test "create_item creates a pending item with no auto-assigned position (defaults to top of its group)" do
     assert_difference -> { @project.tasks.count }, 1 do
       post board_items_path(@project), params: { task: { title: "New ask", item_type: "ask", priority: "high" } }
     end
-    item = @project.tasks.order(:position).last
-    assert_equal "New ask", item.title
+    item = @project.tasks.find_by!(title: "New ask")
     assert_equal "ask", item.item_type
     assert_equal "pending", item.board_state
-    assert item.position > @b.position
+    assert_nil item.position, "new items have no auto-assigned position so they sort newest-first by default"
   end
 
   test "create_item attaches uploaded context files to the new item" do
