@@ -1,22 +1,22 @@
 <% content_for :title, "Follow-ups — #{@project.name}" %>
-<h1 class="text-xl font-semibold text-slate-900 mb-4">Follow-ups & gaps — <%= @project.name %></h1>
+<h1 class="text-xl font-semibold text-[color:var(--color-ink)] mb-4">Follow-ups & gaps — <%= @project.name %></h1>
 <%= card do %>
   <% if @follow_ups.empty? %>
-    <p class="text-sm text-slate-500">No follow-ups logged.</p>
+    <p class="text-sm text-[color:var(--color-ink-faint)]">No follow-ups logged.</p>
   <% else %>
-    <ul class="divide-y divide-slate-100">
+    <ul class="divide-y divide-[color:var(--color-hair)]">
       <% @follow_ups.each do |f| %>
         <li class="py-3 flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="flex items-center gap-2">
               <%= severity_pill(f.severity) %>
-              <span class="text-sm font-medium text-slate-900"><%= f.title %></span>
+              <span class="text-sm font-medium text-[color:var(--color-ink)]"><%= f.title %></span>
             </div>
-            <% if f.description.present? %><p class="text-xs text-slate-500 mt-1"><%= f.description %></p><% end %>
-            <div class="text-xs text-slate-400 mt-1"><%= f.kind %> · <%= status_pill(f.status) %> · <%= time_ago_in_words(f.created_at) %> ago</div>
+            <% if f.description.present? %><p class="text-xs text-[color:var(--color-ink-faint)] mt-1"><%= f.description %></p><% end %>
+            <div class="text-xs text-[color:var(--color-ink-faint)] mt-1"><%= f.kind %> · <%= status_pill(f.status) %> · <%= time_ago_in_words(f.created_at) %> ago</div>
           </div>
           <div class="flex gap-2">
-            <%= link_to "Edit", edit_project_follow_up_task_path(@project, f), class: "text-xs text-slate-600 hover:text-slate-900" %>
+            <%= link_to "Edit", edit_project_follow_up_task_path(@project, f), class: "text-xs text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %>
             <%= button_to "Delete", project_follow_up_task_path(@project, f), method: :delete, form: { data: { turbo_confirm: "Delete?" } }, class: "text-xs text-[color:var(--color-fail-ink)] hover:text-[color:var(--color-fail-ink)] bg-transparent" %>
           </div>
         </li>

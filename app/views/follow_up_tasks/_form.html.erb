@@ -18,5 +18,5 @@
         label: "Related task", type: :select,
         choices: @project.tasks.recent.limit(200).map { |t| [t.title, t.id] },
         include_blank: "— none —" %>
-  <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
+  <%= f.submit class: "inline-flex items-center rounded-md bg-[color:var(--color-amber-ink)] px-3 py-1.5 text-sm font-medium text-[color:var(--color-paper)] hover:bg-[color:var(--color-amber-ink-hover)] cursor-pointer" %>
 <% end %>

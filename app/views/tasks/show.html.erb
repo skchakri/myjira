@@ -2,20 +2,20 @@
 
 <div class="flex items-baseline justify-between mb-4">
   <div>
-    <div class="text-xs text-slate-500 font-mono">
+    <div class="text-xs text-[color:var(--color-ink-soft)] font-mono">
       <%= link_to @project.name, @project, class: "hover:underline" %> /
       task · <%= @task.id.first(8) %>
     </div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900"><%= @task.title %></h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]"><%= @task.title %></h1>
     <div class="mt-2 flex items-center gap-2">
       <%= status_pill(@task.status) %>
-      <span class="text-xs text-slate-500">priority: <%= @task.priority %></span>
-      <% if @task.environment %><span class="text-xs font-mono text-slate-500">env: <%= @task.environment.name %></span><% end %>
+      <span class="text-xs text-[color:var(--color-ink-soft)]">priority: <%= @task.priority %></span>
+      <% if @task.environment %><span class="text-xs font-mono text-[color:var(--color-ink-soft)]">env: <%= @task.environment.name %></span><% end %>
       <% if @task.external_ref.present? %>
         <% if @task.external_url.present? %>
-          <%= link_to "#{@task.external_ref} ↗", @task.external_url, target: "_blank", rel: "noopener", title: "View in Jira", class: "text-xs font-mono text-slate-500 hover:text-slate-900 underline decoration-dotted" %>
+          <%= link_to "#{@task.external_ref} ↗", @task.external_url, target: "_blank", rel: "noopener", title: "View in Jira", class: "text-xs font-mono text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] underline decoration-dotted" %>
         <% else %>
-          <span class="text-xs font-mono text-slate-500"><%= @task.external_ref %></span>
+          <span class="text-xs font-mono text-[color:var(--color-ink-soft)]"><%= @task.external_ref %></span>
         <% end %>
       <% end %>
     </div>
@@ -27,10 +27,10 @@
       <%= f.select :board_state,
             options_for_select(Task::BOARD_STATES.map { |s| [Task::BOARD_STATE_LABELS[s], s] }, @task.board_state),
             {}, { data: { action: "change->auto-submit#submit" }, "aria-label": "Board status",
-                  class: "text-sm border border-slate-200 rounded-md px-2 py-1.5 text-slate-700" } %>
+                  class: "text-sm border border-[color:var(--color-hair)] rounded-md px-2 py-1.5 text-[color:var(--color-ink-soft)]" } %>
     <% end %>
-    <%= link_to "Edit", edit_project_task_path(@project, @task), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
-    <%= link_to "+ Follow-up", new_project_task_follow_up_path(@project, @task), class: "text-sm text-white bg-[color:var(--color-fail-ink)] hover:bg-[color:var(--color-fail-ink)] px-3 py-1.5 rounded-md" %>
+    <%= link_to "Edit", edit_project_task_path(@project, @task), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
+    <%= link_to "+ Follow-up", new_project_task_follow_up_path(@project, @task), class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-fail-ink)] hover:bg-[color:var(--color-fail-ink)] px-3 py-1.5 rounded-md" %>
   </div>
 </div>
 
@@ -38,9 +38,9 @@
   <div class="lg:col-span-2 space-y-4">
     <%= card title: "Original documentation" do %>
       <% if @task.description.present? %>
-        <pre class="whitespace-pre-wrap text-sm text-slate-800 font-mono leading-relaxed"><%= @task.description %></pre>
+        <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)] font-mono leading-relaxed"><%= @task.description %></pre>
       <% else %>
-        <p class="text-sm text-slate-500">No description yet.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No description yet.</p>
       <% end %>
     <% end %>
 
@@ -52,27 +52,27 @@
             <% if type.start_with?("image/") %>
               <a href="<%= url_for(att) %>" target="_blank" rel="noopener" class="block">
                 <%= image_tag att, alt: att.filename.to_s, loading: "lazy",
-                      class: "h-28 w-full object-cover rounded-md border border-slate-200" %>
-                <span class="block mt-1 text-xs text-slate-500 truncate"><%= att.filename %></span>
+                      class: "h-28 w-full object-cover rounded-md border border-[color:var(--color-hair)]" %>
+                <span class="block mt-1 text-xs text-[color:var(--color-ink-soft)] truncate"><%= att.filename %></span>
               </a>
             <% elsif type.start_with?("video/") %>
               <div>
                 <video src="<%= url_for(att) %>" controls preload="metadata"
-                       class="h-28 w-full object-cover rounded-md border border-slate-200 bg-black"></video>
-                <span class="block mt-1 text-xs text-slate-500 truncate"><%= att.filename %></span>
+                       class="h-28 w-full object-cover rounded-md border border-[color:var(--color-hair)] bg-black"></video>
+                <span class="block mt-1 text-xs text-[color:var(--color-ink-soft)] truncate"><%= att.filename %></span>
               </div>
             <% elsif type.start_with?("audio/") %>
               <div class="col-span-2 sm:col-span-3">
                 <audio src="<%= url_for(att) %>" controls preload="metadata" class="w-full"></audio>
-                <span class="block mt-1 text-xs text-slate-500 truncate"><%= att.filename %></span>
+                <span class="block mt-1 text-xs text-[color:var(--color-ink-soft)] truncate"><%= att.filename %></span>
               </div>
             <% else %>
               <a href="<%= url_for(att) %>" target="_blank" rel="noopener"
-                 class="flex items-center gap-2 p-2 rounded-md border border-slate-200 hover:bg-slate-50">
+                 class="flex items-center gap-2 p-2 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)]">
                 <span class="text-lg shrink-0" aria-hidden="true">📄</span>
                 <span class="min-w-0">
-                  <span class="block text-xs font-medium text-slate-800 truncate"><%= att.filename %></span>
-                  <span class="block text-[11px] text-slate-400"><%= number_to_human_size(att.byte_size) %></span>
+                  <span class="block text-xs font-medium text-[color:var(--color-ink)] truncate"><%= att.filename %></span>
+                  <span class="block text-[11px] text-[color:var(--color-ink-faint)]"><%= number_to_human_size(att.byte_size) %></span>
                 </span>
               </a>
             <% end %>
@@ -83,9 +83,9 @@
 
     <%= card title: "Implementation notes" do %>
       <% if @task.implementation_notes.present? %>
-        <pre class="whitespace-pre-wrap text-sm text-slate-800 font-mono leading-relaxed"><%= @task.implementation_notes %></pre>
+        <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)] font-mono leading-relaxed"><%= @task.implementation_notes %></pre>
       <% else %>
-        <p class="text-sm text-slate-500">Claude CLI hasn't recorded any implementation notes yet.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">Claude CLI hasn't recorded any implementation notes yet.</p>
       <% end %>
     <% end %>
 
@@ -95,35 +95,35 @@
           <% @comments.each do |c| %>
             <li>
               <div class="flex items-baseline gap-2">
-                <span class="text-xs font-medium text-slate-700"><%= c.author %></span>
-                <span class="text-xs text-slate-400" title="<%= format_time(c.created_at) %>"><%= ago(c.created_at) %></span>
+                <span class="text-xs font-medium text-[color:var(--color-ink-soft)]"><%= c.author %></span>
+                <span class="text-xs text-[color:var(--color-ink-faint)]" title="<%= format_time(c.created_at) %>"><%= ago(c.created_at) %></span>
               </div>
-              <p class="text-sm text-slate-800 whitespace-pre-wrap mt-0.5"><%= c.body %></p>
+              <p class="text-sm text-[color:var(--color-ink)] whitespace-pre-wrap mt-0.5"><%= c.body %></p>
             </li>
           <% end %>
         </ul>
       <% else %>
-        <p class="text-sm text-slate-500 mb-4">No comments yet.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)] mb-4">No comments yet.</p>
       <% end %>
 
       <%= form_with url: board_item_comments_path(@project, @task), method: :post, class: "space-y-2" do %>
         <%= text_area_tag "comment[body]", nil, rows: 2, placeholder: "Add a comment… (e.g. why you're moving this back to Pending)",
               "aria-label": "Add a comment",
-              class: "w-full text-sm border border-slate-200 rounded-md px-3 py-2" %>
+              class: "w-full text-sm border border-[color:var(--color-hair)] rounded-md px-3 py-2" %>
         <div class="text-right">
-          <%= submit_tag "Post", class: "text-sm text-white bg-slate-900 hover:bg-slate-700 px-3 py-1.5 rounded-md cursor-pointer" %>
+          <%= submit_tag "Post", class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
         </div>
       <% end %>
     <% end %>
 
     <%= card title: "Test plans covering this task" do %>
       <% if @test_plans.empty? %>
-        <p class="text-sm text-slate-500">No plan covers this task yet.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No plan covers this task yet.</p>
       <% else %>
-        <ul class="divide-y divide-slate-100">
+        <ul class="divide-y divide-[color:var(--color-hair)]">
           <% @test_plans.each do |p| %>
             <li class="py-2 flex items-center justify-between">
-              <%= link_to p.title, [@project, p], class: "text-sm font-medium text-slate-900 hover:text-slate-700" %>
+              <%= link_to p.title, [@project, p], class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-ink-soft)]" %>
               <%= status_pill(p.status) %>
             </li>
           <% end %>
@@ -137,8 +137,8 @@
       <dl class="space-y-1.5">
         <% board_item_timeline(@task).each do |label, t| %>
           <div class="flex items-baseline justify-between gap-3">
-            <dt class="text-sm text-slate-500"><%= label %></dt>
-            <dd class="text-xs font-mono text-slate-800" title="<%= ago(t) %>"><%= format_time(t) %></dd>
+            <dt class="text-sm text-[color:var(--color-ink-soft)]"><%= label %></dt>
+            <dd class="text-xs font-mono text-[color:var(--color-ink)]" title="<%= ago(t) %>"><%= format_time(t) %></dd>
           </div>
         <% end %>
       </dl>
@@ -146,17 +146,17 @@
 
     <%= card title: "Follow-ups & gaps" do %>
       <% if @follow_ups.empty? %>
-        <p class="text-sm text-slate-500">None.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">None.</p>
       <% else %>
         <ul class="space-y-3">
           <% @follow_ups.each do |f| %>
             <li>
               <div class="flex items-center gap-2">
                 <%= severity_pill(f.severity) %>
-                <span class="text-sm text-slate-900 truncate"><%= f.title %></span>
+                <span class="text-sm text-[color:var(--color-ink)] truncate"><%= f.title %></span>
               </div>
-              <% if f.description.present? %><p class="text-xs text-slate-500 mt-1 line-clamp-2"><%= f.description %></p><% end %>
-              <div class="text-xs text-slate-400 mt-1"><%= f.kind %> · <%= status_pill(f.status) %></div>
+              <% if f.description.present? %><p class="text-xs text-[color:var(--color-ink-soft)] mt-1 line-clamp-2"><%= f.description %></p><% end %>
+              <div class="text-xs text-[color:var(--color-ink-faint)] mt-1"><%= f.kind %> · <%= status_pill(f.status) %></div>
             </li>
           <% end %>
         </ul>
@@ -164,8 +164,8 @@
     <% end %>
 
     <%= card title: "API pointers" do %>
-      <p class="text-xs text-slate-500 mb-2">Commands for Claude CLI to run from any project:</p>
-      <pre class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap">PATCH /api/v1/projects/<%= @project.slug %>/tasks/<%= @task.id %>
+      <p class="text-xs text-[color:var(--color-ink-soft)] mb-2">Commands for Claude CLI to run from any project:</p>
+      <pre class="text-xs bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] rounded-md p-3 font-mono whitespace-pre-wrap">PATCH /api/v1/projects/<%= @project.slug %>/tasks/<%= @task.id %>
 POST  /api/v1/projects/<%= @project.slug %>/tasks/<%= @task.id %>/follow_ups
 POST  /api/v1/projects/<%= @project.slug %>/test_plans</pre>
     <% end %>

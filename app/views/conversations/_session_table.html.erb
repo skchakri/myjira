@@ -1,6 +1,6 @@
 <%# locals: conversations, show_project %>
 <table class="w-full text-sm">
-  <thead class="text-xs text-slate-500 text-left">
+  <thead class="text-xs text-[color:var(--color-ink-soft)] text-left">
     <tr>
       <th class="pb-2">Session</th>
       <% if show_project %><th class="pb-2">Project</th><% end %>
@@ -8,20 +8,20 @@
       <th class="pb-2">Last activity</th>
     </tr>
   </thead>
-  <tbody class="divide-y divide-slate-100">
+  <tbody class="divide-y divide-[color:var(--color-hair)]">
     <% conversations.each do |c| %>
-      <tr class="hover:bg-slate-50">
+      <tr class="hover:bg-[color:var(--color-paper-sunk)]">
         <td class="py-2.5 pr-3">
-          <%= link_to c.display_title, conversation_path(c), class: "font-medium text-slate-800 hover:underline block truncate max-w-lg" %>
-          <div class="text-[11px] font-mono text-slate-400">
+          <%= link_to c.display_title, conversation_path(c), class: "font-medium text-[color:var(--color-ink)] hover:underline block truncate max-w-lg" %>
+          <div class="text-[11px] font-mono text-[color:var(--color-ink-faint)]">
             <%= c.session_id.first(8) %><% if c.git_branch.present? %> · ⎇ <%= c.git_branch %><% end %>
           </div>
         </td>
         <% if show_project %>
-          <td class="py-2.5 pr-3 text-xs font-mono text-slate-500"><%= c.project.slug %></td>
+          <td class="py-2.5 pr-3 text-xs font-mono text-[color:var(--color-ink-soft)]"><%= c.project.slug %></td>
         <% end %>
-        <td class="py-2.5 text-xs text-slate-500 tabular"><%= c.message_count %></td>
-        <td class="py-2.5 text-xs text-slate-400"><%= format_time(c.last_message_at || c.created_at) %></td>
+        <td class="py-2.5 text-xs text-[color:var(--color-ink-soft)] tabular"><%= c.message_count %></td>
+        <td class="py-2.5 text-xs text-[color:var(--color-ink-faint)]"><%= format_time(c.last_message_at || c.created_at) %></td>
       </tr>
     <% end %>
   </tbody>

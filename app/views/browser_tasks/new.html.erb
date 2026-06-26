@@ -1,11 +1,11 @@
 <% content_for :title, "New instruction" %>
 
 <div class="mb-4">
-  <div class="text-xs text-slate-500 font-mono">
+  <div class="text-xs text-[color:var(--color-ink-soft)] font-mono">
     <%= link_to @project.name, @project, class: "hover:underline" %> /
     <%= link_to "relay", project_browser_tasks_path(@project), class: "hover:underline" %> / new
   </div>
-  <h1 class="text-2xl font-semibold tracking-tight text-slate-900">New instruction for Claude-in-Chrome</h1>
+  <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]">New instruction for Claude-in-Chrome</h1>
 </div>
 
 <%= card do %>
@@ -15,32 +15,32 @@
     <% end %>
 
     <div>
-      <%= f.label :title, class: "block text-xs font-medium text-slate-600 mb-1" %>
+      <%= f.label :title, class: "block text-xs font-medium text-[color:var(--color-ink-soft)] mb-1" %>
       <%= f.text_field :title, required: true, placeholder: "e.g. Check competitor pricing on example.com",
-            class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-slate-800 focus:border-[color:var(--color-amber-ink)] outline-none" %>
+            class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-[color:var(--color-ink)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
     </div>
 
     <div>
-      <%= f.label :target_url, "URL to open (optional)", class: "block text-xs font-medium text-slate-600 mb-1" %>
+      <%= f.label :target_url, "URL to open (optional)", class: "block text-xs font-medium text-[color:var(--color-ink-soft)] mb-1" %>
       <%= f.text_field :target_url, placeholder: "https://…",
-            class: "w-full text-sm font-mono bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-slate-800 focus:border-[color:var(--color-amber-ink)] outline-none" %>
+            class: "w-full text-sm font-mono bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-[color:var(--color-ink)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
     </div>
 
     <div>
-      <%= f.label :instructions, "Instructions", class: "block text-xs font-medium text-slate-600 mb-1" %>
+      <%= f.label :instructions, "Instructions", class: "block text-xs font-medium text-[color:var(--color-ink-soft)] mb-1" %>
       <%= f.text_area :instructions, rows: 8, placeholder: "Access the URL above and follow these steps… Ask if anything is unclear.",
-            class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-slate-800 focus:border-[color:var(--color-amber-ink)] outline-none" %>
+            class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-[color:var(--color-ink)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
     </div>
 
     <div class="w-40">
-      <%= f.label :priority, class: "block text-xs font-medium text-slate-600 mb-1" %>
+      <%= f.label :priority, class: "block text-xs font-medium text-[color:var(--color-ink-soft)] mb-1" %>
       <%= f.select :priority, BrowserTask::PRIORITIES, {},
-            class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-slate-800 focus:border-[color:var(--color-amber-ink)] outline-none" %>
+            class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-3 py-2 text-[color:var(--color-ink)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
     </div>
 
     <div class="flex items-center gap-2 pt-1">
-      <%= f.submit "Queue instruction", class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
-      <%= link_to "Cancel", project_browser_tasks_path(@project), class: "text-sm text-slate-600 hover:underline" %>
+      <%= f.submit "Queue instruction", class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
+      <%= link_to "Cancel", project_browser_tasks_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:underline" %>
     </div>
   <% end %>
 <% end %>

@@ -4,28 +4,28 @@
 
 <div class="flex items-baseline justify-between mb-4">
   <div>
-    <div class="text-xs text-slate-500 font-mono">
+    <div class="text-xs text-[color:var(--color-ink-soft)] font-mono">
       <%= link_to @project.name, @project, class: "hover:underline" %> /
       <%= link_to @plan.title, [@project, @plan], class: "hover:underline" %> /
       run · <%= @run.id.first(8) %>
     </div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">Test run</h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]">Test run</h1>
     <div class="mt-2 flex items-center gap-2">
       <%= status_pill(@run.status) %>
-      <span class="text-xs text-slate-500">started <%= format_time(@run.started_at) %></span>
-      <% if @run.completed_at %><span class="text-xs text-slate-500">completed <%= format_time(@run.completed_at) %></span><% end %>
-      <% if @run.initiated_by.present? %><span class="text-xs font-mono text-slate-500">by <%= @run.initiated_by %></span><% end %>
+      <span class="text-xs text-[color:var(--color-ink-soft)]">started <%= format_time(@run.started_at) %></span>
+      <% if @run.completed_at %><span class="text-xs text-[color:var(--color-ink-soft)]">completed <%= format_time(@run.completed_at) %></span><% end %>
+      <% if @run.initiated_by.present? %><span class="text-xs font-mono text-[color:var(--color-ink-soft)]">by <%= @run.initiated_by %></span><% end %>
     </div>
   </div>
   <div class="flex items-center gap-2">
     <% unless @run.completed_at %>
       <%= button_to "▶ Run with Playwright AI", playwright_execute_test_run_path(@run), method: :post,
-            class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md",
+            class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md",
             data: { turbo_confirm: "Launch headless Playwright runner on #{@run.test_results.where(status: 'pending').count} pending cases?" } %>
       <%= button_to "▶ Run now (server-side)", execute_test_run_path(@run), method: :post,
-            class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md",
+            class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md",
             data: { turbo_confirm: "Execute #{@run.test_results.where(status: 'pending').count} pending cases server-side?" } %>
-      <%= button_to "Mark complete", complete_test_run_path(@run), method: :post, class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
+      <%= button_to "Mark complete", complete_test_run_path(@run), method: :post, class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
     <% end %>
   </div>
 </div>
@@ -34,10 +34,10 @@
 
 <%= card title: "Per-case results" do %>
   <table class="w-full text-sm">
-    <thead class="text-xs text-slate-500 text-left">
+    <thead class="text-xs text-[color:var(--color-ink-soft)] text-left">
       <tr><th class="pb-2">#</th><th class="pb-2">Case</th><th class="pb-2">Status</th><th class="pb-2">Actual / notes</th></tr>
     </thead>
-    <tbody class="divide-y divide-slate-100">
+    <tbody class="divide-y divide-[color:var(--color-hair)]">
       <% @results.each do |r| %>
         <%= render "result_row", r: r %>
       <% end %>
@@ -48,25 +48,25 @@
 <% if @run.summary.present? %>
   <div class="mt-4">
     <%= card title: "Summary" do %>
-      <pre class="whitespace-pre-wrap text-sm text-slate-800"><%= @run.summary %></pre>
+      <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)]"><%= @run.summary %></pre>
     <% end %>
   </div>
 <% end %>
 
 <div class="mt-4" data-controller="clipboard">
   <%= card title: "Playwright AI runner — visible mode" do %>
-    <p class="text-xs text-slate-500 mb-2">
+    <p class="text-xs text-[color:var(--color-ink-soft)] mb-2">
       Use the <strong>▶ Run with Playwright AI</strong> button above for one-click headless execution.
       Run the command below if you want to <em>watch</em> Chrome work through the cases (visible window).
       First-run setup: <code class="font-mono">cd script/playwright_runner && npx playwright install chromium</code>
     </p>
-    <pre data-clipboard-target="source" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap"><%= playwright_runner_command(@run) %></pre>
+    <pre data-clipboard-target="source" class="text-xs bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] rounded-md p-3 font-mono whitespace-pre-wrap"><%= playwright_runner_command(@run) %></pre>
     <div class="flex items-center gap-2 mt-2">
       <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
-              class="shrink-0 text-xs px-2 py-1 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700">
+              class="shrink-0 text-xs px-2 py-1 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink-soft)]">
         Copy command
       </button>
-      <span class="text-xs text-slate-400">Results stream back here live as each case finishes</span>
+      <span class="text-xs text-[color:var(--color-ink-faint)]">Results stream back here live as each case finishes</span>
     </div>
   <% end %>
 </div>
@@ -74,16 +74,16 @@
 <div class="mt-4" data-controller="clipboard">
   <%= card title: "Extension hand-off (optional)" do %>
     <div class="flex items-start justify-between gap-3 mb-2">
-      <p class="text-xs text-slate-500">
+      <p class="text-xs text-[color:var(--color-ink-soft)]">
         Prefer the Claude browser extension? Copy this prompt — it'll execute each case against
-        <span class="font-mono text-slate-700"><%= @run.environment&.base_url.presence || @project.default_base_url.presence || "(no URL set)" %></span>
+        <span class="font-mono text-[color:var(--color-ink-soft)]"><%= @run.environment&.base_url.presence || @project.default_base_url.presence || "(no URL set)" %></span>
         and push results back here. Use this for cases whose api_call is a browser/UI instruction rather than an HTTP request.
       </p>
       <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
-              class="shrink-0 text-xs px-2 py-1 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700">
+              class="shrink-0 text-xs px-2 py-1 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink-soft)]">
         Copy prompt
       </button>
     </div>
-    <pre data-clipboard-target="source" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_extension_prompt(@run) %></pre>
+    <pre data-clipboard-target="source" class="text-xs bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_extension_prompt(@run) %></pre>
   <% end %>
 </div>
