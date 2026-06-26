@@ -1,6 +1,6 @@
 <%= form_with model: follow_up, url: follow_up.persisted? ? project_follow_up_task_path(@project, follow_up) : project_follow_up_tasks_path(@project), class: "max-w-2xl space-y-4" do |f| %>
   <% if follow_up.errors.any? %>
-    <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+    <div class="rounded-md border border-[color:var(--color-fail-wash)] bg-[color:var(--color-fail-wash)] p-3 text-sm text-[color:var(--color-fail-ink)]">
       <ul class="list-disc ml-5"><% follow_up.errors.full_messages.each do |m| %><li><%= m %></li><% end %></ul>
     </div>
   <% end %>

@@ -11,7 +11,7 @@
 <%= card do %>
   <%= form_with model: [@project, @task], url: project_browser_tasks_path(@project), method: :post, class: "space-y-4" do |f| %>
     <% if @task.errors.any? %>
-      <div class="text-sm text-rose-700"><%= @task.errors.full_messages.to_sentence %></div>
+      <div class="text-sm text-[color:var(--color-fail-ink)]"><%= @task.errors.full_messages.to_sentence %></div>
     <% end %>
 
     <div>

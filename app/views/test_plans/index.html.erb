@@ -1,7 +1,7 @@
 <% content_for :title, "Test plans" %>
 <div class="flex items-baseline justify-between mb-4">
   <h1 class="text-xl font-semibold text-slate-900">Test plans — <%= @project.name %></h1>
-  <%= link_to "+ New plan", new_project_test_plan_path(@project), class: "text-sm text-white bg-emerald-700 hover:bg-emerald-800 px-3 py-1.5 rounded-md" %>
+  <%= link_to "+ New plan", new_project_test_plan_path(@project), class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
 </div>
 <%= card do %>
   <% if @plans.empty? %>

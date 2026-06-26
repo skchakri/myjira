@@ -54,9 +54,9 @@
           <% r = project.rollup %>
           <div class="mt-4 grid grid-cols-4 gap-2 text-center">
             <div><div class="text-lg font-semibold text-slate-900"><%= r[:tasks] %></div><div class="text-[11px] uppercase tracking-wide text-slate-400">tasks</div></div>
-            <div><div class="text-lg font-semibold text-amber-700"><%= r[:open_tasks] %></div><div class="text-[11px] uppercase tracking-wide text-slate-400">open</div></div>
+            <div><div class="text-lg font-semibold text-[color:var(--color-amber-ink)]"><%= r[:open_tasks] %></div><div class="text-[11px] uppercase tracking-wide text-slate-400">open</div></div>
             <div><div class="text-lg font-semibold text-slate-900"><%= r[:test_plans] %></div><div class="text-[11px] uppercase tracking-wide text-slate-400">plans</div></div>
-            <div><div class="text-lg font-semibold text-rose-700"><%= r[:open_follow_ups] %></div><div class="text-[11px] uppercase tracking-wide text-slate-400">gaps</div></div>
+            <div><div class="text-lg font-semibold text-[color:var(--color-fail-ink)]"><%= r[:open_follow_ups] %></div><div class="text-[11px] uppercase tracking-wide text-slate-400">gaps</div></div>
           </div>
 
           <%# Archive / unarchive control sits above the stretched link. %>
