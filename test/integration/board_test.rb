@@ -184,4 +184,44 @@ class BoardTest < ActionDispatch::IntegrationTest
     post board_item_run_tests_path(@project, @b)
     assert_redirected_to board_path(@project)
   end
+
+  test "reject_pr moves an in_review item to failed and logs the reason" do
+    @b.update!(board_state: "in_review", pr_url: "https://github.com/x/y/pull/2",
+               pr_number: 2, pr_state: "open")
+    assert_difference -> { @b.comments.count }, 1 do
+      post board_item_reject_path(@project, @b), params: { reason: "conflicts with main" }
+    end
+    assert_redirected_to board_path(@project)
+    assert_equal "failed", @b.reload.board_state
+    assert_equal "https://github.com/x/y/pull/2", @b.pr_url
+    assert_equal "Rejected: conflicts with main", @b.comments.last.body
+  end
+
+  test "reject_pr on a non-review item redirects with an alert" do
+    post board_item_reject_path(@project, @a) # @a is pending, no PR
+    assert_redirected_to board_path(@project)
+    assert_equal "pending", @a.reload.board_state
+  end
+
+  test "add_comment appends a comment and returns to the task page" do
+    assert_difference -> { @a.comments.count }, 1 do
+      post board_item_comments_path(@project, @a), params: { comment: { body: "moving back, see conflicts" } }
+    end
+    assert_redirected_to project_task_path(@project, @a)
+    assert_equal "you", @a.comments.last.author
+    assert_equal "moving back, see conflicts", @a.comments.last.body
+  end
+
+  test "add_comment ignores a blank body" do
+    assert_no_difference -> { @a.comments.count } do
+      post board_item_comments_path(@project, @a), params: { comment: { body: "  " } }
+    end
+    assert_redirected_to project_task_path(@project, @a)
+  end
+
+  test "update_item with return_to=task redirects to the task page" do
+    patch board_item_path(@project, @a), params: { task: { board_state: "pending" }, return_to: "task" }
+    assert_redirected_to project_task_path(@project, @a)
+    assert_equal "pending", @a.reload.board_state
+  end
 end

@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :add_comment, :plan, :pr]
 
   def show
     @groups = @project.board_groups
@@ -58,7 +58,11 @@ class BoardsController < ApplicationController
     @task.plan_updated_at = Time.current if @task.plan_changed?
     @task.save!
     refresh_board! unless @task.saved_change_to_board_state? # model already broadcast that
-    head :no_content
+    if params[:return_to] == "task"
+      redirect_to [@project, @task], notice: "Status updated."
+    else
+      head :no_content
+    end
   end
 
   # Manually hand the item to the next pipeline agent (the same step autopilot
@@ -94,6 +98,25 @@ class BoardsController < ApplicationController
       redirect_to board_path(@project),
                   alert: "Can't merge: the item must be in review with an open PR."
     end
+  end
+
+  # "Reject" on an in_review item / PR modal: decline the changes. Moves to failed
+  # and leaves the PR open on GitHub; an optional reason is logged as a comment.
+  def reject_pr
+    if @task.reject_pr!(note: params[:reason])
+      refresh_board!
+      redirect_to board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
+    else
+      redirect_to board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
+    end
+  end
+
+  # Add an append-only note to an item (from the board or task page). Blank bodies
+  # are ignored. Always returns to the task page where the comment log lives.
+  def add_comment
+    body = params.dig(:comment, :body).to_s.strip
+    @task.comments.create!(author: "you", body: body) if body.present?
+    redirect_to [@project, @task], notice: ("Comment added." if body.present?)
   end
 
   # Plan + PR modals rendered into the #board_modal turbo-frame.

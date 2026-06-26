@@ -62,6 +62,8 @@ Rails.application.routes.draw do
     post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge
+    post  "board/items/:id/reject",    to: "boards#reject_pr",   as: :board_item_reject
+    post  "board/items/:id/comments",  to: "boards#add_comment", as: :board_item_comments
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
     post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
