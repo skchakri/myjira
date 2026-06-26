@@ -116,6 +116,22 @@ class Task < ApplicationRecord
     update!(merge_requested_at: Time.current)
   end
 
+  # "Reject" on the board/PR modal: a human declined these changes. Move the item
+  # to failed but leave the PR open on GitHub (the human may still inspect or fix
+  # it). Unlike mark_failed!, this does NOT bump autopilot_attempts, so re-queuing
+  # the item to pending lets autopilot pick it up again. An optional reason is
+  # logged as a comment and shown on the board row via agent_notes.
+  def reject_pr!(note: nil)
+    return false unless board_state == "in_review" && pr_url.present?
+    transaction do
+      if note.present?
+        comments.create!(author: "you", body: "Rejected: #{note}")
+        self.agent_notes = "Rejected: #{note}".truncate(500)
+      end
+      update!(board_state: "failed", merge_requested_at: nil)
+    end
+  end
+
   # Daemon reports `gh pr merge` succeeded → close the item out as merged+done.
   def complete_merge!
     assign_attributes(pr_state: "merged", merge_requested_at: nil)
