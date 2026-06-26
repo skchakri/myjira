@@ -44,6 +44,13 @@ Rails.application.routes.draw do
     end
     # Web → schedule a recurring trigger in this project's repo.
     resources :agent_schedules, only: [:create]
+    # Web → saved, reusable run recipes; trigger one now or put it on a cron.
+    resources :playbooks do
+      member do
+        post :trigger
+        post :schedule
+      end
+    end
     # Web → add an MCP server (one-click from the catalog, or a custom spec);
     # files an McpInstall the host daemon runs with `claude mcp add`.
     resources :mcp_installs, only: [:create]
@@ -88,6 +95,9 @@ Rails.application.routes.draw do
       post :run_now
     end
   end
+
+  # Evaluate a playbook run — record passed/failed against its success criteria.
+  resources :playbook_runs, only: [:update]
 
   # Remove a configured MCP server (files a `claude mcp remove` for the daemon).
   resources :mcp_servers, only: [:destroy]

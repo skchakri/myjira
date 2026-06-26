@@ -1,0 +1,6 @@
+<% content_for :title, "Edit playbook" %>
+<div class="mb-4">
+  <div class="text-xs text-slate-500 font-mono"><%= link_to @project.name, @project, class: "hover:underline" %> / <%= link_to "playbooks", project_playbooks_path(@project), class: "hover:underline" %> / edit</div>
+  <h1 class="text-xl font-semibold text-slate-900">Edit playbook</h1>
+</div>
+<%= render "form", playbook: @playbook %>

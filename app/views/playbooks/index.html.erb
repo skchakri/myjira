@@ -1,0 +1,33 @@
+<% content_for :title, "Playbooks" %>
+<div class="flex items-baseline justify-between mb-4">
+  <div>
+    <div class="text-xs text-slate-500 font-mono"><%= link_to @project.name, @project, class: "hover:underline" %> / playbooks</div>
+    <h1 class="text-xl font-semibold text-slate-900">Playbooks — <%= @project.name %></h1>
+  </div>
+  <%= link_to "+ New playbook", new_project_playbook_path(@project), class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+</div>
+
+<%= card do %>
+  <% if @playbooks.empty? %>
+    <p class="text-sm text-slate-500">No playbooks yet. A playbook is a saved, reusable run recipe — a prompt plus success criteria and guardrails — that you can trigger now or put on a cron, tracking pass/fail history each run.</p>
+  <% else %>
+    <ul class="divide-y divide-slate-100">
+      <% @playbooks.each do |p| %>
+        <% m = @metrics[p.id] %>
+        <li class="py-3 flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <%= link_to p.name, [@project, p], class: "text-sm font-medium text-slate-900 hover:text-slate-700" %>
+            <div class="text-xs text-slate-500 mt-0.5 flex gap-2 items-center flex-wrap">
+              <% if p.agent %><span class="font-mono"><%= p.agent.glyph %> <%= p.agent.name %></span><% end %>
+              <% unless p.enabled? %><span class="pill pill-skip">paused</span><% end %>
+              <span><%= pluralize(m[:runs], "run") %></span>
+              <% if (m[:passed] + m[:failed]).positive? %><span><%= m[:pass_rate] %>% pass</span><% end %>
+              <span class="text-slate-400">last <%= m[:last_run_at] ? format_time(m[:last_run_at]) : "—" %></span>
+            </div>
+          </div>
+          <div class="shrink-0"><%= render "agents/sparkline", data: m[:sparkline] %></div>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+<% end %>

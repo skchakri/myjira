@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -57,6 +57,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.string "model"
     t.datetime "next_run_at"
     t.string "permission_mode"
+    t.uuid "playbook_id"
     t.uuid "project_id", null: false
     t.text "prompt", null: false
     t.text "task"
@@ -64,6 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.index ["agent_id"], name: "index_agent_schedules_on_agent_id"
     t.index ["enabled", "next_run_at"], name: "index_agent_schedules_on_enabled_and_next_run_at"
     t.index ["last_launch_id"], name: "index_agent_schedules_on_last_launch_id"
+    t.index ["playbook_id"], name: "index_agent_schedules_on_playbook_id"
     t.index ["project_id"], name: "index_agent_schedules_on_project_id"
   end
 
@@ -246,6 +248,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.index ["project_id", "scope", "name"], name: "index_mcp_servers_on_project_scope_name", unique: true
     t.index ["project_id"], name: "index_mcp_servers_on_project_id"
     t.index ["scope", "name"], name: "index_mcp_servers_on_global_scope_name", unique: true, where: "(project_id IS NULL)"
+  end
+
+  create_table "playbook_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "agent_schedule_id"
+    t.datetime "created_at", null: false
+    t.datetime "evaluated_at"
+    t.text "notes"
+    t.uuid "playbook_id", null: false
+    t.string "result", default: "pending", null: false
+    t.uuid "session_launch_id"
+    t.datetime "updated_at", null: false
+    t.index ["agent_schedule_id"], name: "index_playbook_runs_on_agent_schedule_id"
+    t.index ["playbook_id"], name: "index_playbook_runs_on_playbook_id"
+    t.index ["session_launch_id"], name: "index_playbook_runs_on_session_launch_id"
+  end
+
+  create_table "playbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "agent_id"
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.text "guardrails"
+    t.string "model"
+    t.string "name", null: false
+    t.string "permission_mode"
+    t.uuid "project_id"
+    t.text "success_criteria"
+    t.datetime "updated_at", null: false
+    t.index ["agent_id"], name: "index_playbooks_on_agent_id"
+    t.index ["project_id"], name: "index_playbooks_on_project_id"
   end
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -470,6 +502,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
   add_foreign_key "follow_up_tasks", "test_results"
   add_foreign_key "mcp_installs", "projects"
   add_foreign_key "mcp_servers", "projects"
+  add_foreign_key "playbook_runs", "playbooks"
+  add_foreign_key "playbook_runs", "session_launches"
+  add_foreign_key "playbooks", "agents"
+  add_foreign_key "playbooks", "projects"
   add_foreign_key "session_commands", "conversations"
   add_foreign_key "session_launches", "agents"
   add_foreign_key "session_launches", "conversations"
