@@ -57,6 +57,45 @@ class Agent < ApplicationRecord
     "general"
   end
 
+  # Bulk launcher metrics for a set of agents — ONE query, grouped in Ruby — so a
+  # strip full of pills (or the whole hub) never N+1s. Returns a hash keyed by
+  # agent id with a zeroed entry for *every* agent passed (even never-launched
+  # ones), so callers can index without nil-checking:
+  #   { agent_id => { runs:, succeeded:, failed:, cancelled:, running:,
+  #                   last_run_at:, sparkline: [7 ints, oldest→newest incl. today] } }
+  # Outcome is derived per row via SessionLaunch.outcome_for (time-dependent, so
+  # not SQL-grouped). Sparkline buckets each launch by COALESCE(launched_at,
+  # created_at) into trailing-7-day buckets in Time.zone.
+  def self.metrics_for(agents)
+    ids = Array(agents).map { |a| a.is_a?(Agent) ? a.id : a }.compact.uniq
+    today   = Time.zone.now.to_date
+    buckets = (0..6).to_h { |n| [today - (6 - n), n] } # date → sparkline index (oldest→newest)
+    metrics = ids.index_with do
+      { runs: 0, succeeded: 0, failed: 0, cancelled: 0, running: 0,
+        last_run_at: nil, sparkline: Array.new(7, 0) }
+    end
+    return metrics if ids.empty?
+
+    SessionLaunch.where(agent_id: ids)
+                 .pluck(:agent_id, :status, :launched_at, :created_at)
+                 .each do |agent_id, status, launched_at, created_at|
+      m  = metrics[agent_id]
+      at = launched_at || created_at
+      m[:runs] += 1
+      m[:last_run_at] = at if at && (m[:last_run_at].nil? || at > m[:last_run_at])
+      m[SessionLaunch.outcome_for(status, launched_at).to_sym] += 1
+      idx = buckets[at&.in_time_zone&.to_date]
+      m[:sparkline][idx] += 1 if idx
+    end
+    metrics
+  end
+
+  # Launcher metrics for this one agent — for the disclosure detail panel. Pass a
+  # `metrics_for` hash to reuse a bulk query; otherwise runs its own one query.
+  def metrics(preloaded = nil)
+    (preloaded || self.class.metrics_for([self]))[id]
+  end
+
   # [[label, [agents…]], …] in CATEGORIES order, skipping empty buckets — what
   # the expanded strip renders as sub-grouped rows.
   def self.grouped(agents)

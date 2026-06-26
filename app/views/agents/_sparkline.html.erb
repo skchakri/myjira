@@ -1,0 +1,12 @@
+<%# locals: data (Array of 7 ints, oldest→newest incl. today). A pure-CSS weekly
+    sparkline — seven bars scaled to the week's busiest day, no JS. An all-zero
+    week renders as faint flat baseline bars. %>
+<% data = Array(local_assigns[:data]).map(&:to_i) %>
+<% peak = [data.max.to_i, 1].max %>
+<div class="inline-flex items-end gap-px h-4 align-middle"
+     title="launches/day · last 7 days: <%= data.join(' ') %>">
+  <% data.each do |n| %>
+    <span class="w-1 rounded-[1px] <%= n.zero? ? 'bg-[color:var(--color-ink-faint)] opacity-30' : 'bg-[color:var(--color-amber-ink)]' %>"
+          style="height: <%= n.zero? ? 2 : 3 + (13.0 * n / peak).round %>px"></span>
+  <% end %>
+</div>

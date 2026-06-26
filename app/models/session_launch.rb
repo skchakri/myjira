@@ -15,6 +15,14 @@ class SessionLaunch < ApplicationRecord
   # Which board pipeline step this launch is (nil for plain "＋ New session"s).
   # triage = the lightweight "you dumped context, I'll assign title/type/priority" pass.
   PIPELINE_STEPS   = %w[triage review planning engineering debugger answer].freeze
+  # Derived spawn-outcomes the launcher metrics roll up. This reflects whether
+  # `claude` got off the ground, not whether the work it then did succeeded (the
+  # bound Conversation could refine that later) — a faithful first cut, no column.
+  OUTCOMES         = %w[succeeded failed cancelled running].freeze
+  # How long after launched_at a "launched" row still counts as in flight — the
+  # same window the `active` scope uses to keep the attach hint useful. Shared by
+  # the scope and #outcome so the two can never drift apart.
+  ACTIVE_LAUNCHED_WINDOW = 12.minutes
 
   belongs_to :project
   belongs_to :conversation, optional: true
@@ -40,7 +48,7 @@ class SessionLaunch < ApplicationRecord
   # enough that the attach hint is still useful (before the live convo takes over).
   scope :active, lambda {
     where(status: %w[pending launching])
-      .or(where(status: "launched").where(launched_at: 12.minutes.ago..))
+      .or(where(status: "launched").where(launched_at: ACTIVE_LAUNCHED_WINDOW.ago..))
   }
 
   # Queue a launch in `project`'s repo and pre-create the placeholder
@@ -72,6 +80,25 @@ class SessionLaunch < ApplicationRecord
 
   def done?
     %w[launched failed canceled].include?(status)
+  end
+
+  # Map a (status, launched_at) pair to one of OUTCOMES. A "launched" row is
+  # still `running` until it falls past ACTIVE_LAUNCHED_WINDOW, then it counts as
+  # `succeeded` (spawned and no longer in flight). Pure, so Agent.metrics_for can
+  # call it on plucked tuples without instantiating rows.
+  def self.outcome_for(status, launched_at)
+    case status
+    when "failed"   then "failed"
+    when "canceled" then "cancelled"
+    when "launched"
+      launched_at && launched_at > ACTIVE_LAUNCHED_WINDOW.ago ? "running" : "succeeded"
+    else "running" # pending / launching
+    end
+  end
+
+  # succeeded/failed/cancelled/running for this launch — see OUTCOMES.
+  def outcome
+    self.class.outcome_for(status, launched_at)
   end
 
   # The --model value, or nil when "default" (let the CLI decide).

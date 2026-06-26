@@ -1,6 +1,10 @@
-<%# locals: agent (Agent), project (Project). One triggerable entry: a pill that
-    opens a small form to run this agent/skill/command in the project's repo.
-    Submitting posts to AgentTriggersController#trigger → SessionLaunch. %>
+<%# locals: agent (Agent), project (Project). Optional: metrics (one entry from
+    Agent.metrics_for — runs/succeeded/failed/last_run_at/sparkline). One
+    triggerable entry: a pill that opens a small form to run this agent/skill/
+    command in the project's repo, now annotated with its run history. Submitting
+    posts to AgentTriggersController#trigger → SessionLaunch. %>
+<% metrics = local_assigns[:metrics] %>
+<% runs    = metrics ? metrics[:runs].to_i : 0 %>
 <details class="relative group/agent shrink-0">
   <summary class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md cursor-pointer list-none
                   text-[12px] hair-all bg-[color:var(--color-paper-raised)]
@@ -10,6 +14,10 @@
     <span class="font-semibold text-[color:var(--color-ink)]"><%= agent.name %></span>
     <% if agent.scope == "global" %>
       <span class="text-[9px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">global</span>
+    <% end %>
+    <% if runs.positive? %>
+      <span class="ml-0.5 text-[9px] tabular text-[color:var(--color-ink-faint)] group-hover/agent:text-[color:var(--color-amber-ink)]"
+            title="ran <%= runs %>× · <%= metrics[:succeeded] %> succeeded"><%= runs %>×</span>
     <% end %>
   </summary>
 
@@ -21,6 +29,24 @@
     </div>
     <% if agent.description.present? %>
       <p class="text-[11px] text-[color:var(--color-ink-faint)] leading-snug mb-2 line-clamp-4"><%= agent.description %></p>
+    <% end %>
+
+    <% if metrics %>
+      <div class="mb-2 flex items-center gap-2 rounded-md bg-[color:var(--color-paper-raised)] hair-all px-2 py-1.5">
+        <% if runs.positive? %>
+          <div class="text-[10.5px] leading-tight text-[color:var(--color-ink-faint)] tabular">
+            ran <span class="text-[color:var(--color-ink)] font-semibold"><%= runs %></span>×
+            · <span class="text-[color:var(--color-pass-ink)] font-semibold"><%= metrics[:succeeded] %>✓</span>
+            <% failed = metrics[:failed].to_i + metrics[:cancelled].to_i %>
+            <% if failed.positive? %>· <span class="text-[color:var(--color-fail-ink)] font-semibold"><%= failed %>✕</span><% end %>
+            <% if metrics[:running].to_i.positive? %>· <span class="text-[color:var(--color-amber-ink)] font-semibold"><%= metrics[:running] %>•</span><% end %>
+            <% if metrics[:last_run_at] %><br>last run <%= time_ago_in_words(metrics[:last_run_at]) %> ago<% end %>
+          </div>
+          <span class="ml-auto shrink-0"><%= render "agents/sparkline", data: metrics[:sparkline] %></span>
+        <% else %>
+          <span class="text-[10.5px] text-[color:var(--color-ink-faint)] italic">not run yet</span>
+        <% end %>
+      </div>
     <% end %>
 
     <%= form_with url: trigger_project_agent_path(project, agent), method: :post do |f| %>

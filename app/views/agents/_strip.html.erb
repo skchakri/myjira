@@ -8,6 +8,8 @@
                         where every folder gets one and space is tight). %>
 <% agents    = local_assigns.fetch(:agents) { project.available_agents.to_a } %>
 <% collapsed = local_assigns.fetch(:collapsed, false) %>
+<%# One bulk query for the whole strip's launcher metrics — never per pill. %>
+<% metrics   = Agent.metrics_for(agents) %>
 
 <% if collapsed %>
   <% if agents.any? %>
@@ -21,7 +23,7 @@
       </summary>
       <div class="flex flex-wrap gap-1.5 mt-1.5">
         <% agents.each do |agent| %>
-          <%= render "agents/agent", agent: agent, project: project %>
+          <%= render "agents/agent", agent: agent, project: project, metrics: metrics[agent.id] %>
         <% end %>
       </div>
     </details>
@@ -43,7 +45,7 @@
           <div class="text-[9.5px] uppercase tracking-wide text-[color:var(--color-ink-faint)] mb-1"><%= label %></div>
           <div class="flex flex-wrap gap-1.5">
             <% list.each do |agent| %>
-              <%= render "agents/agent", agent: agent, project: project %>
+              <%= render "agents/agent", agent: agent, project: project, metrics: metrics[agent.id] %>
             <% end %>
           </div>
         </div>
