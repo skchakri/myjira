@@ -5,6 +5,7 @@ class TasksController < ApplicationController
   def show
     @test_plans = @task.test_plans.order(created_at: :desc)
     @follow_ups = @task.follow_up_tasks.order(created_at: :desc)
+    @comments = @task.comments.load
   end
 
   def new

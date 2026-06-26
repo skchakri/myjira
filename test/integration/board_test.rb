@@ -283,4 +283,18 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_select "li[data-id='#{@b.id}'] form[action=?]", board_item_reject_path(@project, @b)
     assert_select "li[data-id='#{@b.id}'] form[action=?]", board_item_merge_path(@project, @b)
   end
+
+  test "task page shows the comment log and a status control" do
+    @a.comments.create!(author: "you", body: "first human note")
+    @a.comments.create!(author: "engineering", body: "agent reply note")
+    get project_task_path(@project, @a)
+    assert_response :success
+    assert_match "Comments", response.body
+    assert_match "first human note", response.body
+    assert_match "agent reply note", response.body
+    # add-comment form posts to the board comments route
+    assert_select "form[action=?]", board_item_comments_path(@project, @a)
+    # inline status control posts to update_item with return_to=task
+    assert_select "form[action=?] input[name=return_to][value=task]", board_item_path(@project, @a)
+  end
 end

@@ -21,6 +21,14 @@
     </div>
   </div>
   <div class="flex items-center gap-2">
+    <%= form_with url: board_item_path(@project, @task), method: :patch, scope: :task,
+          data: { controller: "auto-submit" }, class: "flex items-center" do |f| %>
+      <%= hidden_field_tag :return_to, "task" %>
+      <%= f.select :board_state,
+            options_for_select(Task::BOARD_STATES.map { |s| [Task::BOARD_STATE_LABELS[s], s] }, @task.board_state),
+            {}, { data: { action: "change->auto-submit#submit" }, "aria-label": "Board status",
+                  class: "text-sm border border-slate-200 rounded-md px-2 py-1.5 text-slate-700" } %>
+    <% end %>
     <%= link_to "Edit", edit_project_task_path(@project, @task), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
     <%= link_to "+ Follow-up", new_project_task_follow_up_path(@project, @task), class: "text-sm text-white bg-rose-700 hover:bg-rose-800 px-3 py-1.5 rounded-md" %>
   </div>
@@ -78,6 +86,33 @@
         <pre class="whitespace-pre-wrap text-sm text-slate-800 font-mono leading-relaxed"><%= @task.implementation_notes %></pre>
       <% else %>
         <p class="text-sm text-slate-500">Claude CLI hasn't recorded any implementation notes yet.</p>
+      <% end %>
+    <% end %>
+
+    <%= card title: "Comments" do %>
+      <% if @comments.any? %>
+        <ul class="space-y-3 mb-4">
+          <% @comments.each do |c| %>
+            <li>
+              <div class="flex items-baseline gap-2">
+                <span class="text-xs font-medium text-slate-700"><%= c.author %></span>
+                <span class="text-xs text-slate-400" title="<%= format_time(c.created_at) %>"><%= ago(c.created_at) %></span>
+              </div>
+              <p class="text-sm text-slate-800 whitespace-pre-wrap mt-0.5"><%= c.body %></p>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="text-sm text-slate-500 mb-4">No comments yet.</p>
+      <% end %>
+
+      <%= form_with url: board_item_comments_path(@project, @task), method: :post, class: "space-y-2" do %>
+        <%= text_area_tag "comment[body]", nil, rows: 2, placeholder: "Add a comment… (e.g. why you're moving this back to Pending)",
+              "aria-label": "Add a comment",
+              class: "w-full text-sm border border-slate-200 rounded-md px-3 py-2" %>
+        <div class="text-right">
+          <%= submit_tag "Post", class: "text-sm text-white bg-slate-900 hover:bg-slate-700 px-3 py-1.5 rounded-md cursor-pointer" %>
+        </div>
       <% end %>
     <% end %>
 
