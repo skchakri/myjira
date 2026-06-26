@@ -1,0 +1,45 @@
+<% content_for :title, "Review queue" %>
+
+<% total = @groups.sum { |_project, items| items.size } %>
+
+<!-- ===== Header ===== -->
+<div class="min-w-0">
+  <div class="flex items-center gap-2 eyebrow">
+    <%= link_to "clients", clients_path, class: "hover:text-[color:var(--color-ink)]" %>
+    <span>/</span>
+    <span class="text-[color:var(--color-ink-soft)]">review</span>
+  </div>
+  <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Review queue</h1>
+  <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">
+    <%= total.zero? ? "Nothing awaiting review" : "#{total} #{'item'.pluralize(total)} awaiting review across #{@groups.size} #{'project'.pluralize(@groups.size)}" %>
+  </p>
+</div>
+
+<!-- ===== Queue ===== -->
+<div class="mt-5 space-y-3">
+  <% if @groups.empty? %>
+    <div class="paper px-5 py-8 text-center">
+      <p class="text-sm text-[color:var(--color-ink-soft)]">Nothing awaiting review.</p>
+      <p class="text-[11px] text-[color:var(--color-ink-faint)] mt-1">Items land here when an engineering agent opens a PR and moves them to <em>In review</em>.</p>
+    </div>
+  <% else %>
+    <% @groups.each do |project, items| %>
+      <% inflight = project.current_board_launch %>
+      <details open class="paper overflow-hidden">
+        <summary class="flex items-center gap-3 px-3 py-2 cursor-pointer select-none hair-b bg-[color:var(--color-paper-sunk)]">
+          <%= link_to project.name, board_path(project),
+                class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] truncate" %>
+          <span class="text-xs text-[color:var(--color-ink-faint)] tabular"><%= items.size %></span>
+          <span class="ml-auto eyebrow">in review</span>
+        </summary>
+        <ul class="divide-y divide-[color:var(--color-hair)]">
+          <% items.each do |item| %>
+            <%= render "boards/item", item: item, inflight_launch: inflight %>
+          <% end %>
+        </ul>
+      </details>
+    <% end %>
+  <% end %>
+</div>
+
+<turbo-frame id="board_modal"></turbo-frame>

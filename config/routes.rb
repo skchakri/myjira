@@ -7,6 +7,10 @@ Rails.application.routes.draw do
   # test results. Optional ?project_id=<slug|uuid> scopes it to one folder.
   get "search", to: "search#index", as: :search
 
+  # Single cross-project review queue — every in_review item, grouped by project,
+  # with the same Approve & merge / Reject actions as the board.
+  get "review", to: "reviews#index", as: :review
+
   # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
   # Auto-provisions the matching Project on first GET so external callers
   # never hit a 404.
