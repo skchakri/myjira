@@ -3,48 +3,48 @@
 
 <div class="flex items-baseline justify-between mb-6">
   <div>
-    <div class="text-xs text-slate-500 font-mono"><%= @project.slug %></div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+    <div class="text-xs text-[color:var(--color-ink-soft)] font-mono"><%= @project.slug %></div>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]">
       <%= @project.name %>
       <% if @project.archived? %>
-        <span class="align-middle ml-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Archived</span>
+        <span class="align-middle ml-1 pill pill-quiet">Archived</span>
       <% end %>
     </h1>
     <% if @project.description.present? %>
-      <p class="mt-1 text-sm text-slate-600 max-w-2xl"><%= @project.description %></p>
+      <p class="mt-1 text-sm text-[color:var(--color-ink-soft)] max-w-2xl"><%= @project.description %></p>
     <% end %>
   </div>
   <div class="flex items-center gap-2">
-    <%= link_to "▦ Board", board_path(@project), class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
-    <%= link_to "Edit", edit_project_path(@project), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
+    <%= link_to "▦ Board", board_path(@project), class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+    <%= link_to "Edit", edit_project_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
     <% if @project.archived? %>
-      <%= button_to "Unarchive", unarchive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md cursor-pointer" %>
+      <%= button_to "Unarchive", unarchive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md cursor-pointer" %>
     <% else %>
-      <%= button_to "Archive", archive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md cursor-pointer" %>
+      <%= button_to "Archive", archive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md cursor-pointer" %>
     <% end %>
-    <%= link_to "+ Task", new_project_task_path(@project), class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
-    <%= link_to "Playbooks", project_playbooks_path(@project), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
-    <%= link_to "+ Test plan", new_project_test_plan_path(@project), class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+    <%= link_to "+ Task", new_project_task_path(@project), class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+    <%= link_to "Playbooks", project_playbooks_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
+    <%= link_to "+ Test plan", new_project_test_plan_path(@project), class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
   </div>
 </div>
 
 <% rollup = @project.rollup %>
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-  <div class="rounded-xl border border-slate-200 bg-white p-4">
-    <div class="text-2xl font-semibold text-slate-900"><%= rollup[:tasks] %></div>
-    <div class="text-xs uppercase tracking-wide text-slate-500 mt-1">total tasks</div>
+  <div class="rounded-xl border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] p-4">
+    <div class="text-2xl font-semibold text-[color:var(--color-ink)]"><%= rollup[:tasks] %></div>
+    <div class="text-xs uppercase tracking-wide text-[color:var(--color-ink-soft)] mt-1">total tasks</div>
   </div>
-  <div class="rounded-xl border border-slate-200 bg-white p-4">
+  <div class="rounded-xl border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] p-4">
     <div class="text-2xl font-semibold text-[color:var(--color-amber-ink)]"><%= rollup[:open_tasks] %></div>
-    <div class="text-xs uppercase tracking-wide text-slate-500 mt-1">open / in progress</div>
+    <div class="text-xs uppercase tracking-wide text-[color:var(--color-ink-soft)] mt-1">open / in progress</div>
   </div>
-  <div class="rounded-xl border border-slate-200 bg-white p-4">
-    <div class="text-2xl font-semibold text-slate-900"><%= rollup[:test_plans] %></div>
-    <div class="text-xs uppercase tracking-wide text-slate-500 mt-1">test plans</div>
+  <div class="rounded-xl border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] p-4">
+    <div class="text-2xl font-semibold text-[color:var(--color-ink)]"><%= rollup[:test_plans] %></div>
+    <div class="text-xs uppercase tracking-wide text-[color:var(--color-ink-soft)] mt-1">test plans</div>
   </div>
-  <div class="rounded-xl border border-slate-200 bg-white p-4">
+  <div class="rounded-xl border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] p-4">
     <div class="text-2xl font-semibold text-[color:var(--color-fail-ink)]"><%= rollup[:open_follow_ups] %></div>
-    <div class="text-xs uppercase tracking-wide text-slate-500 mt-1">open gaps</div>
+    <div class="text-xs uppercase tracking-wide text-[color:var(--color-ink-soft)] mt-1">open gaps</div>
   </div>
 </div>
 
@@ -52,20 +52,20 @@
   <div class="lg:col-span-2 space-y-4">
     <%= card title: "Tasks" do %>
       <% if @tasks.empty? %>
-        <p class="text-sm text-slate-500">No tasks yet. Claude CLI can create one via <code class="font-mono text-xs bg-slate-100 px-1 rounded">POST /api/v1/projects/<%= @project.slug %>/tasks</code>.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No tasks yet. Claude CLI can create one via <code class="font-mono text-xs bg-[color:var(--color-paper-sunk)] px-1 rounded">POST /api/v1/projects/<%= @project.slug %>/tasks</code>.</p>
       <% else %>
-        <div class="divide-y divide-slate-100">
+        <div class="divide-y divide-[color:var(--color-hair)]">
           <% @tasks.each do |t| %>
             <div class="flex items-center justify-between py-2">
               <div class="min-w-0">
-                <%= link_to t.title, [@project, t], class: "text-sm font-medium text-slate-900 hover:text-slate-700 truncate block" %>
-                <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                <%= link_to t.title, [@project, t], class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-ink-soft)] truncate block" %>
+                <div class="text-xs text-[color:var(--color-ink-soft)] mt-0.5 flex items-center gap-2">
                   <%= status_pill(t.status) %>
                   <% if t.environment %><span class="font-mono"><%= t.environment.name %></span><% end %>
                   <% if t.external_ref.present? %><span class="font-mono truncate"><%= t.external_ref %></span><% end %>
                 </div>
               </div>
-              <div class="text-xs text-slate-400"><%= time_ago_in_words(t.created_at) %> ago</div>
+              <div class="text-xs text-[color:var(--color-ink-faint)]"><%= time_ago_in_words(t.created_at) %> ago</div>
             </div>
           <% end %>
         </div>
@@ -74,14 +74,14 @@
 
     <%= card title: "Test plans" do %>
       <% if @plans.empty? %>
-        <p class="text-sm text-slate-500">No plans yet. Create a plan spanning one or more tasks.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No plans yet. Create a plan spanning one or more tasks.</p>
       <% else %>
-        <div class="divide-y divide-slate-100">
+        <div class="divide-y divide-[color:var(--color-hair)]">
           <% @plans.each do |p| %>
             <div class="flex items-center justify-between py-2">
               <div>
-                <%= link_to p.title, [@project, p], class: "text-sm font-medium text-slate-900 hover:text-slate-700" %>
-                <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                <%= link_to p.title, [@project, p], class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-ink-soft)]" %>
+                <div class="text-xs text-[color:var(--color-ink-soft)] mt-0.5 flex items-center gap-2">
                   <%= status_pill(p.status) %>
                   <span><%= pluralize(p.test_cases.count, "case") %></span>
                   <span><%= pluralize(p.tasks.count, "task") %></span>
@@ -90,8 +90,8 @@
               <% run = p.latest_run %>
               <% if run %>
                 <div class="text-right">
-                  <div class="text-xs text-slate-500">latest run</div>
-                  <div class="flex items-center gap-2"><%= status_pill(run.status) %><span class="text-xs text-slate-500"><%= run.progress[:percent] %>%</span></div>
+                  <div class="text-xs text-[color:var(--color-ink-soft)]">latest run</div>
+                  <div class="flex items-center gap-2"><%= status_pill(run.status) %><span class="text-xs text-[color:var(--color-ink-soft)]"><%= run.progress[:percent] %>%</span></div>
                 </div>
               <% end %>
             </div>
@@ -104,30 +104,30 @@
   <div class="space-y-4">
     <%= card title: "Environments" do %>
       <% if @project.environments.empty? %>
-        <p class="text-sm text-slate-500">No environments.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No environments.</p>
       <% else %>
         <ul class="space-y-2">
           <% @project.environments.order(:name).each do |e| %>
             <li class="text-sm">
-              <div class="font-mono text-slate-900"><%= e.name %></div>
-              <% if e.base_url.present? %><div class="text-xs text-slate-500"><%= e.base_url %></div><% end %>
+              <div class="font-mono text-[color:var(--color-ink)]"><%= e.name %></div>
+              <% if e.base_url.present? %><div class="text-xs text-[color:var(--color-ink-soft)]"><%= e.base_url %></div><% end %>
             </li>
           <% end %>
         </ul>
       <% end %>
-      <div class="mt-3"><%= link_to "+ Environment", new_project_environment_path(@project), class: "text-xs text-slate-600 hover:text-slate-900" %></div>
+      <div class="mt-3"><%= link_to "+ Environment", new_project_environment_path(@project), class: "text-xs text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %></div>
     <% end %>
 
-    <%= card title: "Claude CLI conversations", actions: link_to("View all →", project_conversations_path(@project), class: "hover:text-slate-900") do %>
+    <%= card title: "Claude CLI conversations", actions: link_to("View all →", project_conversations_path(@project), class: "hover:text-[color:var(--color-ink)]") do %>
       <% recent_convos = @project.conversations.recent.limit(6) %>
       <% if recent_convos.empty? %>
-        <p class="text-sm text-slate-500">No conversations captured yet. CLI sessions in this project are saved here automatically.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No conversations captured yet. CLI sessions in this project are saved here automatically.</p>
       <% else %>
         <ul class="space-y-2">
           <% recent_convos.each do |c| %>
             <li class="text-sm">
-              <%= link_to c.display_title, conversation_path(c), class: "text-slate-900 hover:text-slate-700 truncate block" %>
-              <div class="text-xs text-slate-500 mt-0.5"><%= pluralize(c.message_count, "turn") %> · <%= ago(c.last_message_at || c.created_at) %></div>
+              <%= link_to c.display_title, conversation_path(c), class: "text-[color:var(--color-ink)] hover:text-[color:var(--color-ink-soft)] truncate block" %>
+              <div class="text-xs text-[color:var(--color-ink-soft)] mt-0.5"><%= pluralize(c.message_count, "turn") %> · <%= ago(c.last_message_at || c.created_at) %></div>
             </li>
           <% end %>
         </ul>
@@ -136,21 +136,21 @@
 
     <%= card title: "Open follow-ups" do %>
       <% if @follow_ups.empty? %>
-        <p class="text-sm text-slate-500">Nothing open.</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">Nothing open.</p>
       <% else %>
         <ul class="space-y-2">
           <% @follow_ups.each do |f| %>
             <li>
               <div class="flex items-center gap-2 text-sm">
                 <%= severity_pill(f.severity) %>
-                <span class="text-slate-900 truncate"><%= f.title %></span>
+                <span class="text-[color:var(--color-ink)] truncate"><%= f.title %></span>
               </div>
-              <div class="text-xs text-slate-500 mt-0.5"><%= f.kind %> · <%= status_pill(f.status) %></div>
+              <div class="text-xs text-[color:var(--color-ink-soft)] mt-0.5"><%= f.kind %> · <%= status_pill(f.status) %></div>
             </li>
           <% end %>
         </ul>
       <% end %>
-      <div class="mt-3"><%= link_to "All follow-ups →", project_follow_up_tasks_path(@project), class: "text-xs text-slate-600 hover:text-slate-900" %></div>
+      <div class="mt-3"><%= link_to "All follow-ups →", project_follow_up_tasks_path(@project), class: "text-xs text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %></div>
     <% end %>
   </div>
 </div>

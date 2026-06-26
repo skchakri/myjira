@@ -12,7 +12,7 @@
     required     — Boolean; shows a red * when true (default: false)
     placeholder  — String placeholder text
     input_class  — String of extra Tailwind classes appended to the input
-    hint         — String helper text shown below the input (slate-500)
+    hint         — String helper text shown below the input (muted ink)
     choices      — Array of options for :select (required when type: :select)
     rows         — Integer number of rows for :textarea (default: 4)
     include_blank — String/Boolean; adds a blank option to :select when present
@@ -30,17 +30,18 @@
 <% errors     = form.object.errors[attribute] %>
 <% has_errors = errors.any? %>
 <% border_cls = has_errors \
-     ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500" \
-     : "border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500" %>
-<% base_cls = "w-full rounded-md text-sm #{border_cls}" %>
+     ? "border-[color:var(--color-fail-ink)] focus:border-[color:var(--color-fail-ink)] focus:ring-[color:var(--color-fail-ink)]" \
+     : "border-[color:var(--color-hair)] shadow-sm focus:border-[color:var(--color-amber-ink)] focus:ring-[color:var(--color-amber-ink)]" %>
+<% surface_cls = "bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] placeholder:text-[color:var(--color-ink-faint)]" %>
+<% base_cls = "w-full rounded-md text-sm #{surface_cls} #{border_cls}" %>
 <% final_cls = [base_cls, input_class].compact.join(" ") %>
 
 <% input_opts = { class: final_cls } %>
 <% input_opts[:placeholder] = placeholder if placeholder.present? %>
 
 <div>
-  <%= form.label attribute, class: "block text-sm font-medium text-slate-700 mb-1" do %>
-    <%= field_label %><% if field_req %><span class="text-rose-500 ml-0.5" aria-hidden="true">*</span><% end %>
+  <%= form.label attribute, class: "block text-sm font-medium text-[color:var(--color-ink-soft)] mb-1" do %>
+    <%= field_label %><% if field_req %><span class="text-[color:var(--color-fail-ink)] ml-0.5" aria-hidden="true">*</span><% end %>
   <% end %>
 
   <% if field_type == :textarea %>
@@ -57,10 +58,10 @@
   <% end %>
 
   <% if hint.present? %>
-    <p class="mt-1 text-xs text-slate-500"><%= hint %></p>
+    <p class="mt-1 text-xs text-[color:var(--color-ink-faint)]"><%= hint %></p>
   <% end %>
 
   <% errors.each do |msg| %>
-    <p class="mt-1 text-xs text-rose-600"><%= msg %></p>
+    <p class="mt-1 text-xs text-[color:var(--color-fail-ink)]"><%= msg %></p>
   <% end %>
 </div>
