@@ -1,0 +1,58 @@
+<% content_for :title, "#{@project.name} · What's New" %>
+<% content_for :page_bg, project_page_bg(@project) %>
+
+<!-- ===== Header ===== -->
+<div class="flex items-end justify-between gap-6">
+  <div class="min-w-0">
+    <div class="flex items-center gap-2 eyebrow">
+      <%= link_to "clients", clients_path, class: "hover:text-[color:var(--color-ink)]" %>
+      <span>/</span>
+      <%= link_to @project.name, client_path(@project.slug), class: "hover:text-[color:var(--color-ink)] truncate" %>
+      <span>/</span>
+      <span class="text-[color:var(--color-ink-soft)]">what's new</span>
+    </div>
+    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">✨ What's New</h1>
+    <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">The latest changes shipped to <%= @project.name %>, in plain language.</p>
+  </div>
+  <div class="shrink-0">
+    <%= link_to "← Board", board_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
+  </div>
+</div>
+
+<!-- ===== Entries ===== -->
+<div class="mt-6 space-y-4">
+  <% if @entries.empty? %>
+    <%= card do %>
+      <div class="text-center py-10">
+        <div class="text-3xl mb-2" aria-hidden="true">✨</div>
+        <p class="text-sm font-medium text-[color:var(--color-ink)]">No updates yet</p>
+        <p class="text-sm text-[color:var(--color-ink-soft)] mt-1 max-w-md mx-auto">
+          When a change ships and gets a plain-language summary, it shows up here.
+          Add a “What's New blurb” to a Done item to publish it.
+        </p>
+      </div>
+    <% end %>
+  <% else %>
+    <% @entries.each do |entry| %>
+      <%= card do %>
+        <div class="flex items-baseline justify-between gap-3">
+          <h2 class="text-lg font-semibold text-[color:var(--color-ink)]">
+            <%= link_to entry.humanized_title, [@project, entry], class: "hover:text-[color:var(--color-ink-soft)]" %>
+          </h2>
+          <% if (shipped = entry.finished_at || entry.updated_at) %>
+            <span class="text-xs font-mono text-[color:var(--color-ink-faint)] shrink-0" title="<%= format_time(shipped) %>"><%= ago(shipped) %></span>
+          <% end %>
+        </div>
+        <div class="mt-2 text-sm text-[color:var(--color-ink)] leading-relaxed">
+          <%= simple_format(entry.changelog_summary) %>
+        </div>
+        <% media = entry.changelog_media %>
+        <% if media.any? %>
+          <div class="mt-4">
+            <%= render "shared/media_gallery", attachments: media %>
+          </div>
+        <% end %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

@@ -188,7 +188,7 @@ class BoardsController < ApplicationController
   end
 
   def update_params
-    params.require(:task).permit(:title, :item_type, :board_state, :agent_role, :priority, :plan, :description)
+    params.require(:task).permit(:title, :item_type, :board_state, :agent_role, :priority, :plan, :description, :changelog_summary)
   end
 
   def autopilot_params
