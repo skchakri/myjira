@@ -51,9 +51,9 @@
 <!-- ===== Board ===== -->
 <div data-controller="sortable" data-sortable-url-value="<%= board_reorder_path(@project) %>" class="mt-5">
   <% if view == "kanban" %>
-    <%= render "boards/kanban", project: @project %>
+    <%= render "boards/kanban", project: @project, inflight_launch: @inflight_launch %>
   <% else %>
-    <%= render "boards/table", project: @project, groups: @groups %>
+    <%= render "boards/table", project: @project, groups: @groups, inflight_launch: @inflight_launch %>
   <% end %>
 </div>
 

@@ -296,4 +296,35 @@ class BoardTest < ActionDispatch::IntegrationTest
     # inline status control posts to update_item with return_to=task
     assert_select "form[action=?] input[name=return_to][value=task]", board_item_path(@project, @a)
   end
+
+  test "board row shows a processing indicator only on the in-flight pipeline item" do
+    @project.session_launches.create!(
+      prompt: "/board-engineer #{@b.id}",
+      pipeline_step: "engineering",
+      status: "launching",
+      task: @b
+    )
+
+    get board_path(@project)
+    assert_response :success
+
+    # In-flight item (@b) shows the "running <step>" badge
+    assert_select "li[data-id='#{@b.id}']", text: /running engineering/
+    # Non-inflight item (@a) does not show the processing indicator
+    assert_select "li[data-id='#{@a.id}'] .live-dot", count: 0
+  end
+
+  test "current_board_launch returns the in-flight launch record and nil otherwise" do
+    assert_nil @project.current_board_launch
+
+    launch = @project.session_launches.create!(
+      prompt: "/board-plan #{@a.id}",
+      pipeline_step: "planning",
+      status: "pending",
+      task: @a
+    )
+
+    assert_equal launch.id, @project.current_board_launch.id
+    assert @project.inflight_board_launch?
+  end
 end

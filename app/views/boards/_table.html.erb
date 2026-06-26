@@ -5,7 +5,7 @@
 <% else %>
   <div class="space-y-3">
     <% groups.each do |state, items| %>
-      <%= render "boards/group", state: state, items: items, open: state != "done" %>
+      <%= render "boards/group", state: state, items: items, open: state != "done", inflight_launch: inflight_launch %>
     <% end %>
   </div>
 <% end %>

@@ -10,7 +10,7 @@
       <ul data-sortable-list data-board-state="<%= state %>"
           class="paper min-h-[64px] divide-y divide-[color:var(--color-hair)]">
         <% items.each do |item| %>
-          <%= render "boards/kanban_card", item: item %>
+          <%= render "boards/kanban_card", item: item, inflight_launch: inflight_launch %>
         <% end %>
       </ul>
     </div>

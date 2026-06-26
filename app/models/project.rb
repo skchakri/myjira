@@ -169,15 +169,24 @@ class Project < ApplicationRecord
     autopilot_enabled? && !autopilot_paused? && !Setting.autopilot_stopped? && autopilot_under_cap?
   end
 
-  # True while a board pipeline step is still running for this project (enforces
-  # the one-item-at-a-time guardrail).
-  def inflight_board_launch?
+  # Returns the in-flight board pipeline launch record (the one currently being
+  # actively worked on), or nil when no step is running. Used to identify which
+  # specific board item the autopilot is processing right now.
+  def current_board_launch
     board_launches = session_launches.where.not(pipeline_step: nil)
-    return true if board_launches.where(status: %w[pending launching]).exists?
+    record = board_launches.where(status: %w[pending launching]).order(created_at: :desc).first
+    return record if record
 
     board_launches.where(status: "launched").joins(:conversation)
                   .where("COALESCE(conversations.last_message_at, session_launches.launched_at) >= ?",
-                         BOARD_LAUNCH_BUSY_WINDOW.ago).exists?
+                         BOARD_LAUNCH_BUSY_WINDOW.ago)
+                  .order(created_at: :desc).first
+  end
+
+  # True while a board pipeline step is still running for this project (enforces
+  # the one-item-at-a-time guardrail).
+  def inflight_board_launch?
+    current_board_launch.present?
   end
 
   # Roll the daily counter forward, resetting it on a new day.

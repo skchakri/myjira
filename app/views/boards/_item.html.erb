@@ -1,5 +1,6 @@
+<% processing = inflight_launch&.task_id == item.id %>
 <li data-sortable-item data-id="<%= item.id %>" draggable="true"
-    class="flex items-center gap-3 px-3 py-2 bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]">
+    class="flex items-center gap-3 px-3 py-2 <%= processing ? 'bg-[color:var(--color-amber-wash)] hover:bg-[color:var(--color-amber-wash)]' : 'bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]' %>">
   <span class="cursor-grab text-[color:var(--color-ink-faint)] select-none shrink-0" title="Drag to reprioritise" aria-hidden="true">⠿</span>
 
   <span class="shrink-0"><%= item_type_chip(item.item_type) %></span>
@@ -8,6 +9,12 @@
     <%= link_to item.title, [item.project, item],
           class: "text-sm text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] truncate block font-medium" %>
     <div class="flex items-center gap-2 mt-0.5 text-[11px] text-[color:var(--color-ink-faint)]">
+      <% if processing %>
+        <span class="pill pill-accent flex items-center gap-1" style="font-size:10px;padding:1px 6px">
+          <span class="live-dot" style="width:5px;height:5px"></span>
+          running <%= inflight_launch.pipeline_step %>
+        </span>
+      <% end %>
       <% if item.agent_role != "unassigned" %><span><%= agent_role_label(item.agent_role) %></span><% end %>
       <% if item.attachments.attached? %><span title="<%= item.attachments.size %> attachment(s)">📎 <%= item.attachments.size %></span><% end %>
       <% if item.branch_name.present? %><span class="font-mono truncate max-w-[140px]">⎇ <%= item.branch_name %></span><% end %>

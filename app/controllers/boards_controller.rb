@@ -9,6 +9,7 @@ class BoardsController < ApplicationController
   def show
     @groups = @project.board_groups
     @done_count = @project.tasks.where(board_state: "done").count
+    @inflight_launch = @project.current_board_launch
   end
 
   # Persist a drag: `order` is every visible item id top-to-bottom (new priority);
