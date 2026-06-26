@@ -223,6 +223,18 @@ details > summary::-webkit-details-marker { display: none; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
 
+/* Worklog step timeline — a connected vertical rail of lifecycle nodes.
+   Dots reuse the token-backed .dot-* washes so the whole thing is dark-safe. */
+.worklog { position: relative; margin: 0; padding: 0; list-style: none; }
+.worklog-node { position: relative; display: flex; gap: 10px; padding-bottom: 12px; }
+.worklog-node:last-child { padding-bottom: 0; }
+.worklog-node:not(:last-child)::before {
+  content: ""; position: absolute; left: 2.5px; top: 9px; bottom: -2px;
+  width: 1px; background: var(--color-hair);
+}
+.worklog-node__dot { margin-top: 3px; position: relative; z-index: 1; }
+.worklog-node--running .worklog-node__dot { animation: livepulse 1.6s ease-out infinite; }
+
 /* Rendered markdown (Claude/CLI message bodies, humanized summaries) */
 .md { font-size: 0.875rem; line-height: 1.6; word-break: break-word; }
 .md > :first-child { margin-top: 0; }

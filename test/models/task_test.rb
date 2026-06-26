@@ -91,4 +91,26 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal first_pos.id, ids.first
     assert_equal second_pos.id, ids.second
   end
+
+  # --- Worklog timeline ------------------------------------------------------
+  test "a board_state change writes one board.* worklog node, terminal states map to done/failed" do
+    item = @project.tasks.create!(title: "x", item_type: "task", board_state: "pending")
+    assert_difference -> { item.worklog_events.count }, 1 do
+      item.update!(board_state: "in_progress")
+    end
+    running = item.worklog_events.chronological.last
+    assert_equal "board.in_progress", running.name
+    assert_equal "running", running.status
+
+    item.update!(board_state: "done")
+    assert_equal "done", item.worklog_events.chronological.last.status
+  end
+
+  test "touching a non-board_state attribute writes no worklog node" do
+    item = @project.tasks.create!(title: "x", item_type: "task", board_state: "pending")
+    item.worklog_events.delete_all
+    assert_no_difference -> { item.worklog_events.count } do
+      item.update!(priority: "high")
+    end
+  end
 end

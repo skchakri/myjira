@@ -1,5 +1,6 @@
 class Task < ApplicationRecord
   include Searchable
+  include Worklogged
 
   # Legacy lifecycle (kept for the older task views + test-run propagation).
   STATUSES = %w[open in_progress implemented ready_for_test testing done blocked].freeze
@@ -83,6 +84,14 @@ class Task < ApplicationRecord
   }
 
   after_update_commit :broadcast_board, if: :saved_change_to_board_state?
+  after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
+
+  # Worklog status for a board_state: terminal states map to done/failed, parked
+  # states to waiting, everything else is an active (running) step.
+  BOARD_WORKLOG_STATUS = {
+    "done" => "done", "failed" => "failed",
+    "waiting" => "waiting", "hold" => "waiting"
+  }.freeze
 
   def glyph
     ITEM_TYPE_GLYPHS[item_type] || "•"
@@ -236,5 +245,15 @@ class Task < ApplicationRecord
     broadcast_refresh_to [project, :board]
   rescue StandardError => e
     Rails.logger.warn("[board] broadcast failed: #{e.message}")
+  end
+
+  # One timeline node per real board_state transition (guarded by the
+  # saved_change_to_board_state? callback, so a repeated PATCH never dupes it).
+  def emit_board_worklog
+    emit_worklog(
+      "board.#{board_state}",
+      status: BOARD_WORKLOG_STATUS[board_state] || "running",
+      label: "→ #{board_state_label}"
+    )
   end
 end

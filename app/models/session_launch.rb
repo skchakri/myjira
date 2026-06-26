@@ -7,6 +7,8 @@
 # hook folds into the placeholder Conversation we create up front — it appears in
 # the grid the instant you click Launch and fills in live as the session runs.
 class SessionLaunch < ApplicationRecord
+  include Worklogged
+
   STATUSES = %w[pending launching launched failed canceled].freeze
   # "default" → omit the flag and let the CLI pick. Kept short and shell-safe;
   # the daemon re-validates before interpolating into the tmux command.
@@ -42,6 +44,11 @@ class SessionLaunch < ApplicationRecord
   validates :permission_mode, inclusion: { in: PERMISSION_MODES }, allow_blank: true
   validates :pipeline_step, inclusion: { in: PIPELINE_STEPS }, allow_blank: true
 
+  # One timeline node per real status transition (the daemon claims a row before
+  # spawning, so it walks pending → launching → launched). Guarded on the change
+  # so a re-PATCH of the same status can't dupe a node.
+  after_update_commit :emit_status_worklog, if: :saved_change_to_status?
+
   scope :recent,  -> { order(created_at: :desc) }
   scope :pending, -> { where(status: "pending") }
   # What the "active launches" strip shows: still in flight, or launched recently
@@ -74,6 +81,8 @@ class SessionLaunch < ApplicationRecord
       # Link the conversation to the board item so its Session column opens this
       # thread the instant the step is queued (it fills in live as the agent runs).
       task&.update_columns(last_conversation_id: convo.id, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      step = launch.pipeline_step.presence || "session"
+      launch.emit_worklog("launch.queued", status: "running", label: "Queued #{step} in #{project.name}")
       launch
     end
   end
@@ -118,6 +127,24 @@ class SessionLaunch < ApplicationRecord
   end
 
   private
+
+  # Map a status flip onto a worklog node. "launched" stays a running step (the
+  # spawned `claude` is still working); there's no terminal node for it — it ages
+  # out of the strip and the timeline becomes the durable worklog.
+  def emit_status_worklog
+    case status
+    when "launching"
+      emit_worklog("launch.claiming", status: "running", label: "Host daemon claimed the launch")
+    when "launched"
+      emit_worklog("launch.spawned", status: "running",
+        label: tmux_target.present? ? "Spawned claude · #{tmux_target}" : "Spawned claude",
+        payload: { tmux_target: tmux_target })
+    when "failed"
+      emit_worklog("launch.failed", status: "failed", label: error.presence || "Launch failed")
+    when "canceled"
+      emit_worklog("launch.canceled", status: "info", label: "Canceled")
+    end
+  end
 
   def assign_session_id
     self.session_id ||= SecureRandom.uuid

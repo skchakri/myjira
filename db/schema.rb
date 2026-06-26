@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -483,6 +483,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.index ["environment_id"], name: "index_test_runs_on_environment_id"
     t.index ["status"], name: "index_test_runs_on_status"
     t.index ["test_plan_id"], name: "index_test_runs_on_test_plan_id"
+  end
+
+  create_table "worklog_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "label", default: "", null: false
+    t.string "name", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.uuid "project_id"
+    t.string "status", default: "info", null: false
+    t.uuid "subject_id", null: false
+    t.string "subject_type", null: false
+    t.index ["project_id"], name: "index_worklog_events_on_project_id"
+    t.index ["subject_type", "subject_id", "occurred_at"], name: "index_worklog_events_on_subject_and_time"
+    t.index ["subject_type", "subject_id"], name: "index_worklog_events_on_subject"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
