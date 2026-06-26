@@ -1,53 +1,54 @@
 /* Fonts must precede @import "tailwindcss" per CSS spec. */
-@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------
-   Design tokens — warm paper canvas, charcoal ink, burnt-amber accent.
+   Design tokens — Kronos: charcoal canvas, soft-white ink, amber accent.
+   (Token names kept stable so the whole token-based surface re-themes
+   from these values alone — "paper" now reads as "surface".)
 --------------------------------------------------------------- */
 @theme {
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  --color-paper: #F7F4ED;
-  --color-paper-sunk: #EFEBE1;
-  --color-paper-raised: #FCFAF5;
-  --color-ink: #1A1814;
-  --color-ink-soft: #4A463E;
-  --color-ink-faint: #736D60;
-  --color-hair: #E4DDCC;
-  --color-hair-soft: #EDE7D8;
+  --color-paper: #0D0D0D;        /* app canvas */
+  --color-paper-sunk: #0A0A0A;   /* sunken wells */
+  --color-paper-raised: #161616; /* cards / surfaces */
+  --color-ink: #E5E5E5;          /* primary text */
+  --color-ink-soft: #A3A3A3;     /* secondary text */
+  --color-ink-faint: #737373;    /* tertiary / muted */
+  --color-hair: #262626;         /* borders */
+  --color-hair-soft: #1F1F1F;    /* subtle dividers */
 
-  --color-amber-ink: #B8502A;
-  --color-amber-ink-hover: #994320;
-  --color-amber-wash: #F5E8DD;
+  --color-amber-ink: #FFB800;        /* primary accent */
+  --color-amber-ink-hover: #E6A600;  /* accent hover */
+  --color-amber-wash: #2A2206;       /* accent tint bg */
 
-  --color-pass-ink: #2F6F4F;
-  --color-pass-wash: #E4EFE6;
-  --color-fail-ink: #9F2D2D;
-  --color-fail-wash: #F4E1DE;
-  --color-block-ink: #8A5A1E;
-  --color-block-wash: #F4E9D6;
-  --color-skip-ink: #6A6254;
-  --color-skip-wash: #EDE7D8;
+  --color-pass-ink: #22C55E;
+  --color-pass-wash: #0F2417;
+  --color-fail-ink: #EF4444;
+  --color-fail-wash: #2A1212;
+  --color-block-ink: #F59E0B;
+  --color-block-wash: #2A1F08;
+  --color-skip-ink: #A3A3A3;
+  --color-skip-wash: #1C1C1C;
 }
 
 /* ---------------------------------------------------------------
-   Base — paper with faint radial washes and SVG paper-grain.
+   Base — charcoal canvas with a faint amber glow top-left.
 --------------------------------------------------------------- */
 html { background-color: var(--color-paper); }
 
 body {
   background-color: var(--color-paper);
   background-image:
-    radial-gradient(circle at 0% 0%, rgba(184, 80, 42, 0.04), transparent 45%),
-    radial-gradient(circle at 100% 100%, rgba(26, 24, 20, 0.03), transparent 40%),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.09 0 0 0 0 0.07 0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-attachment: fixed, fixed, fixed;
+    radial-gradient(circle at 0% 0%, rgba(255, 184, 0, 0.05), transparent 42%),
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.02), transparent 40%);
+  background-attachment: fixed, fixed;
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-feature-settings: "ss01", "ss02", "cv01", "cv11";
+  font-feature-settings: "cv01", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -122,9 +123,9 @@ body {
   transition: background-color 120ms, color 120ms;
 }
 .clink:hover { background: var(--color-paper-sunk); color: var(--color-ink); }
-.clink-active { background: var(--color-ink); color: var(--color-paper); }
-.clink-active .clink-slug { color: color-mix(in srgb, var(--color-paper) 70%, transparent); }
-.clink-active .dot-idle { background: var(--color-paper); opacity: 0.6; }
+.clink-active { background: var(--color-amber-wash); color: var(--color-amber-ink); box-shadow: inset 2px 0 0 0 var(--color-amber-ink); }
+.clink-active .clink-slug { color: color-mix(in srgb, var(--color-amber-ink) 70%, transparent); }
+.clink-active .dot-idle { background: var(--color-amber-ink); opacity: 0.7; }
 
 .clink-slug {
   font-family: var(--font-mono);
