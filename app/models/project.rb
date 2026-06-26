@@ -142,12 +142,20 @@ class Project < ApplicationRecord
   end
 
   # Items grouped by board_state in the board's display order; empty groups dropped.
-  def board_groups
-    grouped = board_items.group_by(&:board_state)
+  # An optional `label:` narrows to items carrying that label (GIN-indexed scope).
+  def board_groups(label: nil)
+    scope = board_items
+    scope = scope.with_label(label) if label.present?
+    grouped = scope.group_by(&:board_state)
     Task::BOARD_GROUP_ORDER.filter_map do |state|
       items = grouped[state]
       [state, items] if items.present?
     end
+  end
+
+  # Distinct labels across this project's board items — drives the filter chips.
+  def board_labels
+    tasks.all_labels
   end
 
   # Next item the autopilot orchestrator should act on (first-come-first-out).

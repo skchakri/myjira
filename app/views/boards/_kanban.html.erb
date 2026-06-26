@@ -1,4 +1,5 @@
-<% grouped = project.board_items.group_by(&:board_state) %>
+<% scope = local_assigns[:active_label].present? ? project.board_items.with_label(local_assigns[:active_label]) : project.board_items %>
+<% grouped = scope.group_by(&:board_state) %>
 <div class="flex gap-3 overflow-x-auto pb-3">
   <% Task::BOARD_GROUP_ORDER.each do |state| %>
     <% items = grouped[state] || [] %>

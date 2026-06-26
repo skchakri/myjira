@@ -48,10 +48,23 @@
 <%= render "boards/autopilot", project: @project %>
 <%= render "boards/add_item", project: @project %>
 
+<!-- Label filter chips: routing-tag triage. Plain GET links, no Stimulus. -->
+<% if @all_labels.present? %>
+  <div class="mt-4 flex items-center flex-wrap gap-1.5 text-[11px]">
+    <span class="text-[color:var(--color-ink-faint)] font-mono mr-0.5">labels</span>
+    <%= link_to "All", board_path(@project, view: (params[:view] == "kanban" ? "kanban" : nil)),
+          class: "pill #{@active_label ? 'pill-quiet' : 'pill-accent'} font-mono" %>
+    <% @all_labels.each do |l| %>
+      <%= link_to l, board_path(@project, label: l, view: (params[:view] == "kanban" ? "kanban" : nil)),
+            class: "pill #{@active_label == l ? 'pill-accent' : 'pill-quiet'} font-mono" %>
+    <% end %>
+  </div>
+<% end %>
+
 <!-- ===== Board ===== -->
 <div data-controller="sortable" data-sortable-url-value="<%= board_reorder_path(@project) %>" class="mt-5">
   <% if view == "kanban" %>
-    <%= render "boards/kanban", project: @project, inflight_launch: @inflight_launch %>
+    <%= render "boards/kanban", project: @project, inflight_launch: @inflight_launch, active_label: @active_label %>
   <% else %>
     <%= render "boards/table", project: @project, groups: @groups, inflight_launch: @inflight_launch %>
   <% end %>

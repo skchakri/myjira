@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -182,6 +182,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.datetime "created_at", null: false
     t.text "description"
     t.string "kind", default: "gap", null: false
+    t.text "labels", default: [], null: false, array: true
     t.uuid "project_id", null: false
     t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", stored: true
     t.string "severity", default: "medium", null: false
@@ -190,6 +191,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.uuid "test_result_id"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.index ["labels"], name: "index_follow_up_tasks_on_labels", using: :gin
     t.index ["project_id"], name: "index_follow_up_tasks_on_project_id"
     t.index ["search_vector"], name: "index_follow_up_tasks_on_search_vector", using: :gin
     t.index ["severity"], name: "index_follow_up_tasks_on_severity"
@@ -346,6 +348,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.text "implementation_notes"
     t.datetime "implemented_at"
     t.string "item_type", default: "task", null: false
+    t.text "labels", default: [], null: false, array: true
     t.uuid "last_conversation_id"
     t.uuid "last_test_run_id"
     t.datetime "merge_requested_at"
@@ -368,6 +371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000003) do
     t.index ["environment_id"], name: "index_tasks_on_environment_id"
     t.index ["external_ref"], name: "index_tasks_on_external_ref"
     t.index ["item_type"], name: "index_tasks_on_item_type"
+    t.index ["labels"], name: "index_tasks_on_labels", using: :gin
     t.index ["last_conversation_id"], name: "index_tasks_on_last_conversation_id"
     t.index ["last_test_run_id"], name: "index_tasks_on_last_test_run_id"
     t.index ["merge_requested_at"], name: "index_tasks_on_merge_requested_at"
