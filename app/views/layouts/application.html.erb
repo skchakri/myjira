@@ -61,6 +61,26 @@
           <% end %>
         </div>
 
+        <!-- Global search — full-text across tasks, conversations & test results.
+             Submits to /search (server-side); distinct from the client-side
+             "Filter projects" box below, which only narrows the sidebar list. -->
+        <div class="px-3 pb-2">
+          <%= form_with url: search_path, method: :get do %>
+            <label class="relative block">
+              <span class="sr-only">Search everything</span>
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[color:var(--color-ink-faint)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+              <input
+                type="search"
+                name="q"
+                value="<%= params[:controller] == 'search' ? params[:q] : nil %>"
+                placeholder="Search everything"
+                aria-label="Search everything"
+                class="w-full pl-7 pr-3 py-1.5 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none"
+              />
+            </label>
+          <% end %>
+        </div>
+
         <!-- Filter -->
         <div class="px-3 pb-2">
           <label class="relative block">

@@ -2,6 +2,8 @@
 # or a single tool action (a Bash command, a file edit, …). role + kind drive
 # the chat bubble in the UI. ext_id is the producer's stable, dedup key.
 class ConversationMessage < ApplicationRecord
+  include Searchable
+
   ROLES = %w[user assistant system].freeze
   KINDS = %w[message tool].freeze
 

@@ -1,4 +1,6 @@
 class TestResult < ApplicationRecord
+  include Searchable
+
   STATUSES = %w[pending pass fail blocked skipped].freeze
 
   belongs_to :test_run

@@ -1,0 +1,20 @@
+<%# A matched board item. record: Task (project preloaded). %>
+<% snippet = record.description.presence || record.implementation_notes.presence || record.plan.presence %>
+<div class="flex items-start gap-2 min-w-0">
+  <%= link_to project_task_path(record.project, record),
+        class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] hover:underline truncate" do %>
+    <%= record.title %>
+  <% end %>
+  <span class="ml-auto flex items-center gap-1.5 shrink-0">
+    <%= item_type_chip(record.item_type) %>
+    <%= board_state_pill(record.board_state) %>
+  </span>
+</div>
+<% if snippet.present? %>
+  <p class="mt-1 text-[13px] text-[color:var(--color-ink-soft)] line-clamp-2"><%= truncate(snippet.squish, length: 200) %></p>
+<% end %>
+<div class="mt-1 text-[11px] text-[color:var(--color-ink-faint)] flex items-center gap-2">
+  <span><%= record.project.name %></span>
+  <span class="opacity-40">·</span>
+  <span title="<%= format_time(record.updated_at) %>">updated <%= ago(record.updated_at) %></span>
+</div>

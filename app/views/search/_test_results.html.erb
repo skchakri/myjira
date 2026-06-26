@@ -1,0 +1,22 @@
+<%# A matched test result. record: TestResult (test_case + test_run→test_plan→project preloaded).
+    Deep-links to the result row's anchor in the run page. %>
+<% run = record.test_run
+   plan = run.test_plan
+   snippet = record.notes.presence || record.actual_result.presence %>
+<div class="flex items-start gap-2 min-w-0">
+  <%= link_to test_run_path(run, anchor: "result_#{record.id}"),
+        class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] hover:underline truncate" do %>
+    <%= record.test_case&.title.presence || "Test result" %>
+  <% end %>
+  <span class="ml-auto shrink-0">
+    <%= status_pill(record.status) %>
+  </span>
+</div>
+<% if snippet.present? %>
+  <p class="mt-1 text-[13px] text-[color:var(--color-ink-soft)] line-clamp-2"><%= truncate(snippet.squish, length: 200) %></p>
+<% end %>
+<div class="mt-1 text-[11px] text-[color:var(--color-ink-faint)] flex items-center gap-2">
+  <span><%= plan.project.name %></span>
+  <span class="opacity-40">·</span>
+  <span class="truncate"><%= plan.title %></span>
+</div>

@@ -1,0 +1,19 @@
+<%# A matched follow-up (gap/bug/enhancement). record: FollowUpTask (project preloaded). %>
+<div class="flex items-start gap-2 min-w-0">
+  <%= link_to edit_project_follow_up_task_path(record.project, record),
+        class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] hover:underline truncate" do %>
+    <%= record.title %>
+  <% end %>
+  <span class="ml-auto flex items-center gap-1.5 shrink-0">
+    <span class="pill pill-quiet"><%= record.kind %></span>
+    <%= severity_pill(record.severity) %>
+  </span>
+</div>
+<% if record.description.present? %>
+  <p class="mt-1 text-[13px] text-[color:var(--color-ink-soft)] line-clamp-2"><%= truncate(record.description.squish, length: 200) %></p>
+<% end %>
+<div class="mt-1 text-[11px] text-[color:var(--color-ink-faint)] flex items-center gap-2">
+  <span><%= record.project.name %></span>
+  <span class="opacity-40">·</span>
+  <%= status_pill(record.status) %>
+</div>

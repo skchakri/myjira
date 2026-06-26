@@ -1,4 +1,6 @@
 class FollowUpTask < ApplicationRecord
+  include Searchable
+
   SEVERITIES = %w[low medium high critical].freeze
   STATUSES   = %w[open in_progress resolved wontfix].freeze
   KINDS      = %w[gap bug enhancement regression question].freeze

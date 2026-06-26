@@ -3,6 +3,10 @@ Rails.application.routes.draw do
 
   root "projects#index"
 
+  # Global full-text search across tasks, follow-ups, captured conversations and
+  # test results. Optional ?project_id=<slug|uuid> scopes it to one folder.
+  get "search", to: "search#index", as: :search
+
   # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
   # Auto-provisions the matching Project on first GET so external callers
   # never hit a 404.

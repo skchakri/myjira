@@ -1,0 +1,69 @@
+<% content_for :title, @q.present? ? "Search · #{@q}" : "Search" %>
+<% content_for :page_bg, project_page_bg(@project) if @project %>
+
+<div class="mb-4">
+  <div class="eyebrow">Global search</div>
+  <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]">
+    <%= @project ? "Search · #{@project.name}" : "Search" %>
+  </h1>
+</div>
+
+<%# Inline search form — full Postgres FTS over board items, follow-ups, captured
+    CLI conversations (incl. tool payloads) and test results. Carries the active
+    project scope so refining a query stays inside the folder. %>
+<%= form_with url: search_path, method: :get, class: "mb-5" do |f| %>
+  <% if @project %><%= f.hidden_field :project_id, value: @project.slug %><% end %>
+  <label class="relative block max-w-2xl">
+    <span class="sr-only">Search everything</span>
+    <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--color-ink-faint)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <%= f.search_field :q, value: @q, autofocus: true, placeholder: "Search tasks, conversations, test results…",
+          class: "w-full pl-10 pr-3 py-2.5 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-lg text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+  </label>
+  <% if @q.present? %>
+    <p class="mt-2 text-xs text-[color:var(--color-ink-faint)]">
+      <%= pluralize(@total, "result") %> for <strong class="text-[color:var(--color-ink)]"><%= @q %></strong><%= " in #{@project.name}" if @project %>
+    </p>
+  <% end %>
+<% end %>
+
+<% if @q.blank? %>
+  <%= card do %>
+    <div class="py-10 text-center text-sm text-[color:var(--color-ink-faint)]">
+      Type a query to search across <strong class="text-[color:var(--color-ink)]">board items</strong>,
+      <strong class="text-[color:var(--color-ink)]">follow-ups</strong>,
+      <strong class="text-[color:var(--color-ink)]">captured conversations</strong> and
+      <strong class="text-[color:var(--color-ink)]">test results</strong>.
+      <div class="mt-1.5 text-[11px]">Supports Google-style queries — <code class="font-mono">"exact phrase"</code>, <code class="font-mono">-exclude</code>, <code class="font-mono">or</code>.</div>
+    </div>
+  <% end %>
+<% elsif @total.zero? %>
+  <%= card do %>
+    <div class="py-10 text-center text-sm text-[color:var(--color-ink-faint)]">
+      No matches for <strong class="text-[color:var(--color-ink)]"><%= @q %></strong><%= " in #{@project.name}" if @project %>.
+    </div>
+  <% end %>
+<% else %>
+  <div class="space-y-5">
+    <% @groups.each do |group| %>
+      <% next if group[:records].empty? %>
+      <section class="paper">
+        <header class="flex items-center justify-between px-4 py-2.5 hair-b">
+          <span class="eyebrow"><%= group[:label] %></span>
+          <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular">
+            <%= group[:records].size %><%= "+" if group[:records].size >= SearchController::PER_GROUP %>
+            <% if group[:records].size >= SearchController::PER_GROUP %>
+              <span class="ml-1">· first <%= SearchController::PER_GROUP %></span>
+            <% end %>
+          </span>
+        </header>
+        <ul class="divide-y divide-[color:var(--color-hair-soft)]">
+          <% group[:records].each do |record| %>
+            <li class="px-4 py-3 hover:bg-[color:var(--color-paper-raised)]">
+              <%= render "search/#{group[:key]}", record: record %>
+            </li>
+          <% end %>
+        </ul>
+      </section>
+    <% end %>
+  </div>
+<% end %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -134,10 +134,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.jsonb "payload", default: {}, null: false
     t.integer "position", default: 0, null: false
     t.string "role", null: false
+    t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, ((COALESCE(body, ''::text) || ' '::text) || COALESCE((payload)::text, ''::text)))", stored: true
     t.datetime "updated_at", null: false
     t.index ["conversation_id", "ext_id"], name: "index_conversation_messages_on_conversation_id_and_ext_id", unique: true
     t.index ["conversation_id", "position"], name: "index_conversation_messages_on_conversation_id_and_position"
     t.index ["conversation_id"], name: "index_conversation_messages_on_conversation_id"
+    t.index ["search_vector"], name: "index_conversation_messages_on_search_vector", using: :gin
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -180,6 +182,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.text "description"
     t.string "kind", default: "gap", null: false
     t.uuid "project_id", null: false
+    t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", stored: true
     t.string "severity", default: "medium", null: false
     t.string "status", default: "open", null: false
     t.uuid "task_id"
@@ -187,6 +190,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.string "title", null: false
     t.datetime "updated_at", null: false
     t.index ["project_id"], name: "index_follow_up_tasks_on_project_id"
+    t.index ["search_vector"], name: "index_follow_up_tasks_on_search_vector", using: :gin
     t.index ["severity"], name: "index_follow_up_tasks_on_severity"
     t.index ["status"], name: "index_follow_up_tasks_on_status"
     t.index ["task_id"], name: "index_follow_up_tasks_on_task_id"
@@ -355,6 +359,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.string "pr_url"
     t.string "priority", default: "normal"
     t.uuid "project_id", null: false
+    t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, (((((((((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)) || ' '::text) || COALESCE(implementation_notes, ''::text)) || ' '::text) || COALESCE(plan, ''::text)) || ' '::text) || COALESCE(agent_notes, ''::text)))", stored: true
     t.string "source", default: "claude-cli"
     t.string "status", default: "open", null: false
     t.string "title", null: false
@@ -368,6 +373,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.index ["project_id", "board_state"], name: "index_tasks_on_project_id_and_board_state"
     t.index ["project_id", "position"], name: "index_tasks_on_project_id_and_position"
     t.index ["project_id"], name: "index_tasks_on_project_id"
+    t.index ["search_vector"], name: "index_tasks_on_search_vector", using: :gin
     t.index ["status"], name: "index_tasks_on_status"
   end
 
@@ -415,10 +421,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000001) do
     t.datetime "created_at", null: false
     t.text "notes"
     t.string "screenshot_url"
+    t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, ((COALESCE(notes, ''::text) || ' '::text) || COALESCE(actual_result, ''::text)))", stored: true
     t.string "status", default: "pending", null: false
     t.uuid "test_case_id", null: false
     t.uuid "test_run_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["search_vector"], name: "index_test_results_on_search_vector", using: :gin
     t.index ["test_case_id"], name: "index_test_results_on_test_case_id"
     t.index ["test_run_id", "test_case_id"], name: "index_test_results_on_test_run_id_and_test_case_id", unique: true
     t.index ["test_run_id"], name: "index_test_results_on_test_run_id"
