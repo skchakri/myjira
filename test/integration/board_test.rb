@@ -253,4 +253,25 @@ class BoardTest < ActionDispatch::IntegrationTest
     bodies = JSON.parse(response.body).map { |c| c["body"] }
     assert_equal %w[one two], bodies
   end
+
+  test "pr modal shows approve and reject for an in_review item with a PR" do
+    @b.update!(board_state: "in_review", pr_url: "https://github.com/x/y/pull/9",
+               pr_number: 9, pr_state: "open", pr_diff: "+ x")
+    get board_item_pr_path(@project, @b)
+    assert_response :success
+    assert_select "form[action=?]", board_item_merge_path(@project, @b)
+    assert_select "form[action=?]", board_item_reject_path(@project, @b)
+    assert_select "input[name=reason]"
+    assert_match "Approve", response.body
+    assert_match "Reject", response.body
+  end
+
+  test "pr modal hides the action bar once a merge is requested" do
+    @b.update!(board_state: "in_review", pr_url: "https://github.com/x/y/pull/9",
+               pr_number: 9, pr_state: "open", merge_requested_at: Time.current)
+    get board_item_pr_path(@project, @b)
+    assert_response :success
+    assert_select "form[action=?]", board_item_merge_path(@project, @b), count: 0
+    assert_match "Merging", response.body
+  end
 end

@@ -29,6 +29,26 @@
           </p>
         <% end %>
       </div>
+      <% if task.board_state == "in_review" && task.pr? %>
+        <footer class="flex items-center justify-end gap-2 px-4 py-3 hair-t">
+          <% if task.merge_requested? %>
+            <span class="text-sm text-[color:var(--color-amber-ink)] animate-pulse"
+                  title="Merging on GitHub… moves to Done when confirmed">⋯ Merging…</span>
+          <% else %>
+            <%= form_with url: board_item_reject_path(task.project, task), method: :post,
+                  data: { turbo_confirm: "Reject PR ##{task.pr_number}? It moves to Failed (the PR stays open on GitHub)." },
+                  class: "flex items-center gap-2" do %>
+              <%= text_field_tag :reason, nil, placeholder: "reason (optional)", "aria-label": "Rejection reason (optional)",
+                    class: "text-xs hair-all rounded px-2 py-1 bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] w-48" %>
+              <%= submit_tag "✕ Reject",
+                    class: "text-sm px-3 py-1.5 rounded cursor-pointer text-[color:var(--color-fail-ink)] hover:bg-[color:var(--color-fail-wash)]" %>
+            <% end %>
+            <%= button_to "✓ Approve & merge", board_item_merge_path(task.project, task), method: :post,
+                  form: { data: { turbo_confirm: "Approve and merge PR ##{task.pr_number}? It will merge on GitHub and move to Done." } },
+                  class: "text-sm px-3 py-1.5 rounded cursor-pointer text-[color:var(--color-pass-ink)] hover:bg-[color:var(--color-pass-wash)] hair-all" %>
+          <% end %>
+        </footer>
+      <% end %>
     </div>
   </div>
 <% end %>
