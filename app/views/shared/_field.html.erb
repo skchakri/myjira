@@ -1,0 +1,66 @@
+<%#
+  Shared form field partial — renders a label (with optional required marker),
+  the input control, an optional hint, and inline per-field error messages.
+
+  Required locals:
+    form      — FormBuilder object (the |f| block variable)
+    attribute — Symbol, e.g. :name
+
+  Optional locals:
+    label        — String label text (default: attribute.to_s.humanize)
+    type         — :text | :textarea | :select | :number | :email (default: :text)
+    required     — Boolean; shows a red * when true (default: false)
+    placeholder  — String placeholder text
+    input_class  — String of extra Tailwind classes appended to the input
+    hint         — String helper text shown below the input (slate-500)
+    choices      — Array of options for :select (required when type: :select)
+    rows         — Integer number of rows for :textarea (default: 4)
+    include_blank — String/Boolean; adds a blank option to :select when present
+%>
+<% field_label   = local_assigns.fetch(:label, attribute.to_s.humanize) %>
+<% field_type    = local_assigns.fetch(:type, :text) %>
+<% field_req     = local_assigns.fetch(:required, false) %>
+<% placeholder   = local_assigns[:placeholder] %>
+<% input_class   = local_assigns[:input_class] %>
+<% hint          = local_assigns[:hint] %>
+<% choices       = local_assigns.fetch(:choices, []) %>
+<% rows          = local_assigns.fetch(:rows, 4) %>
+<% include_blank = local_assigns[:include_blank] %>
+
+<% errors     = form.object.errors[attribute] %>
+<% has_errors = errors.any? %>
+<% border_cls = has_errors \
+     ? "border-rose-500 focus:border-rose-500 focus:ring-rose-500" \
+     : "border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500" %>
+<% base_cls = "w-full rounded-md text-sm #{border_cls}" %>
+<% final_cls = [base_cls, input_class].compact.join(" ") %>
+
+<% input_opts = { class: final_cls } %>
+<% input_opts[:placeholder] = placeholder if placeholder.present? %>
+
+<div>
+  <%= form.label attribute, class: "block text-sm font-medium text-slate-700 mb-1" do %>
+    <%= field_label %><% if field_req %><span class="text-rose-500 ml-0.5" aria-hidden="true">*</span><% end %>
+  <% end %>
+
+  <% if field_type == :textarea %>
+    <%= form.text_area attribute, **input_opts, rows: rows %>
+  <% elsif field_type == :select %>
+    <% select_opts = include_blank.present? ? { include_blank: include_blank } : {} %>
+    <%= form.select attribute, choices, select_opts, **input_opts %>
+  <% elsif field_type == :number %>
+    <%= form.number_field attribute, **input_opts %>
+  <% elsif field_type == :email %>
+    <%= form.email_field attribute, **input_opts %>
+  <% else %>
+    <%= form.text_field attribute, **input_opts %>
+  <% end %>
+
+  <% if hint.present? %>
+    <p class="mt-1 text-xs text-slate-500"><%= hint %></p>
+  <% end %>
+
+  <% errors.each do |msg| %>
+    <p class="mt-1 text-xs text-rose-600"><%= msg %></p>
+  <% end %>
+</div>

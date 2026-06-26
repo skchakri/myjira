@@ -8,34 +8,26 @@
     </div>
   <% end %>
 
-  <div>
-    <%= f.label :name, class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_field :name, class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm" %>
-  </div>
-  <div>
-    <%= f.label :slug, class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_field :slug, placeholder: "auto-generated from name", class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm font-mono" %>
-    <p class="mt-1 text-xs text-slate-500">lowercase / digits / dashes — used in URLs and API calls.</p>
-  </div>
-  <div>
-    <%= f.label :description, class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_area :description, rows: 3, class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm" %>
-  </div>
+  <%= render "shared/field", form: f, attribute: :name, required: true %>
+  <%= render "shared/field", form: f, attribute: :slug,
+        placeholder: "auto-generated from name",
+        input_class: "font-mono",
+        hint: "lowercase / digits / dashes — used in URLs and API calls." %>
+  <%= render "shared/field", form: f, attribute: :description, type: :textarea, rows: 3 %>
+
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div>
-      <%= f.label :repo_path, class: "block text-sm font-medium text-slate-700 mb-1" %>
-      <%= f.text_field :repo_path, placeholder: "/home/kalyan/platform/...", class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm font-mono" %>
-    </div>
-    <div>
-      <%= f.label :default_base_url, class: "block text-sm font-medium text-slate-700 mb-1" %>
-      <%= f.text_field :default_base_url, placeholder: "http://localhost:3000", class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm font-mono" %>
-    </div>
-    <div>
-      <%= f.label :category, class: "block text-sm font-medium text-slate-700 mb-1" %>
-      <%= f.select :category, Project::CATEGORIES, { include_blank: "(auto from path)" }, class: "w-full rounded-md border-slate-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 text-sm" %>
-      <p class="mt-1 text-xs text-slate-500">workspace group shown in the sidebar.</p>
-    </div>
+    <%= render "shared/field", form: f, attribute: :repo_path,
+          placeholder: "/home/kalyan/platform/...",
+          input_class: "font-mono" %>
+    <%= render "shared/field", form: f, attribute: :default_base_url,
+          placeholder: "http://localhost:3000",
+          input_class: "font-mono" %>
+    <%= render "shared/field", form: f, attribute: :category, type: :select,
+          choices: Project::CATEGORIES,
+          include_blank: "(auto from path)",
+          hint: "workspace group shown in the sidebar." %>
   </div>
+
   <div class="flex items-start gap-2 pt-1">
     <%= f.check_box :listed, class: "mt-0.5 rounded border-slate-300 text-slate-900 focus:ring-slate-500" %>
     <div>
@@ -43,6 +35,7 @@
       <p class="text-xs text-slate-500">Always list this project in the sidebar, even before it has any tasks.</p>
     </div>
   </div>
+
   <div class="flex items-center gap-2 pt-2">
     <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
     <%= link_to "Cancel", projects_path, class: "text-sm text-slate-500 hover:text-slate-700 px-2" %>

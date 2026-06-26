@@ -4,31 +4,25 @@
       <ul class="list-disc ml-5"><% test_case.errors.full_messages.each do |m| %><li><%= m %></li><% end %></ul>
     </div>
   <% end %>
-  <div>
-    <%= f.label :title, class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_field :title, class: "w-full rounded-md border-slate-300 text-sm" %>
-  </div>
-  <div>
-    <%= f.label :steps, class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_area :steps, rows: 6, class: "w-full rounded-md border-slate-300 text-sm font-mono", placeholder: "1. ...\n2. ..." %>
-  </div>
-  <div>
-    <%= f.label :expected_result, class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_area :expected_result, rows: 3, class: "w-full rounded-md border-slate-300 text-sm font-mono" %>
-  </div>
-  <div>
-    <%= f.label :api_call, "API call / browser instruction (for automation)", class: "block text-sm font-medium text-slate-700 mb-1" %>
-    <%= f.text_area :api_call, rows: 3, class: "w-full rounded-md border-slate-300 text-sm font-mono", placeholder: "GET http://localhost:3000/users\nor: browser: click [data-test=\"submit\"]" %>
-  </div>
+  <%= render "shared/field", form: f, attribute: :title, required: true %>
+  <%= render "shared/field", form: f, attribute: :steps,
+        type: :textarea, rows: 6,
+        input_class: "font-mono",
+        placeholder: "1. ...\n2. ..." %>
+  <%= render "shared/field", form: f, attribute: :expected_result,
+        type: :textarea, rows: 3,
+        input_class: "font-mono" %>
+  <%= render "shared/field", form: f, attribute: :api_call,
+        label: "API call / browser instruction (for automation)",
+        type: :textarea, rows: 3,
+        input_class: "font-mono",
+        placeholder: "GET http://localhost:3000/users\nor: browser: click [data-test=\"submit\"]" %>
   <div class="grid grid-cols-2 gap-4">
-    <div>
-      <%= f.label :task_id, "Associated task", class: "block text-sm font-medium text-slate-700 mb-1" %>
-      <%= f.select :task_id, @plan.tasks.map { |t| [t.title, t.id] }, { include_blank: "— none —" }, class: "w-full rounded-md border-slate-300 text-sm" %>
-    </div>
-    <div>
-      <%= f.label :position, class: "block text-sm font-medium text-slate-700 mb-1" %>
-      <%= f.number_field :position, class: "w-full rounded-md border-slate-300 text-sm" %>
-    </div>
+    <%= render "shared/field", form: f, attribute: :task_id,
+          label: "Associated task", type: :select,
+          choices: @plan.tasks.map { |t| [t.title, t.id] },
+          include_blank: "— none —" %>
+    <%= render "shared/field", form: f, attribute: :position, type: :number %>
   </div>
   <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
 <% end %>
