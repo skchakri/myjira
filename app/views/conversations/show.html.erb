@@ -30,6 +30,9 @@
     </div>
     <div class="mt-1 flex items-center gap-2 text-[11px] text-[color:var(--color-ink-faint)] font-mono flex-wrap">
       <% if @conversation.model.present? %><span class="pill pill-quiet"><%= @conversation.model %></span><% end %>
+      <% if @conversation.model_deprecated? %>
+        <span class="pill pill-block" title="Claude Code emitted a model-deprecation or out-of-policy warning for this session">&#9888; model deprecated</span>
+      <% end %>
       <% if @conversation.git_branch.present? %><span>⎇ <%= @conversation.git_branch %></span><% end %>
       <% Array(@conversation.prs).each do |pr| %>
         <%= link_to "##{pr['number']} #{pr['draft'] ? 'draft' : pr['state']}", pr["url"], target: "_blank", rel: "noopener",

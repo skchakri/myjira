@@ -96,6 +96,12 @@ module Api
         # clears stale PRs (e.g. after a merge), so key-present (not value) gates.
         convo.prs           = jsonify(cp[:prs]).first(6) if cp.key?(:prs)
         convo.started_at  ||= parse_time(cp[:started_at]) || Time.current
+        # Optional: the hook can pass a `warnings` string (e.g. captured stderr)
+        # so we can flag model-deprecation without waiting for refresh_counts!
+        # to re-scan all message bodies.
+        if cp[:warnings].present? && cp[:warnings].to_s.match?(Conversation::MODEL_DEPRECATION_RE)
+          convo.model_deprecated = true
+        end
         convo.save!
         convo
       end

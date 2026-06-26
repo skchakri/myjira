@@ -42,6 +42,10 @@
           <span class="live-dot"></span>live
         </span>
       <% end %>
+      <% if c.model_deprecated? %>
+        <span class="pill pill-block !py-0 !px-1.5 font-sans pointer-events-none"
+              title="Claude Code emitted a model-deprecation or out-of-policy warning for this session">&#9888; model deprecated</span>
+      <% end %>
       <% if show_folder %>
         <span class="inline-flex items-center gap-1 font-sans font-semibold" style="color:<%= color %>;">
           <span class="h-2 w-2 rounded-full shrink-0" style="background:<%= color %>;"></span>

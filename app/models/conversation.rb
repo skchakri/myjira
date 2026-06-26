@@ -23,6 +23,11 @@ class Conversation < ApplicationRecord
 
   scope :recent, -> { order(Arel.sql("COALESCE(last_message_at, created_at) DESC")) }
 
+  # Matches Claude Code's model-deprecation / "out of policy" warnings that can
+  # appear as text in captured message bodies or an explicit warnings field
+  # sent by the sync hook (e.g. captured stderr from a -p / agent-frontmatter run).
+  MODEL_DEPRECATION_RE = /deprecat\w*.*?model|model.*?deprecat\w*|out\s+of\s+policy/i
+
   # "Live" = synced a turn very recently. The Stop hook updates last_message_at
   # at the end of each turn, so this tracks sessions active in the last few min.
   LIVE_WINDOW = 8.minutes
@@ -71,7 +76,8 @@ class Conversation < ApplicationRecord
       message_count: conversation_messages.count,
       last_message_at: conversation_messages.maximum(:occurred_at) || last_message_at || created_at,
       last_context: compute_last_context,
-      highlights: compute_highlights
+      highlights: compute_highlights,
+      model_deprecated: model_deprecated | compute_model_deprecated
     )
   end
 
@@ -132,6 +138,15 @@ class Conversation < ApplicationRecord
   end
 
   private
+
+  # Scan all message bodies for model-deprecation / out-of-policy text.
+  # Called by refresh_counts! after each sync batch so the result is denormalised
+  # into the conversations row — avoids N+1 queries when rendering the index cards.
+  def compute_model_deprecated
+    conversation_messages.where(kind: "message").pluck(:body).any? do |body|
+      body.to_s.match?(MODEL_DEPRECATION_RE)
+    end
+  end
 
   def adopt_orphan_browser_tasks
     BrowserTask.where(cli_session_id: session_id, conversation_id: nil)
