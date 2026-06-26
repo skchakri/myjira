@@ -144,6 +144,33 @@
       </dl>
     <% end %>
 
+    <%= card title: "Run an agent on this item" do %>
+      <% agents = @project.agents.enabled.ordered %>
+      <% if agents.any? %>
+        <p class="text-xs text-[color:var(--color-ink-faint)] mb-2">Launch an agent in this repo on this item. Its result is posted to the comments when it finishes.</p>
+        <%= form_with url: trigger_project_agent_path(@project, agents.first), method: :post, class: "space-y-2" do |f| %>
+          <%= hidden_field_tag :task_id, @task.id %>
+          <%= select_tag :agent_id,
+                options_for_select(agents.map { |a| ["#{a.glyph} #{a.name}", a.id] }),
+                "aria-label": "Choose an agent to run",
+                class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] outline-none focus:border-[color:var(--color-amber-ink)]" %>
+          <%= f.text_area :task, rows: 2,
+                placeholder: "What should it do? (optional — defaults to this item's title + description)",
+                class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] outline-none focus:border-[color:var(--color-amber-ink)] resize-y" %>
+          <div class="flex items-center gap-1.5">
+            <%= select_tag :permission_mode,
+                  options_for_select(SessionLaunch::PERMISSION_MODES.map { |m| [m, m] }, "bypassPermissions"),
+                  "aria-label": "Permission mode",
+                  title: "bypassPermissions runs the agent hands-off; pick a safer mode to approve actions yourself in the tmux window.",
+                  class: "text-xs bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+            <%= f.submit "Run", class: "ml-auto text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
+          </div>
+        <% end %>
+      <% else %>
+        <p class="text-sm text-[color:var(--color-ink-faint)]">No agents discovered in this project yet. Run Claude in the repo so myjira learns its agents.</p>
+      <% end %>
+    <% end %>
+
     <%= card title: "Follow-ups & gaps" do %>
       <% if @follow_ups.empty? %>
         <p class="text-sm text-slate-500">None.</p>
