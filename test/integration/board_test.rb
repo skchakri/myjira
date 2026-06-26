@@ -274,4 +274,13 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", board_item_merge_path(@project, @b), count: 0
     assert_match "Merging", response.body
   end
+
+  test "board row shows a reject button for an in_review item with a PR" do
+    @b.update!(board_state: "in_review", pr_url: "https://github.com/x/y/pull/5",
+               pr_number: 5, pr_state: "open")
+    get board_path(@project)
+    assert_response :success
+    assert_select "li[data-id='#{@b.id}'] form[action=?]", board_item_reject_path(@project, @b)
+    assert_select "li[data-id='#{@b.id}'] form[action=?]", board_item_merge_path(@project, @b)
+  end
 end
