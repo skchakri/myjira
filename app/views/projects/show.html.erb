@@ -23,6 +23,7 @@
       <%= button_to "Archive", archive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md cursor-pointer" %>
     <% end %>
     <%= link_to "+ Task", new_project_task_path(@project), class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
+    <%= link_to "Playbooks", project_playbooks_path(@project), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
     <%= link_to "+ Test plan", new_project_test_plan_path(@project), class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
   </div>
 </div>

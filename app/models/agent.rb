@@ -35,6 +35,7 @@ class Agent < ApplicationRecord
   belongs_to :project, optional: true
   has_many :session_launches, dependent: :nullify
   has_many :agent_schedules, dependent: :nullify
+  has_many :playbooks, dependent: :nullify
 
   validates :name, presence: true
   validates :kind,  inclusion: { in: KINDS }

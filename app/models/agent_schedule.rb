@@ -7,6 +7,7 @@ require "fugit"
 class AgentSchedule < ApplicationRecord
   belongs_to :project
   belongs_to :agent, optional: true
+  belongs_to :playbook, optional: true
   belongs_to :last_launch, class_name: "SessionLaunch", optional: true
 
   validates :prompt, presence: true
@@ -52,6 +53,9 @@ class AgentSchedule < ApplicationRecord
           source: "scheduled"
         )
       end
+    # A playbook-driven schedule records a PlaybookRun so the playbook accrues
+    # pass/fail history; plain schedules are unaffected.
+    playbook.playbook_runs.create!(session_launch: launch, agent_schedule: self, result: "pending") if launch && playbook
     update!(
       last_launch: launch || last_launch,
       last_run_at: now,
