@@ -29,7 +29,7 @@
           </p>
         <% end %>
       </div>
-      <% if task.board_state == "in_review" && task.pr? %>
+      <% if task.reviewable? %>
         <footer class="flex items-center justify-end gap-2 px-4 py-3 hair-t">
           <% if task.merge_requested? %>
             <span class="text-sm text-[color:var(--color-amber-ink)] animate-pulse"

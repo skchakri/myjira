@@ -110,9 +110,14 @@ class Task < ApplicationRecord
     merge_requested_at.present?
   end
 
+  # An in_review item with an open PR — eligible for the Approve/Reject controls.
+  def reviewable?
+    board_state == "in_review" && pr?
+  end
+
   # "Approve & merge": flag an in_review item for the daemon to merge its PR.
   def request_merge!
-    return false unless board_state == "in_review" && pr_url.present?
+    return false unless reviewable?
     update!(merge_requested_at: Time.current)
   end
 
@@ -122,7 +127,7 @@ class Task < ApplicationRecord
   # the item to pending lets autopilot pick it up again. An optional reason is
   # logged as a comment and shown on the board row via agent_notes.
   def reject_pr!(note: nil)
-    return false unless board_state == "in_review" && pr_url.present?
+    return false unless reviewable?
     transaction do
       if note.present?
         comments.create!(author: "you", body: "Rejected: #{note}")

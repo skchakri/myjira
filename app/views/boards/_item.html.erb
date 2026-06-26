@@ -73,7 +73,7 @@
       <%= button_to "▶", board_item_pick_up_path(item.project, item), method: :post,
             class: "text-xs px-1.5 py-0.5 hair-all rounded text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-amber-ink)] cursor-pointer",
             title: "Pick up — run #{Board::Pipeline.next_step_for(item)} agent" %>
-    <% elsif item.board_state == "in_review" && item.pr? %>
+    <% elsif item.reviewable? %>
       <% if item.merge_requested? %>
         <span class="text-xs text-[color:var(--color-amber-ink)] animate-pulse" title="Merging on GitHub… moves to Done when confirmed" aria-label="Merging">⋯</span>
       <% else %>
