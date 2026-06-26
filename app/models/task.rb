@@ -46,6 +46,7 @@ class Task < ApplicationRecord
   has_many :test_cases, dependent: :nullify
   has_many :follow_up_tasks, dependent: :destroy
   has_many :session_launches, dependent: :nullify
+  has_many :comments, -> { order(created_at: :asc) }, class_name: "TaskComment", dependent: :destroy
 
   # Rich context the author (or an agent) attaches to a board item: reference
   # screenshots, screen recordings, audio notes, PDFs, logs — anything that
