@@ -15,6 +15,6 @@
       <pre class="whitespace-pre-wrap font-mono text-xs text-slate-700 max-h-40 overflow-auto"><%= r.actual_result %></pre>
     <% end %>
     <% if r.notes.present? %><div class="text-slate-500 mt-1"><%= r.notes %></div><% end %>
-    <% if r.screenshot_url.present? %><a href="<%= r.screenshot_url %>" target="_blank" class="text-sky-600 hover:text-sky-800 text-xs">screenshot ↗</a><% end %>
+    <% if r.screenshot_url.present? %><a href="<%= r.screenshot_url %>" target="_blank" class="text-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)] text-xs">screenshot ↗</a><% end %>
   </td>
 </tr>

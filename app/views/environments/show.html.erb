@@ -6,6 +6,6 @@
   <% end %>
   <div class="mt-3 flex gap-2">
     <%= link_to "Edit", edit_project_environment_path(@project, @environment), class: "text-sm text-slate-600 hover:text-slate-900" %>
-    <%= button_to "Delete", project_environment_path(@project, @environment), method: :delete, form: { data: { turbo_confirm: "Delete environment?" } }, class: "text-sm text-rose-600 hover:text-rose-800 bg-transparent" %>
+    <%= button_to "Delete", project_environment_path(@project, @environment), method: :delete, form: { data: { turbo_confirm: "Delete environment?" } }, class: "text-sm text-[color:var(--color-fail-ink)] hover:text-[color:var(--color-fail-ink)] bg-transparent" %>
   </div>
 <% end %>

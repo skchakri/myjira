@@ -30,7 +30,7 @@
                   class: "text-sm border border-slate-200 rounded-md px-2 py-1.5 text-slate-700" } %>
     <% end %>
     <%= link_to "Edit", edit_project_task_path(@project, @task), class: "text-sm text-slate-600 hover:text-slate-900 px-3 py-1.5 border border-slate-200 rounded-md" %>
-    <%= link_to "+ Follow-up", new_project_task_follow_up_path(@project, @task), class: "text-sm text-white bg-rose-700 hover:bg-rose-800 px-3 py-1.5 rounded-md" %>
+    <%= link_to "+ Follow-up", new_project_task_follow_up_path(@project, @task), class: "text-sm text-white bg-[color:var(--color-fail-ink)] hover:bg-[color:var(--color-fail-ink)] px-3 py-1.5 rounded-md" %>
   </div>
 </div>
 

@@ -53,7 +53,7 @@
       <% if agent.scope != "global" %>
         <%= button_to project_agent_path(project, agent), method: :delete,
               form: { data: { turbo_confirm: "Remove #{agent.name}? This deletes its .claude/agents file." } },
-              class: "ml-auto text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-red-500 cursor-pointer" do %>
+              class: "ml-auto text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] cursor-pointer" do %>
           ✕ remove
         <% end %>
       <% end %>

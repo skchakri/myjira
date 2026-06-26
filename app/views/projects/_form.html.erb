@@ -1,6 +1,6 @@
 <%= form_with model: project, class: "max-w-2xl space-y-4" do |f| %>
   <% if project.errors.any? %>
-    <div class="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+    <div class="rounded-md border border-[color:var(--color-fail-wash)] bg-[color:var(--color-fail-wash)] p-3 text-sm text-[color:var(--color-fail-ink)]">
       <%= pluralize(project.errors.count, "error") %> prevented saving:
       <ul class="list-disc ml-5 mt-1">
         <% project.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
