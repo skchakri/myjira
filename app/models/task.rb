@@ -89,7 +89,10 @@ class Task < ApplicationRecord
       .order(Arel.sql("finished_at DESC NULLS LAST, updated_at DESC"))
   }
 
-  after_update_commit :broadcast_board, if: :saved_change_to_board_state?
+  # Refresh the board whenever the lifecycle moves OR the auto-enrichment rewrites
+  # the description / implementation_notes, so a ticket updates live as the
+  # BoardTicketFromSessionJob lands its segmented asks + enrichment.
+  after_update_commit :broadcast_board, if: :board_display_changed?
 
   def glyph
     ITEM_TYPE_GLYPHS[item_type] || "•"
@@ -268,6 +271,12 @@ class Task < ApplicationRecord
   def assign_position
     return if position.present?
     self.position = (project&.tasks&.maximum(:position) || 0) + 1
+  end
+
+  def board_display_changed?
+    saved_change_to_board_state? ||
+      saved_change_to_description? ||
+      saved_change_to_implementation_notes?
   end
 
   def broadcast_board
