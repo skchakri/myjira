@@ -93,11 +93,11 @@ class BoardsController < ApplicationController
   def request_merge
     if @task.request_merge!
       refresh_board!
-      redirect_to board_path(@project),
-                  notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
+      redirect_back fallback_location: board_path(@project),
+                    notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
     else
-      redirect_to board_path(@project),
-                  alert: "Can't merge: the item must be in review with an open PR."
+      redirect_back fallback_location: board_path(@project),
+                    alert: "Can't merge: the item must be in review with an open PR."
     end
   end
 
@@ -106,9 +106,9 @@ class BoardsController < ApplicationController
   def reject_pr
     if @task.reject_pr!(note: params[:reason])
       refresh_board!
-      redirect_to board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
+      redirect_back fallback_location: board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
     else
-      redirect_to board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
+      redirect_back fallback_location: board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
     end
   end
 
