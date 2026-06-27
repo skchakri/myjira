@@ -72,6 +72,15 @@ class Task < ApplicationRecord
   # created_at is used (not updated_at) so the order is stable and doesn't reshuffle
   # on every attribute touch.
   scope :board_ordered, -> { order(Arel.sql("position ASC NULLS LAST, created_at DESC")) }
+  # Autopilot work queue order — deliberately independent of the display `position`
+  # so a human's drag-to-reorder (display only) never reshuffles what the agents
+  # pick up next. Severity first (urgent→low), then oldest-first within a severity
+  # (FIFO). This preserves the queue order the gap importer used to seed via
+  # `position`, now decoupled from how the board renders.
+  scope :board_queue_ordered, lambda {
+    order(Arel.sql("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 " \
+                   "WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 9 END ASC, created_at ASC"))
+  }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).
@@ -272,12 +281,6 @@ class Task < ApplicationRecord
       next if a.byte_size.to_i <= MAX_ATTACHMENT_SIZE
       errors.add(:attachments, "#{a.filename} exceeds #{MAX_ATTACHMENT_SIZE / 1.megabyte} MB")
     end
-  end
-
-  # New items append to the bottom of the project's priority queue.
-  def assign_position
-    return if position.present?
-    self.position = (project&.tasks&.maximum(:position) || 0) + 1
   end
 
   def broadcast_board

@@ -14,8 +14,10 @@ class BoardsController < ApplicationController
     @inflight_launch = @project.current_board_launch
   end
 
-  # Persist a drag: `order` is every visible item id top-to-bottom (new priority);
-  # an item dragged into a different status group also carries moved_id/moved_state.
+  # Persist a drag: `order` is the ids of just the group the item was dropped into,
+  # top-to-bottom. We stamp `position` only on those ids, so groups the user never
+  # touched stay all-NULL and keep their recency default. An item dragged into a
+  # different status group also carries moved_id/moved_state to update its state.
   def reorder
     ids = Array(params[:order]).map(&:to_s)
     Task.transaction do

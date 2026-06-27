@@ -36,6 +36,19 @@ class ProjectTest < ActiveSupport::TestCase
     assert_includes Project.clients.archived, p
   end
 
+  test "next_board_item picks the highest-severity, oldest actionable item, ignoring display position" do
+    p = Project.create!(name: "Queue", slug: "queue-proj", repo_path: "/tmp/queue")
+    # A newer, display-pinned normal item must NOT jump the queue ahead of an urgent one.
+    urgent = p.tasks.create!(title: "Urgent", item_type: "task", board_state: "pending",
+                             priority: "urgent", created_at: 1.hour.ago)
+    normal = p.tasks.create!(title: "Normal pinned", item_type: "task", board_state: "pending",
+                             priority: "normal", created_at: 1.minute.ago)
+    normal.update_column(:position, 1) # dragged to top of the display
+
+    assert_equal urgent.id, p.next_board_item.id,
+                 "the work queue follows severity/FIFO, not the dragged display order"
+  end
+
   test "archive! and unarchive! flip archived_at and archived?" do
     p = Project.create!(name: "Toggle", slug: "toggle-proj", repo_path: "/tmp/toggle")
     refute_predicate p, :archived?

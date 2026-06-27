@@ -114,6 +114,35 @@ class TaskTest < ActiveSupport::TestCase
     end
   end
 
+  # board_queue_ordered: the autopilot work queue — severity then FIFO, and it must
+  # ignore the display `position` entirely so a human's drag never reshuffles work.
+  test "board_queue_ordered sorts urgent before normal, then oldest-first within a severity" do
+    normal_old = @project.tasks.create!(title: "Normal old", item_type: "task", board_state: "pending",
+                                        priority: "normal", created_at: 3.hours.ago)
+    urgent_new = @project.tasks.create!(title: "Urgent new", item_type: "task", board_state: "pending",
+                                        priority: "urgent", created_at: 1.minute.ago)
+    normal_new = @project.tasks.create!(title: "Normal new", item_type: "task", board_state: "pending",
+                                        priority: "normal", created_at: 1.hour.ago)
+
+    ids = @project.tasks.board_queue_ordered.map(&:id)
+    assert_equal [urgent_new.id, normal_old.id, normal_new.id], ids,
+                 "urgent first, then oldest-created normal before newer normal"
+  end
+
+  test "board_queue_ordered ignores position so display pins don't reorder the work queue" do
+    first_created = @project.tasks.create!(title: "First created", item_type: "task", board_state: "pending",
+                                           priority: "normal", created_at: 2.hours.ago)
+    second_created = @project.tasks.create!(title: "Second created", item_type: "task", board_state: "pending",
+                                            priority: "normal", created_at: 1.hour.ago)
+    # A human pins the newer item to the top of the *display* — must not change queue order.
+    second_created.update_column(:position, 1)
+    first_created.update_column(:position, 99)
+
+    ids = @project.tasks.board_queue_ordered.map(&:id)
+    assert_equal [first_created.id, second_created.id], ids,
+                 "queue order is FIFO regardless of display position"
+  end
+
   # --- Labels (Labelable concern) -------------------------------------------
   test "labels normalize: strip, downcase, squish, drop blanks, dedupe, order preserved" do
     t = @project.tasks.create!(title: "L", item_type: "task",
