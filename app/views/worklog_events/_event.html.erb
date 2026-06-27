@@ -1,0 +1,18 @@
+<%# locals: event (WorklogEvent), prev (WorklogEvent | nil, for the duration chip). %>
+<% prev = local_assigns[:prev] %>
+<% dur = event.duration_since(prev) %>
+<li class="worklog-node <%= 'worklog-node--running' if event.status == 'running' %>">
+  <span class="dot <%= worklog_dot_class(event.status) %> worklog-node__dot"></span>
+  <div class="min-w-0 flex-1">
+    <div class="flex items-baseline gap-2">
+      <span class="text-sm text-[color:var(--color-ink)] truncate"><%= event.label.presence || event.name %></span>
+      <% if dur && dur.positive? %>
+        <span class="shrink-0 text-[10px] font-mono text-[color:var(--color-ink-faint)] tabular">+<%= dur %>s</span>
+      <% end %>
+    </div>
+    <div class="mt-0.5 flex items-center gap-2 text-[10.5px] font-mono text-[color:var(--color-ink-faint)]">
+      <span><%= event.name %></span>
+      <span title="<%= format_time(event.occurred_at) %>"><%= ago(event.occurred_at) %></span>
+    </div>
+  </div>
+</li>

@@ -1,5 +1,7 @@
 <% content_for :title, @task.title %>
 
+<%= turbo_stream_from [@task, :worklog] %>
+
 <div class="flex items-baseline justify-between mb-4">
   <div>
     <div class="text-xs text-[color:var(--color-ink-soft)] font-mono">
@@ -123,6 +125,10 @@
   </div>
 
   <div class="space-y-4">
+    <%= card title: "Worklog" do %>
+      <%= render "worklog_events/timeline", subject: @task %>
+    <% end %>
+
     <%= card title: "Timeline" do %>
       <dl class="space-y-1.5">
         <% board_item_timeline(@task).each do |label, t| %>
