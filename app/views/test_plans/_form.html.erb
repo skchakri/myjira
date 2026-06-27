@@ -9,20 +9,20 @@
   <%= render "shared/field", form: f, attribute: :status, type: :select,
         choices: TestPlan::STATUSES %>
   <div>
-    <label class="block text-sm font-medium text-slate-700 mb-1">Tasks this plan covers</label>
-    <div class="border border-slate-200 rounded-md divide-y divide-slate-100 max-h-72 overflow-y-auto">
+    <label class="block text-sm font-medium text-[color:var(--color-ink-soft)] mb-1">Tasks this plan covers</label>
+    <div class="border border-[color:var(--color-hair)] rounded-md divide-y divide-[color:var(--color-hair)] max-h-72 overflow-y-auto">
       <% @tasks.each do |t| %>
-        <label class="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer">
-          <%= check_box_tag "test_plan[task_ids][]", t.id, plan.task_ids.include?(t.id), class: "rounded border-slate-300" %>
-          <span class="text-sm text-slate-900 truncate"><%= t.title %></span>
+        <label class="flex items-center gap-3 px-3 py-2 hover:bg-[color:var(--color-paper-sunk)] cursor-pointer">
+          <%= check_box_tag "test_plan[task_ids][]", t.id, plan.task_ids.include?(t.id), class: "rounded border-[color:var(--color-hair)]" %>
+          <span class="text-sm text-[color:var(--color-ink)] truncate"><%= t.title %></span>
           <span class="ml-auto"><%= status_pill(t.status) %></span>
         </label>
       <% end %>
     </div>
-    <% if @tasks.empty? %><p class="text-xs text-slate-500 mt-1">No tasks in this project yet.</p><% end %>
+    <% if @tasks.empty? %><p class="text-xs text-[color:var(--color-ink-faint)] mt-1">No tasks in this project yet.</p><% end %>
   </div>
   <div class="flex gap-2">
-    <%= f.submit class: "inline-flex items-center rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 cursor-pointer" %>
-    <%= link_to "Cancel", @project, class: "text-sm text-slate-500 hover:text-slate-700 px-2" %>
+    <%= f.submit class: "inline-flex items-center rounded-md bg-[color:var(--color-amber-ink)] px-3 py-1.5 text-sm font-medium text-[color:var(--color-paper)] hover:bg-[color:var(--color-amber-ink-hover)] cursor-pointer" %>
+    <%= link_to "Cancel", @project, class: "text-sm text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink-soft)] px-2" %>
   </div>
 <% end %>

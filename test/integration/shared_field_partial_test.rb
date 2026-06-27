@@ -16,14 +16,14 @@ class SharedFieldPartialTest < ActionDispatch::IntegrationTest
   test "GET new project form shows required asterisk on name field" do
     get new_project_path
     assert_response :success
-    assert_select "span.text-rose-500", minimum: 1
+    assert_select "span[class*=?]", "color-fail-ink", minimum: 1
   end
 
   test "POST project with blank name re-renders with inline field error" do
     post projects_path, params: { project: { name: "", slug: "", description: "" } }
     assert_response :unprocessable_entity
     # Inline per-field error message (from errors[:name], not the summary)
-    assert_select "p.text-rose-600"
+    assert_select "p[class*=?]", "color-fail-ink"
     assert_match "can&#39;t be blank", response.body
   end
 
@@ -39,13 +39,13 @@ class SharedFieldPartialTest < ActionDispatch::IntegrationTest
   test "GET new environment form shows required asterisk on name field" do
     get new_project_environment_path(@project)
     assert_response :success
-    assert_select "span.text-rose-500", minimum: 1
+    assert_select "span[class*=?]", "color-fail-ink", minimum: 1
   end
 
   test "POST environment with blank name re-renders with inline field error" do
     post project_environments_path(@project), params: { environment: { name: "" } }
     assert_response :unprocessable_entity
-    assert_select "p.text-rose-600"
+    assert_select "p[class*=?]", "color-fail-ink"
     assert_match "can&#39;t be blank", response.body
   end
 
@@ -63,13 +63,13 @@ class SharedFieldPartialTest < ActionDispatch::IntegrationTest
   test "GET new task form shows required asterisk on title field" do
     get new_project_task_path(@project)
     assert_response :success
-    assert_select "span.text-rose-500", minimum: 1
+    assert_select "span[class*=?]", "color-fail-ink", minimum: 1
   end
 
   test "POST task with blank title re-renders with inline field error" do
     post project_tasks_path(@project), params: { task: { title: "" } }
     assert_response :unprocessable_entity
-    assert_select "p.text-rose-600"
+    assert_select "p[class*=?]", "color-fail-ink"
     assert_match "can&#39;t be blank", response.body
   end
 

@@ -4,12 +4,12 @@
 
 <div class="flex items-baseline justify-between mb-4">
   <div>
-    <div class="text-xs text-slate-500 font-mono">
+    <div class="text-xs text-[color:var(--color-ink-soft)] font-mono">
       <%= link_to @project.name, @project, class: "hover:underline" %> /
       <%= link_to "relay", browser_tasks_path, class: "hover:underline" %> /
       <%= @task.id.first(8) %>
     </div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900"><%= @task.title %></h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]"><%= @task.title %></h1>
     <% if @task.target_url.present? %>
       <a href="<%= @task.target_url %>" target="_blank" rel="noopener"
          class="mt-1 inline-flex items-center gap-1 text-xs font-mono text-[color:var(--color-amber-ink)] hover:underline">
@@ -20,13 +20,13 @@
   <div class="flex items-center gap-2">
     <% if @task.status == "queued" %>
       <%= button_to "▶ Kick off", kickoff_browser_task_path(@task), method: :post,
-            class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+            class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
     <% end %>
     <% if @task.open? %>
       <%= button_to "Mark done", complete_browser_task_path(@task), method: :post,
-            class: "text-sm text-white bg-slate-900 hover:bg-slate-800 px-3 py-1.5 rounded-md" %>
+            class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
       <%= button_to "Cancel", cancel_browser_task_path(@task), method: :post,
-            class: "text-sm text-slate-600 border border-slate-300 hover:bg-slate-50 px-3 py-1.5 rounded-md",
+            class: "text-sm text-[color:var(--color-ink-soft)] border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)] px-3 py-1.5 rounded-md",
             data: { turbo_confirm: "Cancel this ticket?" } %>
     <% end %>
   </div>
@@ -60,7 +60,7 @@
 <% if @task.instructions.present? %>
   <div class="mt-4">
     <%= card title: "Instructions" do %>
-      <pre class="whitespace-pre-wrap text-sm text-slate-800"><%= @task.instructions %></pre>
+      <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)]"><%= @task.instructions %></pre>
     <% end %>
   </div>
 <% end %>
@@ -100,7 +100,7 @@
               data: { chat_target: "input", action: "keydown->chat#keydown" },
               placeholder: @task.waiting_on_cli? ? "Answer Claude-in-Chrome…  (Enter to send, Shift+Enter for newline)" : "Add a note or instruction…  (Enter to send, Shift+Enter for newline)",
               class: "flex-1 text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-lg px-3 py-2 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none resize-y" %>
-        <%= f.submit "Send", class: "shrink-0 text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-4 py-2 rounded-lg cursor-pointer" %>
+        <%= f.submit "Send", class: "shrink-0 text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-4 py-2 rounded-lg cursor-pointer" %>
       </div>
     <% end %>
   <% end %>
@@ -109,17 +109,17 @@
 <div class="mt-4" data-controller="clipboard">
   <%= card title: "Hand-off prompt → paste into Claude for Chrome" do %>
     <div class="flex items-start justify-between gap-3 mb-2">
-      <p class="text-xs text-slate-500">
+      <p class="text-xs text-[color:var(--color-ink-soft)]">
         Paste this <strong>once</strong> into the Claude for Chrome chat. It stays on this ticket in a
         poll loop and auto-executes any follow-up the CLI posts — so a second instruction needs
         <strong>no second kick-off</strong>. Only re-paste if that chat actually ended.
       </p>
       <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
-              class="shrink-0 text-xs px-2 py-1 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700">
+              class="shrink-0 text-xs px-2 py-1 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink-soft)]">
         Copy prompt
       </button>
     </div>
-    <pre data-clipboard-target="source" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_task_prompt(@task) %></pre>
+    <pre data-clipboard-target="source" class="text-xs bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_task_prompt(@task) %></pre>
   <% end %>
 </div>
 

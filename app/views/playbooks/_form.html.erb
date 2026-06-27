@@ -1,0 +1,38 @@
+<%= form_with model: [@project, playbook], class: "max-w-3xl space-y-4" do |f| %>
+  <% if playbook.errors.any? %>
+    <div class="rounded-md border border-[color:var(--color-fail-wash)] bg-[color:var(--color-fail-wash)] p-3 text-sm text-[color:var(--color-fail-ink)]">
+      <ul class="list-disc ml-5"><% playbook.errors.full_messages.each do |m| %><li><%= m %></li><% end %></ul>
+    </div>
+  <% end %>
+
+  <%= render "shared/field", form: f, attribute: :name, required: true,
+        placeholder: "Nightly flaky-test sweep" %>
+
+  <%= render "shared/field", form: f, attribute: :body, type: :textarea, rows: 6, required: true,
+        label: "Prompt / steps", hint: "What the session should do each run." %>
+
+  <%= render "shared/field", form: f, attribute: :success_criteria, type: :textarea, rows: 3,
+        hint: "How a run is judged a pass — woven into the prompt and shown when evaluating runs." %>
+
+  <%= render "shared/field", form: f, attribute: :guardrails, type: :textarea, rows: 3,
+        hint: "Hard limits the session must respect (e.g. don't push, don't touch prod)." %>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <%= render "shared/field", form: f, attribute: :agent_id, type: :select, label: "Agent (optional)",
+          choices: @project.agents.ordered.map { |a| ["#{a.glyph} #{a.name}", a.id] }, include_blank: "— none —" %>
+    <%= render "shared/field", form: f, attribute: :model, type: :select,
+          choices: SessionLaunch::MODELS %>
+    <%= render "shared/field", form: f, attribute: :permission_mode, type: :select,
+          choices: SessionLaunch::PERMISSION_MODES %>
+  </div>
+
+  <label class="flex items-center gap-2 text-sm text-[color:var(--color-ink-soft)]">
+    <%= f.check_box :enabled, class: "rounded border-[color:var(--color-hair)]" %>
+    Enabled
+  </label>
+
+  <div class="flex gap-2">
+    <%= f.submit class: "inline-flex items-center rounded-md bg-[color:var(--color-amber-ink)] px-3 py-1.5 text-sm font-medium text-[color:var(--color-paper)] hover:bg-[color:var(--color-amber-ink-hover)] cursor-pointer" %>
+    <%= link_to "Cancel", project_playbooks_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-2" %>
+  </div>
+<% end %>

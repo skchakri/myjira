@@ -51,6 +51,12 @@ class SessionLaunch < ApplicationRecord
       .or(where(status: "launched").where(launched_at: ACTIVE_LAUNCHED_WINDOW.ago..))
   }
 
+  # An ad-hoc launch fired FROM a board item just reached a terminal status →
+  # append a one-line result to that item. Board pipeline steps are excluded
+  # (their agents PATCH their own structured result), and the guard fires only on
+  # the *transition into* a terminal status so repeated daemon PATCHes can't dupe.
+  after_update_commit :record_task_result, if: :should_record_task_result?
+
   # Queue a launch in `project`'s repo and pre-create the placeholder
   # Conversation it binds to (so it shows in the grid the instant it's queued and
   # fills in live once the daemon spawns `claude --session-id`). Single path for
@@ -118,6 +124,18 @@ class SessionLaunch < ApplicationRecord
   end
 
   private
+
+  # Fire only when this update flipped status into a terminal value (so a daemon
+  # re-PATCHing the same terminal status can't duplicate the comment), and only
+  # for a task-bound, non-pipeline launch.
+  def should_record_task_result?
+    saved_change_to_status? && done? && task_id.present? && pipeline_step.blank? &&
+      !%w[launched failed canceled].include?(status_previously_was)
+  end
+
+  def record_task_result
+    task.record_agent_result(self)
+  end
 
   def assign_session_id
     self.session_id ||= SecureRandom.uuid

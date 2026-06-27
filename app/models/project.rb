@@ -8,6 +8,7 @@ class Project < ApplicationRecord
   has_many :session_launches, dependent: :destroy
   has_many :agents, dependent: :destroy
   has_many :agent_schedules, dependent: :destroy
+  has_many :playbooks, dependent: :destroy
   has_many :mcp_servers, dependent: :destroy
   has_many :mcp_installs, dependent: :destroy
 

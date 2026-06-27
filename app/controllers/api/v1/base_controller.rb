@@ -30,7 +30,10 @@ module Api
           {
             create_test_plan: "POST #{base_url}/api/v1/projects/#{resource.project.slug}/test_plans",
             update_status:    "PATCH #{base_url}/api/v1/projects/#{resource.project.slug}/tasks/#{resource.id}",
-            report_gap:       "POST #{base_url}/api/v1/projects/#{resource.project.slug}/tasks/#{resource.id}/follow_ups"
+            report_gap:       "POST #{base_url}/api/v1/projects/#{resource.project.slug}/tasks/#{resource.id}/follow_ups",
+            # After a REAL browser test, attach captured screenshots / GIFs here so
+            # they surface in the project's "What's New" changelog.
+            attach_media:     "POST #{base_url}/api/v1/projects/#{resource.project.slug}/tasks/#{resource.id}/attachments"
           }
         when TestPlan
           {
@@ -52,6 +55,9 @@ module Api
             post_message: "POST #{base_url}/api/v1/browser_tasks/#{resource.id}/messages",
             watch:        "GET #{base_url}/api/v1/browser_tasks/#{resource.id}?wait=25&since={iso8601_cursor}",
             complete:     "PATCH #{base_url}/api/v1/browser_tasks/#{resource.id}/complete",
+            # If this relay ran a REAL browser test of a board item, attach captured
+            # screenshots / GIFs (base64) to that item so they show in its changelog.
+            attach_media: "POST #{base_url}/api/v1/projects/{project_slug}/tasks/{task_id}/attachments",
             view:         "#{base_url}/browser_tasks/#{resource.id}"
           }.compact
         else

@@ -63,7 +63,7 @@ module Api
       private
 
       BOARD_FIELDS = %i[item_type board_state agent_role position plan branch_name
-                        pr_url pr_number pr_state pr_diff agent_notes].freeze
+                        pr_url pr_number pr_state pr_diff agent_notes changelog_summary].freeze
 
       def task_params
         raw = params[:task] || params
@@ -102,6 +102,7 @@ module Api
               url: "#{base_url}#{Rails.application.routes.url_helpers.rails_blob_path(a, only_path: true)}" }
           end
           data[:plan] = task.plan
+          data[:changelog_summary] = task.changelog_summary
           data[:implementation_notes] = task.implementation_notes
           data[:agent_notes] = task.agent_notes
           data[:test_plans] = task.test_plans.map { |p| { id: p.id, title: p.title, status: p.status } }

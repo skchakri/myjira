@@ -1,0 +1,96 @@
+<% content_for :title, @playbook.name %>
+
+<div class="flex items-baseline justify-between mb-4">
+  <div>
+    <div class="text-xs text-[color:var(--color-ink-soft)] font-mono"><%= link_to @project.name, @project, class: "hover:underline" %> / <%= link_to "playbooks", project_playbooks_path(@project), class: "hover:underline" %></div>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]"><%= @playbook.name %></h1>
+    <div class="mt-2 flex items-center gap-2 flex-wrap text-xs text-[color:var(--color-ink-soft)]">
+      <% if @playbook.agent %><span class="font-mono"><%= @playbook.agent.glyph %> <%= @playbook.agent.name %></span><% end %>
+      <% unless @playbook.enabled? %><span class="pill pill-skip">paused</span><% end %>
+      <span><%= pluralize(@metrics[:runs], "run") %></span>
+      <% if (@metrics[:passed] + @metrics[:failed]).positive? %><span><%= @metrics[:pass_rate] %>% pass</span><% end %>
+      <%= render "agents/sparkline", data: @metrics[:sparkline] %>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <%= link_to "Edit", edit_project_playbook_path(@project, @playbook), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
+    <%= button_to "▶ Trigger now", trigger_project_playbook_path(@project, @playbook), class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 space-y-4">
+    <%= card title: "Prompt / steps" do %>
+      <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)]"><%= @playbook.body %></pre>
+    <% end %>
+
+    <% if @playbook.success_criteria.present? %>
+      <%= card title: "Success criteria" do %>
+        <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)]"><%= @playbook.success_criteria %></pre>
+      <% end %>
+    <% end %>
+
+    <% if @playbook.guardrails.present? %>
+      <%= card title: "Guardrails" do %>
+        <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)]"><%= @playbook.guardrails %></pre>
+      <% end %>
+    <% end %>
+
+    <%= card title: "Run history" do %>
+      <% if @runs.empty? %>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No runs yet. Trigger it now or schedule it.</p>
+      <% else %>
+        <ul class="divide-y divide-[color:var(--color-hair)]">
+          <% @runs.each do |run| %>
+            <li class="py-3 flex items-start justify-between gap-3">
+              <div class="min-w-0 text-sm">
+                <div class="flex items-center gap-2">
+                  <%= status_pill(run.result) %>
+                  <span class="text-xs text-[color:var(--color-ink-soft)]"><%= format_time(run.evaluated_at || run.created_at) %></span>
+                  <% if run.agent_schedule_id %><span class="text-xs text-[color:var(--color-ink-faint)]">⏱ scheduled</span><% end %>
+                </div>
+                <% if run.session_launch&.conversation %>
+                  <%= link_to "View session →", conversation_path(run.session_launch.conversation), class: "text-xs text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %>
+                <% end %>
+                <% if run.notes.present? %><p class="text-xs text-[color:var(--color-ink-soft)] mt-1"><%= run.notes %></p><% end %>
+              </div>
+              <% if run.result == "pending" %>
+                <%= form_with model: run, url: playbook_run_path(run), method: :patch, class: "flex items-center gap-1 shrink-0" do |f| %>
+                  <%= f.fields_for :playbook_run, run do |rf| %>
+                    <%= rf.select :result, PlaybookRun::RESULTS - ["pending"], {}, class: "rounded-md border-[color:var(--color-hair)] text-xs" %>
+                  <% end %>
+                  <%= f.submit "Mark", class: "text-xs text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-2 py-1 rounded-md cursor-pointer" %>
+                <% end %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="space-y-4">
+    <%= card title: "Schedule" do %>
+      <p class="text-sm text-[color:var(--color-ink-soft)] mb-2">Put this playbook on a cron — the host daemon fires it and records a run each time.</p>
+      <%= form_with url: schedule_project_playbook_path(@project, @playbook), method: :post, class: "space-y-2" do |f| %>
+        <%= f.text_field :cron, placeholder: "0 9 * * *", class: "w-full rounded-md border-[color:var(--color-hair)] text-sm shadow-sm focus:border-[color:var(--color-amber-ink)] focus:ring-[color:var(--color-amber-ink)]" %>
+        <p class="text-xs text-[color:var(--color-ink-soft)]">e.g. <code class="font-mono">0 9 * * *</code> daily 09:00, <code class="font-mono">0 * * * *</code> hourly.</p>
+        <%= f.submit "Schedule", class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
+      <% end %>
+    <% end %>
+
+    <% schedules = @playbook.agent_schedules.recent.to_a %>
+    <% if schedules.any? %>
+      <%= card title: "Scheduled" do %>
+        <ul class="space-y-2">
+          <% schedules.each do |s| %>
+            <li class="text-sm flex items-center justify-between gap-2">
+              <span class="font-mono text-xs"><%= s.cron %></span>
+              <span class="text-xs text-[color:var(--color-ink-soft)]">next <%= format_time(s.next_run_at) %></span>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% end %>
+  </div>
+</div>

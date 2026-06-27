@@ -36,6 +36,8 @@
 
 <!-- secondary nav: the board is the landing; these reach the rest of the project -->
 <nav class="mt-2 flex items-center gap-4 text-[11px] font-mono text-[color:var(--color-ink-faint)]">
+  <%= link_to "What's New", project_changelog_path(@project), class: "hover:text-[color:var(--color-amber-ink)]" %>
+  <span aria-hidden="true">·</span>
   <%= link_to "Test plans", project_test_plans_path(@project), class: "hover:text-[color:var(--color-amber-ink)]" %>
   <span aria-hidden="true">·</span>
   <%= link_to "Conversations", project_conversations_path(@project), class: "hover:text-[color:var(--color-amber-ink)]" %>

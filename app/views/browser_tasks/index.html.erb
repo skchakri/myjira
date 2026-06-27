@@ -3,17 +3,17 @@
 <div class="flex items-baseline justify-between mb-1">
   <div>
     <div class="eyebrow">CLI ⇄ Claude-in-Chrome</div>
-    <h1 class="text-2xl font-semibold tracking-tight text-slate-900">
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]">
       <%= @project ? "#{@project.name} · relay" : "Relay channel" %>
     </h1>
   </div>
   <% if @project %>
     <%= link_to "+ New instruction", new_project_browser_task_path(@project),
-          class: "text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+          class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
   <% end %>
 </div>
 
-<p class="text-sm text-slate-500 mb-4 max-w-2xl">
+<p class="text-sm text-[color:var(--color-ink-soft)] mb-4 max-w-2xl">
   A shared channel: any Claude CLI session files an instruction here and it's
   <strong>auto-dispatched</strong> — Claude-in-Chrome executes it and posts results, or questions,
   back to the same ticket, and the CLI watches live. Start the standing worker once (below) and
@@ -24,30 +24,30 @@
   <div class="mb-4" data-controller="clipboard">
     <%= card title: "Standing relay worker → paste once into Claude for Chrome" do %>
       <div class="flex items-start justify-between gap-3 mb-2">
-        <p class="text-xs text-slate-500 max-w-2xl">
+        <p class="text-xs text-[color:var(--color-ink-soft)] max-w-2xl">
           Paste this <strong>once</strong> into a Claude for Chrome chat and leave it running. It watches the
           whole queue and works every auto-dispatched ticket as it arrives — so you never click
           <strong>Kick off</strong> per ticket. (Per-ticket pages still have their own hand-off prompt.)
         </p>
         <button type="button" data-clipboard-target="button" data-action="clipboard#copy"
-                class="shrink-0 text-xs px-2 py-1 rounded-md border border-slate-300 hover:bg-slate-50 text-slate-700">
+                class="shrink-0 text-xs px-2 py-1 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink-soft)]">
           Copy worker
         </button>
       </div>
-      <pre data-clipboard-target="source" class="text-xs bg-slate-900 text-slate-100 rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_worker_prompt %></pre>
+      <pre data-clipboard-target="source" class="text-xs bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink)] rounded-md p-3 font-mono whitespace-pre-wrap"><%= browser_worker_prompt %></pre>
     <% end %>
   </div>
 <% end %>
 
 <%= card do %>
   <% if @tasks.empty? %>
-    <div class="py-10 text-center text-sm text-slate-500">
+    <div class="py-10 text-center text-sm text-[color:var(--color-ink-soft)]">
       No instructions yet. A CLI session can file one with
-      <span class="font-mono text-slate-700">POST /api/v1/projects/general/browser_tasks</span>.
+      <span class="font-mono text-[color:var(--color-ink-soft)]">POST /api/v1/projects/general/browser_tasks</span>.
     </div>
   <% else %>
     <table class="w-full text-sm">
-      <thead class="text-xs text-slate-500 text-left">
+      <thead class="text-xs text-[color:var(--color-ink-soft)] text-left">
         <tr>
           <th class="pb-2">Ticket</th>
           <th class="pb-2">Status</th>
@@ -55,27 +55,27 @@
           <th class="pb-2">Activity</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-slate-100">
+      <tbody class="divide-y divide-[color:var(--color-hair)]">
         <% @tasks.each do |task| %>
-          <tr class="hover:bg-slate-50">
+          <tr class="hover:bg-[color:var(--color-paper-sunk)]">
             <td class="py-2.5">
-              <%= link_to browser_task_path(task), class: "font-medium text-slate-800 hover:underline" do %>
+              <%= link_to browser_task_path(task), class: "font-medium text-[color:var(--color-ink)] hover:underline" do %>
                 <%= task.title %>
               <% end %>
               <% unless params[:project_id] %>
-                <span class="ml-1 text-[11px] font-mono text-slate-400"><%= task.project.slug %></span>
+                <span class="ml-1 text-[11px] font-mono text-[color:var(--color-ink-faint)]"><%= task.project.slug %></span>
               <% end %>
               <% if task.target_url.present? %>
-                <div class="text-[11px] font-mono text-slate-400 truncate max-w-md"><%= task.target_url %></div>
+                <div class="text-[11px] font-mono text-[color:var(--color-ink-faint)] truncate max-w-md"><%= task.target_url %></div>
               <% end %>
             </td>
             <td class="py-2.5"><%= status_pill(task.status) %></td>
-            <td class="py-2.5 text-xs text-slate-500">
+            <td class="py-2.5 text-xs text-[color:var(--color-ink-soft)]">
               <% if task.waiting_on_cli? %>Claude CLI
               <% elsif task.waiting_on_browser? %>Claude-in-Chrome
               <% else %>—<% end %>
             </td>
-            <td class="py-2.5 text-xs text-slate-400"><%= format_time(task.last_activity_at || task.created_at) %></td>
+            <td class="py-2.5 text-xs text-[color:var(--color-ink-faint)]"><%= format_time(task.last_activity_at || task.created_at) %></td>
           </tr>
         <% end %>
       </tbody>

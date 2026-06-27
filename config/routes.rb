@@ -7,6 +7,10 @@ Rails.application.routes.draw do
   # test results. Optional ?project_id=<slug|uuid> scopes it to one folder.
   get "search", to: "search#index", as: :search
 
+  # Single cross-project review queue — every in_review item, grouped by project,
+  # with the same Approve & merge / Reject actions as the board.
+  get "review", to: "reviews#index", as: :review
+
   # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
   # Auto-provisions the matching Project on first GET so external callers
   # never hit a 404.
@@ -44,6 +48,13 @@ Rails.application.routes.draw do
     end
     # Web → schedule a recurring trigger in this project's repo.
     resources :agent_schedules, only: [:create]
+    # Web → saved, reusable run recipes; trigger one now or put it on a cron.
+    resources :playbooks do
+      member do
+        post :trigger
+        post :schedule
+      end
+    end
     # Web → add an MCP server (one-click from the catalog, or a custom spec);
     # files an McpInstall the host daemon runs with `claude mcp add`.
     resources :mcp_installs, only: [:create]
@@ -70,6 +81,8 @@ Rails.application.routes.draw do
     post  "board/items/:id/comments",  to: "boards#add_comment", as: :board_item_comments
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
+    # Per-project "What's New" — the plain-language feed of shipped changes.
+    get   "changelog",                 to: "changelogs#show",    as: :project_changelog
     post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
   end
 
@@ -88,6 +101,9 @@ Rails.application.routes.draw do
       post :run_now
     end
   end
+
+  # Evaluate a playbook run — record passed/failed against its success criteria.
+  resources :playbook_runs, only: [:update]
 
   # Remove a configured MCP server (files a `claude mcp remove` for the daemon).
   resources :mcp_servers, only: [:destroy]
@@ -148,6 +164,9 @@ Rails.application.routes.draw do
           member { post :finish } # agent signals "coding done" → fire the test leg
           resources :follow_up_tasks, only: [:index, :create], path: "follow_ups"
           resources :comments, only: [:index, :create]
+          # Relay/Claude-in-Chrome uploads screenshots / GIFs captured during a
+          # real browser test as base64 (or multipart) → surfaces in changelog.
+          resources :attachments, only: [:create], controller: "task_attachments"
         end
         resources :test_plans, only: [:index, :show, :create, :update] do
           resources :test_cases, only: [:index, :create, :update] do

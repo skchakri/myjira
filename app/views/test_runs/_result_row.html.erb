@@ -1,20 +1,20 @@
 <tr id="result_<%= r.id %>">
-  <td class="py-2 text-xs font-mono text-slate-500 align-top"><%= r.test_case.position %></td>
+  <td class="py-2 text-xs font-mono text-[color:var(--color-ink-soft)] align-top"><%= r.test_case.position %></td>
   <td class="py-2 align-top">
-    <div class="text-slate-900 font-medium"><%= r.test_case.title %></div>
+    <div class="text-[color:var(--color-ink)] font-medium"><%= r.test_case.title %></div>
     <% if r.test_case.api_call.present? %>
       <details class="mt-1">
-        <summary class="cursor-pointer text-xs text-slate-500">api call</summary>
-        <pre class="mt-1 text-xs font-mono bg-slate-50 p-2 rounded whitespace-pre-wrap"><%= r.test_case.api_call %></pre>
+        <summary class="cursor-pointer text-xs text-[color:var(--color-ink-soft)]">api call</summary>
+        <pre class="mt-1 text-xs font-mono bg-[color:var(--color-paper-sunk)] p-2 rounded whitespace-pre-wrap"><%= r.test_case.api_call %></pre>
       </details>
     <% end %>
   </td>
   <td class="py-2 align-top"><%= status_pill(r.status) %></td>
-  <td class="py-2 align-top text-slate-700 text-xs">
+  <td class="py-2 align-top text-[color:var(--color-ink-soft)] text-xs">
     <% if r.actual_result.present? %>
-      <pre class="whitespace-pre-wrap font-mono text-xs text-slate-700 max-h-40 overflow-auto"><%= r.actual_result %></pre>
+      <pre class="whitespace-pre-wrap font-mono text-xs text-[color:var(--color-ink-soft)] max-h-40 overflow-auto"><%= r.actual_result %></pre>
     <% end %>
-    <% if r.notes.present? %><div class="text-slate-500 mt-1"><%= r.notes %></div><% end %>
+    <% if r.notes.present? %><div class="text-[color:var(--color-ink-soft)] mt-1"><%= r.notes %></div><% end %>
     <% if r.screenshot_url.present? %><a href="<%= r.screenshot_url %>" target="_blank" class="text-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink)] text-xs">screenshot ↗</a><% end %>
   </td>
 </tr>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000008) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -57,6 +57,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
     t.string "model"
     t.datetime "next_run_at"
     t.string "permission_mode"
+    t.uuid "playbook_id"
     t.uuid "project_id", null: false
     t.text "prompt", null: false
     t.text "task"
@@ -64,6 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
     t.index ["agent_id"], name: "index_agent_schedules_on_agent_id"
     t.index ["enabled", "next_run_at"], name: "index_agent_schedules_on_enabled_and_next_run_at"
     t.index ["last_launch_id"], name: "index_agent_schedules_on_last_launch_id"
+    t.index ["playbook_id"], name: "index_agent_schedules_on_playbook_id"
     t.index ["project_id"], name: "index_agent_schedules_on_project_id"
   end
 
@@ -250,6 +252,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
     t.index ["scope", "name"], name: "index_mcp_servers_on_global_scope_name", unique: true, where: "(project_id IS NULL)"
   end
 
+  create_table "playbook_runs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "agent_schedule_id"
+    t.datetime "created_at", null: false
+    t.datetime "evaluated_at"
+    t.text "notes"
+    t.uuid "playbook_id", null: false
+    t.string "result", default: "pending", null: false
+    t.uuid "session_launch_id"
+    t.datetime "updated_at", null: false
+    t.index ["agent_schedule_id"], name: "index_playbook_runs_on_agent_schedule_id"
+    t.index ["playbook_id"], name: "index_playbook_runs_on_playbook_id"
+    t.index ["session_launch_id"], name: "index_playbook_runs_on_session_launch_id"
+  end
+
+  create_table "playbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "agent_id"
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.text "guardrails"
+    t.string "model"
+    t.string "name", null: false
+    t.string "permission_mode"
+    t.uuid "project_id"
+    t.text "success_criteria"
+    t.datetime "updated_at", null: false
+    t.index ["agent_id"], name: "index_playbooks_on_agent_id"
+    t.index ["project_id"], name: "index_playbooks_on_project_id"
+  end
+
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "archived_at"
     t.integer "autopilot_daily_cap", default: 10, null: false
@@ -339,6 +371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
     t.integer "autopilot_attempts", default: 0, null: false
     t.string "board_state", default: "pending", null: false
     t.string "branch_name"
+    t.text "changelog_summary"
     t.datetime "created_at", null: false
     t.text "description"
     t.uuid "environment_id"
@@ -457,6 +490,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
     t.index ["test_plan_id"], name: "index_test_runs_on_test_plan_id"
   end
 
+  create_table "worklog_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "label", default: "", null: false
+    t.string "name", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.uuid "project_id"
+    t.string "status", default: "info", null: false
+    t.uuid "subject_id", null: false
+    t.string "subject_type", null: false
+    t.index ["project_id"], name: "index_worklog_events_on_project_id"
+    t.index ["subject_type", "subject_id", "occurred_at"], name: "index_worklog_events_on_subject_and_time"
+    t.index ["subject_type", "subject_id"], name: "index_worklog_events_on_subject"
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "agent_schedules", "agents"
@@ -474,6 +522,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000004) do
   add_foreign_key "follow_up_tasks", "test_results"
   add_foreign_key "mcp_installs", "projects"
   add_foreign_key "mcp_servers", "projects"
+  add_foreign_key "playbook_runs", "playbooks"
+  add_foreign_key "playbook_runs", "session_launches"
+  add_foreign_key "playbooks", "agents"
+  add_foreign_key "playbooks", "projects"
   add_foreign_key "session_commands", "conversations"
   add_foreign_key "session_launches", "agents"
   add_foreign_key "session_launches", "conversations"
