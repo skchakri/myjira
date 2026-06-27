@@ -114,6 +114,45 @@ class TaskTest < ActiveSupport::TestCase
     end
   end
 
+  # --- Labels (Labelable concern) -------------------------------------------
+  test "labels normalize: strip, downcase, squish, drop blanks, dedupe, order preserved" do
+    t = @project.tasks.create!(title: "L", item_type: "task",
+                               labels: ["Needs-Human", "  flaky ", "FLAKY", "", "agent  authored"])
+    assert_equal ["needs-human", "flaky", "agent authored"], t.reload.labels
+  end
+
+  test "labels default to an empty array, never nil" do
+    t = @project.tasks.create!(title: "L", item_type: "task")
+    assert_equal [], t.reload.labels
+  end
+
+  test "labels_text round-trips through the comma-separated form field" do
+    t = @project.tasks.new(title: "L", item_type: "task")
+    t.labels_text = "Flaky, needs-human ,, flaky"
+    t.save!
+    assert_equal ["flaky", "needs-human"], t.reload.labels
+    assert_equal "flaky, needs-human", t.labels_text
+  end
+
+  test "labels accept a bare comma string (defensive for API callers)" do
+    t = @project.tasks.create!(title: "L", item_type: "task", labels: "a, b, a")
+    assert_equal ["a", "b"], t.reload.labels
+  end
+
+  test "with_label returns only rows carrying the label, case-insensitively" do
+    flaky = @project.tasks.create!(title: "F", item_type: "task", labels: ["flaky", "needs-human"])
+    other = @project.tasks.create!(title: "O", item_type: "task", labels: ["agent-authored"])
+    result = @project.tasks.with_label("Flaky")
+    assert_includes result, flaky
+    assert_not_includes result, other
+  end
+
+  test "all_labels returns the distinct sorted set across the relation" do
+    @project.tasks.create!(title: "A", item_type: "task", labels: ["flaky", "needs-human"])
+    @project.tasks.create!(title: "B", item_type: "task", labels: ["flaky", "agent-authored"])
+    assert_equal ["agent-authored", "flaky", "needs-human"], @project.tasks.all_labels
+  end
+
   # --- "What's New" changelog ------------------------------------------------
   test "changelog scope returns only done items that carry a blurb" do
     shipped = @project.tasks.create!(title: "Shipped", item_type: "feature", board_state: "done",

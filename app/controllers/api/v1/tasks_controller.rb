@@ -68,7 +68,7 @@ module Api
       def task_params
         raw = params[:task] || params
         raw.permit(:title, :description, :implementation_notes, :external_ref, :status,
-                   :priority, :source, :environment_id, *BOARD_FIELDS)
+                   :priority, :source, :environment_id, :labels_text, *BOARD_FIELDS, labels: [])
       end
 
       def resolve_environment(task)
@@ -83,7 +83,7 @@ module Api
         data = {
           id: task.id, title: task.title, status: task.status, priority: task.priority,
           item_type: task.item_type, board_state: task.board_state, agent_role: task.agent_role,
-          position: task.position,
+          position: task.position, labels: task.labels,
           source: task.source, external_ref: task.external_ref,
           environment: task.environment&.name,
           pr: task.pr_url.present? ? { url: task.pr_url, number: task.pr_number, state: task.pr_state, branch: task.branch_name } : nil,

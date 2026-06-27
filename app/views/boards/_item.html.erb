@@ -16,6 +16,9 @@
         </span>
       <% end %>
       <% if item.agent_role != "unassigned" %><span><%= agent_role_label(item.agent_role) %></span><% end %>
+      <% if item.labels.present? %>
+        <% item.labels.each do |l| %><span class="pill pill-quiet font-mono !py-0 !px-1.5 !text-[10px]"><%= l %></span><% end %>
+      <% end %>
       <% if item.attachments.attached? %><span title="<%= item.attachments.size %> attachment(s)">📎 <%= item.attachments.size %></span><% end %>
       <% if item.branch_name.present? %><span class="font-mono truncate max-w-[140px]">⎇ <%= item.branch_name %></span><% end %>
       <% if item.board_state == "failed" && item.agent_notes.present? %>
