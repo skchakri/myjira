@@ -7,7 +7,9 @@ class BoardsController < ApplicationController
   before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :add_comment, :plan, :pr]
 
   def show
-    @groups = @project.board_groups
+    @active_label = params[:label].to_s.strip.downcase.presence
+    @all_labels = @project.board_labels
+    @groups = @project.board_groups(label: @active_label)
     @done_count = @project.tasks.where(board_state: "done").count
     @inflight_launch = @project.current_board_launch
   end
@@ -95,11 +97,11 @@ class BoardsController < ApplicationController
   def request_merge
     if @task.request_merge!
       refresh_board!
-      redirect_to board_path(@project),
-                  notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
+      redirect_back fallback_location: board_path(@project),
+                    notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
     else
-      redirect_to board_path(@project),
-                  alert: "Can't merge: the item must be in review with an open PR."
+      redirect_back fallback_location: board_path(@project),
+                    alert: "Can't merge: the item must be in review with an open PR."
     end
   end
 
@@ -108,9 +110,9 @@ class BoardsController < ApplicationController
   def reject_pr
     if @task.reject_pr!(note: params[:reason])
       refresh_board!
-      redirect_to board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
+      redirect_back fallback_location: board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
     else
-      redirect_to board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
+      redirect_back fallback_location: board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
     end
   end
 
@@ -176,7 +178,7 @@ class BoardsController < ApplicationController
   end
 
   def create_params
-    params.require(:task).permit(:title, :item_type, :description, :priority, attachments: [])
+    params.require(:task).permit(:title, :item_type, :description, :priority, :labels_text, attachments: [], labels: [])
   end
 
   # A stand-in title from the dump's first meaningful line, shown until the triage
@@ -190,7 +192,7 @@ class BoardsController < ApplicationController
   end
 
   def update_params
-    params.require(:task).permit(:title, :item_type, :board_state, :agent_role, :priority, :plan, :description)
+    params.require(:task).permit(:title, :item_type, :board_state, :agent_role, :priority, :plan, :description, :changelog_summary, :labels_text, labels: [])
   end
 
   def autopilot_params

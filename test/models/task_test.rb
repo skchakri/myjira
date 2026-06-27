@@ -120,4 +120,99 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal [first_created.id, second_created.id], ids,
                  "queue order is FIFO regardless of display position"
   end
+
+  # --- Labels (Labelable concern) -------------------------------------------
+  test "labels normalize: strip, downcase, squish, drop blanks, dedupe, order preserved" do
+    t = @project.tasks.create!(title: "L", item_type: "task",
+                               labels: ["Needs-Human", "  flaky ", "FLAKY", "", "agent  authored"])
+    assert_equal ["needs-human", "flaky", "agent authored"], t.reload.labels
+  end
+
+  test "labels default to an empty array, never nil" do
+    t = @project.tasks.create!(title: "L", item_type: "task")
+    assert_equal [], t.reload.labels
+  end
+
+  test "labels_text round-trips through the comma-separated form field" do
+    t = @project.tasks.new(title: "L", item_type: "task")
+    t.labels_text = "Flaky, needs-human ,, flaky"
+    t.save!
+    assert_equal ["flaky", "needs-human"], t.reload.labels
+    assert_equal "flaky, needs-human", t.labels_text
+  end
+
+  test "labels accept a bare comma string (defensive for API callers)" do
+    t = @project.tasks.create!(title: "L", item_type: "task", labels: "a, b, a")
+    assert_equal ["a", "b"], t.reload.labels
+  end
+
+  test "with_label returns only rows carrying the label, case-insensitively" do
+    flaky = @project.tasks.create!(title: "F", item_type: "task", labels: ["flaky", "needs-human"])
+    other = @project.tasks.create!(title: "O", item_type: "task", labels: ["agent-authored"])
+    result = @project.tasks.with_label("Flaky")
+    assert_includes result, flaky
+    assert_not_includes result, other
+  end
+
+  test "all_labels returns the distinct sorted set across the relation" do
+    @project.tasks.create!(title: "A", item_type: "task", labels: ["flaky", "needs-human"])
+    @project.tasks.create!(title: "B", item_type: "task", labels: ["flaky", "agent-authored"])
+    assert_equal ["agent-authored", "flaky", "needs-human"], @project.tasks.all_labels
+  end
+
+  # --- "What's New" changelog ------------------------------------------------
+  test "changelog scope returns only done items that carry a blurb" do
+    shipped = @project.tasks.create!(title: "Shipped", item_type: "feature", board_state: "done",
+                                     changelog_summary: "You can now do X.", finished_at: 1.hour.ago)
+    @project.tasks.create!(title: "Done, no blurb", item_type: "feature", board_state: "done")
+    @project.tasks.create!(title: "Blank blurb", item_type: "feature", board_state: "done", changelog_summary: "")
+    @project.tasks.create!(title: "Not done", item_type: "feature", board_state: "in_review",
+                           changelog_summary: "Has a blurb but not shipped.")
+
+    ids = @project.tasks.changelog.map(&:id)
+    assert_equal [shipped.id], ids
+  end
+
+  test "changelog scope orders by finished_at desc with NULLS last" do
+    older   = @project.tasks.create!(title: "Older",  item_type: "feature", board_state: "done",
+                                     changelog_summary: "a", finished_at: 2.days.ago)
+    newer   = @project.tasks.create!(title: "Newer",  item_type: "feature", board_state: "done",
+                                     changelog_summary: "b", finished_at: 1.hour.ago)
+    legacy  = @project.tasks.create!(title: "Legacy", item_type: "feature", board_state: "done",
+                                     changelog_summary: "c", finished_at: nil)
+
+    assert_equal [newer.id, older.id, legacy.id], @project.tasks.changelog.map(&:id)
+  end
+
+  test "humanized_title strips a leading [tag] prefix" do
+    t = @project.tasks.new(title: "[user-req] Per-project What's New")
+    assert_equal "Per-project What's New", t.humanized_title
+  end
+
+  test "humanized_title falls back to the raw title when stripping leaves nothing" do
+    t = @project.tasks.new(title: "[only-a-tag]")
+    assert_equal "[only-a-tag]", t.humanized_title
+  end
+
+  test "changelog_entry? is true only for a shipped item with a blurb" do
+    assert @project.tasks.new(board_state: "done", changelog_summary: "x").changelog_entry?
+    assert_not @project.tasks.new(board_state: "done", changelog_summary: "").changelog_entry?
+    assert_not @project.tasks.new(board_state: "in_review", changelog_summary: "x").changelog_entry?
+  end
+
+  test "changelog_media keeps only image/video attachments" do
+    t = @project.tasks.create!(title: "With media", item_type: "feature", board_state: "done",
+                               changelog_summary: "shipped")
+    t.attachments.attach(io: StringIO.new("png"), filename: "shot.png", content_type: "image/png")
+    t.attachments.attach(io: StringIO.new("mp4"), filename: "clip.mp4", content_type: "video/mp4")
+    t.attachments.attach(io: StringIO.new("log"), filename: "run.log", content_type: "text/plain")
+
+    names = t.changelog_media.map { |a| a.filename.to_s }.sort
+    assert_equal ["clip.mp4", "shot.png"], names
+  end
+
+  test "changelog_media is empty when nothing is attached" do
+    t = @project.tasks.new(title: "No media", board_state: "done", changelog_summary: "x")
+    assert_equal [], t.changelog_media
+  end
 end

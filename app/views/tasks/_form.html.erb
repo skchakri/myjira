@@ -32,6 +32,12 @@
         label: "External ref (PR link, branch, ticket)",
         input_class: "font-mono" %>
 
+  <%= render "shared/field", form: f, attribute: :labels_text,
+        label: "Labels (comma-separated)",
+        input_class: "font-mono",
+        placeholder: "needs-human, flaky",
+        hint: "Routing/triage tags — e.g. needs-human, agent-authored, flaky." %>
+
   <div class="flex items-center gap-2 pt-2">
     <%= f.submit class: "inline-flex items-center rounded-md bg-[color:var(--color-amber-ink)] px-3 py-1.5 text-sm font-medium text-[color:var(--color-paper)] hover:bg-[color:var(--color-amber-ink-hover)] cursor-pointer" %>
     <%= link_to "Cancel", @project, class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-2" %>
