@@ -213,7 +213,21 @@ class Task < ApplicationRecord
     autopilot_attempts.to_i >= MAX_AUTOPILOT_ATTEMPTS
   end
 
+  # Append a result comment for an ad-hoc agent launch that finished on this item
+  # (called from SessionLaunch when a task-bound, non-pipeline launch goes
+  # terminal). The Comments card renders it as-is — no view change needed.
+  def record_agent_result(launch)
+    comments.create!(author: launch.agent&.name.presence || "agent",
+                     body: agent_result_body(launch))
+  end
+
   private
+
+  def agent_result_body(launch)
+    convo  = launch.conversation
+    detail = convo&.title.present? ? " · session: #{convo.title}" : ""
+    "Agent run #{launch.outcome}#{detail}"
+  end
 
   def attachments_within_limits
     return unless attachments.attached?
