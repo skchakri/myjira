@@ -48,38 +48,7 @@
 
     <% if @task.attachments.attached? %>
       <%= card title: "Attachments" do %>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <% @task.attachments.each do |att| %>
-            <% type = att.content_type.to_s %>
-            <% if type.start_with?("image/") %>
-              <a href="<%= url_for(att) %>" target="_blank" rel="noopener" class="block">
-                <%= image_tag att, alt: att.filename.to_s, loading: "lazy",
-                      class: "h-28 w-full object-cover rounded-md border border-[color:var(--color-hair)]" %>
-                <span class="block mt-1 text-xs text-[color:var(--color-ink-soft)] truncate"><%= att.filename %></span>
-              </a>
-            <% elsif type.start_with?("video/") %>
-              <div>
-                <video src="<%= url_for(att) %>" controls preload="metadata"
-                       class="h-28 w-full object-cover rounded-md border border-[color:var(--color-hair)] bg-black"></video>
-                <span class="block mt-1 text-xs text-[color:var(--color-ink-soft)] truncate"><%= att.filename %></span>
-              </div>
-            <% elsif type.start_with?("audio/") %>
-              <div class="col-span-2 sm:col-span-3">
-                <audio src="<%= url_for(att) %>" controls preload="metadata" class="w-full"></audio>
-                <span class="block mt-1 text-xs text-[color:var(--color-ink-soft)] truncate"><%= att.filename %></span>
-              </div>
-            <% else %>
-              <a href="<%= url_for(att) %>" target="_blank" rel="noopener"
-                 class="flex items-center gap-2 p-2 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)]">
-                <span class="text-lg shrink-0" aria-hidden="true">📄</span>
-                <span class="min-w-0">
-                  <span class="block text-xs font-medium text-[color:var(--color-ink)] truncate"><%= att.filename %></span>
-                  <span class="block text-[11px] text-[color:var(--color-ink-faint)]"><%= number_to_human_size(att.byte_size) %></span>
-                </span>
-              </a>
-            <% end %>
-          <% end %>
-        </div>
+        <%= render "shared/media_gallery", attachments: @task.attachments %>
       <% end %>
     <% end %>
 
@@ -88,6 +57,24 @@
         <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)] font-mono leading-relaxed"><%= @task.implementation_notes %></pre>
       <% else %>
         <p class="text-sm text-[color:var(--color-ink-soft)]">Claude CLI hasn't recorded any implementation notes yet.</p>
+      <% end %>
+    <% end %>
+
+    <%= card title: "What's New blurb" do %>
+      <p class="text-xs text-[color:var(--color-ink-soft)] mb-2">
+        Plain-language summary for end-users. When set and this item is
+        <span class="font-medium">Done</span>, it appears on the project's
+        <%= link_to "What's New", project_changelog_path(@project), class: "underline decoration-dotted hover:text-[color:var(--color-ink)]" %> feed.
+      </p>
+      <%= form_with url: board_item_path(@project, @task), method: :patch, scope: :task, class: "space-y-2" do |f| %>
+        <%= hidden_field_tag :return_to, "task" %>
+        <%= f.text_area :changelog_summary, value: @task.changelog_summary, rows: 3,
+              placeholder: "e.g. You can now see a “What's New” feed for each project, explaining recent changes in plain language.",
+              "aria-label": "What's New blurb",
+              class: "w-full text-sm border border-[color:var(--color-hair)] rounded-md px-3 py-2" %>
+        <div class="text-right">
+          <%= f.submit "Save blurb", class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
+        </div>
       <% end %>
     <% end %>
 
@@ -148,6 +135,33 @@
           </div>
         <% end %>
       </dl>
+    <% end %>
+
+    <%= card title: "Run an agent on this item" do %>
+      <% agents = @project.agents.enabled.ordered %>
+      <% if agents.any? %>
+        <p class="text-xs text-[color:var(--color-ink-faint)] mb-2">Launch an agent in this repo on this item. Its result is posted to the comments when it finishes.</p>
+        <%= form_with url: trigger_project_agent_path(@project, agents.first), method: :post, class: "space-y-2" do |f| %>
+          <%= hidden_field_tag :task_id, @task.id %>
+          <%= select_tag :agent_id,
+                options_for_select(agents.map { |a| ["#{a.glyph} #{a.name}", a.id] }),
+                "aria-label": "Choose an agent to run",
+                class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] outline-none focus:border-[color:var(--color-amber-ink)]" %>
+          <%= f.text_area :task, rows: 2,
+                placeholder: "What should it do? (optional — defaults to this item's title + description)",
+                class: "w-full text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)] placeholder-[color:var(--color-ink-faint)] outline-none focus:border-[color:var(--color-amber-ink)] resize-y" %>
+          <div class="flex items-center gap-1.5">
+            <%= select_tag :permission_mode,
+                  options_for_select(SessionLaunch::PERMISSION_MODES.map { |m| [m, m] }, "bypassPermissions"),
+                  "aria-label": "Permission mode",
+                  title: "bypassPermissions runs the agent hands-off; pick a safer mode to approve actions yourself in the tmux window.",
+                  class: "text-xs bg-[color:var(--color-paper-raised)] hair-all rounded-md px-1.5 py-1 outline-none" %>
+            <%= f.submit "Run", class: "ml-auto text-sm text-white bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md cursor-pointer" %>
+          </div>
+        <% end %>
+      <% else %>
+        <p class="text-sm text-[color:var(--color-ink-faint)]">No agents discovered in this project yet. Run Claude in the repo so myjira learns its agents.</p>
+      <% end %>
     <% end %>
 
     <%= card title: "Follow-ups & gaps" do %>

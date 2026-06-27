@@ -5,24 +5,35 @@
 class AgentTriggersController < ApplicationController
   def trigger
     project = find_project!
-    agent   = Agent.find(params[:id])
+    # Agent id usually comes from the path (:id); the "Run an agent on this item"
+    # card on a task page posts to a fixed path and picks the agent via :agent_id.
+    agent   = Agent.find(params[:agent_id].presence || params[:id])
+    # Optional: launch FROM a board item, so its result lands back on the task.
+    task    = project.tasks.find(params[:task_id]) if params[:task_id].present?
 
     if project.repo_path.blank?
-      return redirect_back fallback_location: project_conversations_path(project),
+      return redirect_back fallback_location: (task ? project_task_path(project, task) : project_conversations_path(project)),
         alert: "No repo path known for #{project.name} yet — run Claude in that folder once so myjira learns where it is."
     end
 
-    prompt = agent.launch_prompt(params[:task])
+    # Seed the prompt from the item when no explicit objective was typed.
+    objective = params[:task].presence || task&.then { |t| [t.title, t.description].compact.join("\n\n") }
+    prompt = agent.launch_prompt(objective)
     model  = params[:model].presence || agent.launch_model || "default"
     perms  = params[:permission_mode].presence || "default"
 
     SessionLaunch.queue!(
       project: project, prompt: prompt, model: model, permission_mode: perms,
-      agent: agent, title: "#{agent.glyph} #{agent.name} · #{prompt}"
+      agent: agent, task: task, title: "#{agent.glyph} #{agent.name} · #{prompt}"
     )
 
-    redirect_back fallback_location: project_conversations_path(project),
-      notice: "Triggering #{agent.name} in #{project.name} — it'll open in a tmux window and appear below."
+    if task
+      redirect_back fallback_location: project_task_path(project, task),
+        notice: "Running #{agent.name} on this item — its result will be posted to the comments when it finishes."
+    else
+      redirect_back fallback_location: project_conversations_path(project),
+        notice: "Triggering #{agent.name} in #{project.name} — it'll open in a tmux window and appear below."
+    end
   rescue ActiveRecord::RecordInvalid => e
     redirect_back fallback_location: conversations_path,
       alert: "Couldn't trigger #{agent&.name}: #{e.record.errors.full_messages.to_sentence}"

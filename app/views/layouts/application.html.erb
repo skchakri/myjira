@@ -191,6 +191,19 @@
               <span class="clink-slug truncate max-w-[90px]">cli</span>
             <% end %>
           <% end %>
+
+          <%# Cross-project review queue — every in_review item in one place %>
+          <% review_active = controller_name == "reviews"
+             review_count  = review_queue_count %>
+          <%= link_to review_path, class: "clink #{review_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= review_count.positive? ? 'dot-pass' : 'dot-idle' %>" role="img" aria-label="Items awaiting review: <%= review_count %>" title="Items awaiting review: <%= review_count %>"></span>
+            <span class="truncate">Review queue</span>
+            <% if review_count.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-pass-ink)]"><%= review_count %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">prs</span>
+            <% end %>
+          <% end %>
         </nav>
 
         <!-- Footer -->

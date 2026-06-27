@@ -77,4 +77,63 @@ class SessionLaunchTest < ActiveSupport::TestCase
       sl.update!(status: "failed", error: "still broken")
     end
   end
+
+  # --- task result write-back -----------------------------------------------
+  def task!
+    @project.tasks.create!(title: "Run an agent on me")
+  end
+
+  def queue_for(task:, pipeline_step: nil, agent: nil)
+    SessionLaunch.queue!(project: @project, prompt: "do x", task: task,
+                         pipeline_step: pipeline_step, agent: agent)
+  end
+
+  test "terminal transition on a task-bound, non-pipeline launch posts exactly one comment" do
+    task = task!
+    launch = queue_for(task: task)
+    assert_difference -> { task.comments.count }, 1 do
+      launch.update!(status: "launched", launched_at: Time.current)
+    end
+    assert_match(/Agent run/, task.comments.last.body)
+  end
+
+  test "the comment outcome wording matches #outcome" do
+    task = task!
+    launch = queue_for(task: task)
+    launch.update!(status: "failed")
+    assert_includes task.comments.last.body, launch.outcome
+    assert_equal "failed", launch.outcome
+  end
+
+  test "a pipeline launch posts no auto-comment" do
+    task = task!
+    launch = queue_for(task: task, pipeline_step: "engineering")
+    assert_no_difference -> { task.comments.count } do
+      launch.update!(status: "launched", launched_at: Time.current)
+    end
+  end
+
+  test "a launch with no task posts no comment" do
+    launch = @project.session_launches.create!(prompt: "do x")
+    assert_nothing_raised { launch.update!(status: "launched", launched_at: Time.current) }
+  end
+
+  test "re-PATCHing the same terminal status does not duplicate the comment" do
+    task = task!
+    launch = queue_for(task: task)
+    launch.update!(status: "failed")
+    assert_no_difference -> { task.comments.count } do
+      launch.update!(status: "failed", launched_at: Time.current)
+      launch.touch
+    end
+  end
+
+  test "a terminal-to-terminal transition does not post a second comment" do
+    task = task!
+    launch = queue_for(task: task)
+    launch.update!(status: "launched", launched_at: Time.current)
+    assert_no_difference -> { task.comments.count } do
+      launch.update!(status: "failed")
+    end
+  end
 end

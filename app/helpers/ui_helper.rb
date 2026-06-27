@@ -466,4 +466,13 @@ module UiHelper
   def conversations_total
     @conversations_total ||= Conversation.count
   end
+
+  # Items awaiting review across every active project — for the sidebar
+  # "Review queue" row badge. Memoised so it runs once per request.
+  def review_queue_count
+    @review_queue_count ||= Task.where(board_state: "in_review")
+                                .joins(:project)
+                                .where(projects: { archived_at: nil })
+                                .count
+  end
 end
