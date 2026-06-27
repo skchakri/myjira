@@ -11,6 +11,9 @@
       <%= status_pill(@task.status) %>
       <span class="text-xs text-[color:var(--color-ink-soft)]">priority: <%= @task.priority %></span>
       <% if @task.environment %><span class="text-xs font-mono text-[color:var(--color-ink-soft)]">env: <%= @task.environment.name %></span><% end %>
+      <% if @task.labels.present? %>
+        <% @task.labels.each do |l| %><span class="pill pill-quiet font-mono !py-0 !px-1.5 !text-[10px]"><%= l %></span><% end %>
+      <% end %>
       <% if @task.external_ref.present? %>
         <% if @task.external_url.present? %>
           <%= link_to "#{@task.external_ref} ↗", @task.external_url, target: "_blank", rel: "noopener", title: "View in Jira", class: "text-xs font-mono text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] underline decoration-dotted" %>

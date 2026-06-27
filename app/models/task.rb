@@ -1,5 +1,6 @@
 class Task < ApplicationRecord
   include Searchable
+  include Labelable
 
   # Legacy lifecycle (kept for the older task views + test-run propagation).
   STATUSES = %w[open in_progress implemented ready_for_test testing done blocked].freeze
