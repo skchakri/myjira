@@ -1,6 +1,9 @@
 require "test_helper"
+require "turbo/broadcastable/test_helper"
 
 class TaskTest < ActiveSupport::TestCase
+  include Turbo::Broadcastable::TestHelper
+
   setup do
     @project = Project.create!(name: "T", slug: "t-#{SecureRandom.hex(3)}", repo_path: "/tmp/t")
   end
@@ -50,6 +53,26 @@ class TaskTest < ActiveSupport::TestCase
     no_pr = @project.tasks.create!(title: "N", item_type: "task", board_state: "in_review")
     refute no_pr.reject_pr!
     assert_equal "in_review", no_pr.reload.board_state
+  end
+
+  test "updating plan, agent_notes or board_state broadcasts a live activity refresh" do
+    item = @project.tasks.create!(title: "Live", item_type: "feature")
+    assert_turbo_stream_broadcasts [item, :activity], count: 1 do
+      item.update!(plan: "## Goal\nDo the thing")
+    end
+    assert_turbo_stream_broadcasts [item, :activity], count: 1 do
+      item.update!(agent_notes: "Branching off main; assuming X.")
+    end
+    assert_turbo_stream_broadcasts [item, :activity], count: 1 do
+      item.update!(board_state: "in_progress")
+    end
+  end
+
+  test "an unrelated save does not broadcast an activity refresh" do
+    item = @project.tasks.create!(title: "Quiet", item_type: "feature")
+    assert_no_turbo_stream_broadcasts [item, :activity] do
+      item.update!(position: 42)
+    end
   end
 
   # board_ordered: default sort is newest-created first; manual position wins

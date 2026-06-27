@@ -288,7 +288,7 @@ class BoardTest < ActionDispatch::IntegrationTest
     @a.comments.create!(author: "engineering", body: "agent reply note")
     get project_task_path(@project, @a)
     assert_response :success
-    assert_match "Comments", response.body
+    assert_match "Activity &amp; decisions log", response.body
     assert_match "first human note", response.body
     assert_match "agent reply note", response.body
     # add-comment form posts to the board comments route

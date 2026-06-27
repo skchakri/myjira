@@ -1,6 +1,9 @@
 require "test_helper"
+require "turbo/broadcastable/test_helper"
 
 class TaskCommentTest < ActiveSupport::TestCase
+  include Turbo::Broadcastable::TestHelper
+
   setup do
     @project = Project.create!(name: "TC", slug: "tc-#{SecureRandom.hex(3)}", repo_path: "/tmp/tc")
     @task = @project.tasks.create!(title: "Item", item_type: "task")
@@ -28,6 +31,12 @@ class TaskCommentTest < ActiveSupport::TestCase
     @task.comments.create!(body: "bye")
     assert_difference -> { TaskComment.count }, -1 do
       @task.destroy
+    end
+  end
+
+  test "creating a comment broadcasts a live refresh to the task activity stream" do
+    assert_turbo_stream_broadcasts [@task, :activity], count: 1 do
+      @task.comments.create!(author: "engineer", body: "Direction: do X.")
     end
   end
 end
