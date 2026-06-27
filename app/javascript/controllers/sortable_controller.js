@@ -4,8 +4,10 @@ import { Controller } from "@hotwired/stimulus"
 // draggable="true" + data-sortable-item; each status group is a
 // data-sortable-list drop container tagged with its board state. Dragging within
 // a group reorders priority; dragging into another group also changes the item's
-// board_state. On drop we POST the full new order (+ any moved item's new state)
-// to the reorder endpoint; the server's refresh broadcast morphs every board.
+// board_state. On drop we POST only the destination group's new order (+ any
+// moved item's new state) to the reorder endpoint — groups the user didn't touch
+// keep their NULL positions and their recency default. The server's refresh
+// broadcast morphs every board.
 //
 // Events are delegated on the controller root so they survive Turbo morphs that
 // replace the row elements underneath.
@@ -54,8 +56,10 @@ export default class extends Controller {
     const moved = this.dragged
     moved.classList.remove("opacity-40")
     this.dragged = null
-    const toState = moved.closest("[data-sortable-list]")?.dataset.boardState
-    const order = Array.from(this.element.querySelectorAll("[data-sortable-item]")).map((el) => el.dataset.id)
+    const destList = moved.closest("[data-sortable-list]")
+    const toState = destList?.dataset.boardState
+    // Only the destination group's ids — leave every other group's positions alone.
+    const order = Array.from(destList?.querySelectorAll("[data-sortable-item]") || []).map((el) => el.dataset.id)
     this.persist(order, moved.dataset.id, toState !== this.fromState ? toState : null)
   }
 

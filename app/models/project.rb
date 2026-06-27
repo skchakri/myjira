@@ -159,9 +159,11 @@ class Project < ApplicationRecord
     tasks.all_labels
   end
 
-  # Next item the autopilot orchestrator should act on (first-come-first-out).
+  # Next item the autopilot orchestrator should act on. Uses the work-queue order
+  # (severity then FIFO), independent of the display `position`, so manual
+  # drag-to-reorder on the board never changes what the agents pick up next.
   def next_board_item
-    tasks.actionable.board_ordered.first
+    tasks.actionable.board_queue_ordered.first
   end
 
   def autopilot_runs_today
