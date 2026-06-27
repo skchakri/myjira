@@ -81,6 +81,13 @@ class Task < ApplicationRecord
       .where.not(pr_url: [nil, ""])
       .where("pr_synced_at IS NULL OR pr_synced_at < ?", stale_before)
   }
+  # "What's New" changelog: shipped items (done) that carry a plain-language blurb.
+  # The blurb is the explicit publish gate — silent chores stay out of the feed.
+  # Ordered newest-shipped first; legacy done items with no finished_at sort last.
+  scope :changelog, lambda {
+    where(board_state: "done").where.not(changelog_summary: [nil, ""])
+      .order(Arel.sql("finished_at DESC NULLS LAST, updated_at DESC"))
+  }
 
   after_update_commit :broadcast_board, if: :saved_change_to_board_state?
 
@@ -103,6 +110,23 @@ class Task < ApplicationRecord
 
   def done?
     board_state == "done"
+  end
+
+  # A shipped item with a published "What's New" blurb appears in the changelog.
+  def changelog_entry?
+    done? && changelog_summary.present?
+  end
+
+  # Display title with a leading "[tag]" prefix stripped (e.g. "[user-req] …").
+  def humanized_title
+    title.to_s.sub(/\A\s*\[[^\]]+\]\s*/, "").presence || title
+  end
+
+  # Attachments worth showing as a visual walkthrough in the changelog: the
+  # image/video media captured during a relay test run (logs/PDFs excluded).
+  def changelog_media
+    return [] unless attachments.attached?
+    attachments.select { |a| a.content_type.to_s.start_with?("image/", "video/") }
   end
 
   def pr?

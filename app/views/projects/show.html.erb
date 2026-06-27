@@ -16,6 +16,7 @@
   </div>
   <div class="flex items-center gap-2">
     <%= link_to "▦ Board", board_path(@project), class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+    <%= link_to "✨ What's New", project_changelog_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
     <%= link_to "Edit", edit_project_path(@project), class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
     <% if @project.archived? %>
       <%= button_to "Unarchive", unarchive_project_path(@project), method: :patch, form_class: "inline", class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md cursor-pointer" %>

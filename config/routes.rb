@@ -77,6 +77,8 @@ Rails.application.routes.draw do
     post  "board/items/:id/comments",  to: "boards#add_comment", as: :board_item_comments
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
+    # Per-project "What's New" — the plain-language feed of shipped changes.
+    get   "changelog",                 to: "changelogs#show",    as: :project_changelog
     post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
   end
 
