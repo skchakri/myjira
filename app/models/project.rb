@@ -200,6 +200,13 @@ class Project < ApplicationRecord
     current_board_launch.present?
   end
 
+  # State-based one-item-at-a-time guard: the autopilot picks the next item only
+  # when this is false. A dead session's item is returned to the queue by the
+  # daemon's session-sync leg (Board::SessionSync), so this can't wedge.
+  def board_busy?
+    tasks.in_progress.exists?
+  end
+
   # Roll the daily counter forward, resetting it on a new day.
   def bump_autopilot_runs!
     today = Date.current
