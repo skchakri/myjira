@@ -30,4 +30,14 @@
             class: "ml-auto text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] cursor-pointer" %>
     <% end %>
   </div>
+
+  <%= turbo_stream_from [launch, :worklog] %>
+  <details class="mt-2 group">
+    <summary class="eyebrow cursor-pointer select-none text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink-soft)] list-none">
+      worklog <span class="group-open:hidden">▸</span><span class="hidden group-open:inline">▾</span>
+    </summary>
+    <div class="mt-2 pl-0.5">
+      <%= render "worklog_events/timeline", subject: launch %>
+    </div>
+  </details>
 </div>

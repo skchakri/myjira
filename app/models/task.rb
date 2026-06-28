@@ -1,5 +1,7 @@
 class Task < ApplicationRecord
   include Searchable
+  include Worklogged
+  include Labelable
 
   # Legacy lifecycle (kept for the older task views + test-run propagation).
   STATUSES = %w[open in_progress implemented ready_for_test testing done blocked].freeze
@@ -70,6 +72,15 @@ class Task < ApplicationRecord
   # created_at is used (not updated_at) so the order is stable and doesn't reshuffle
   # on every attribute touch.
   scope :board_ordered, -> { order(Arel.sql("position ASC NULLS LAST, created_at DESC")) }
+  # Autopilot work queue order — deliberately independent of the display `position`
+  # so a human's drag-to-reorder (display only) never reshuffles what the agents
+  # pick up next. Severity first (urgent→low), then oldest-first within a severity
+  # (FIFO). This preserves the queue order the gap importer used to seed via
+  # `position`, now decoupled from how the board renders.
+  scope :board_queue_ordered, lambda {
+    order(Arel.sql("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 " \
+                   "WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 9 END ASC, created_at ASC"))
+  }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).
@@ -93,6 +104,18 @@ class Task < ApplicationRecord
   # the description / implementation_notes, so a ticket updates live as the
   # BoardTicketFromSessionJob lands its segmented asks + enrichment.
   after_update_commit :broadcast_board, if: :board_display_changed?
+  # Live-refresh the item page when the run's plan, direction, or status changes
+  # so the ticket stays a current, reviewable record while an agent works it.
+  after_update_commit :broadcast_activity,
+                      if: -> { saved_change_to_plan? || saved_change_to_agent_notes? || saved_change_to_board_state? }
+  after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
+
+  # Worklog status for a board_state: terminal states map to done/failed, parked
+  # states to waiting, everything else is an active (running) step.
+  BOARD_WORKLOG_STATUS = {
+    "done" => "done", "failed" => "failed",
+    "waiting" => "waiting", "hold" => "waiting"
+  }.freeze
 
   def glyph
     ITEM_TYPE_GLYPHS[item_type] || "•"
@@ -144,6 +167,26 @@ class Task < ApplicationRecord
   # An in_review item with an open PR — eligible for the Approve/Reject controls.
   def reviewable?
     board_state == "in_review" && pr?
+  end
+
+  # The PR has diverged from its base (gh reports CONFLICTING) and no resolution is
+  # yet in flight — show the ⚠ + [Resolve & merge] button. Only CONFLICTING is
+  # actionable; UNKNOWN means GitHub is still recomputing mergeability after a push.
+  def conflicting?
+    reviewable? && pr_mergeable == "CONFLICTING" && conflict_resolution_at.nil?
+  end
+
+  # A resolve-conflicts agent session has been queued for this item (button hidden,
+  # spinner shown) until it merges the PR (→ done) or gives up (→ failed, cleared).
+  def resolving_conflicts?
+    conflict_resolution_at.present?
+  end
+
+  # "Resolve & merge": stamp the in-flight guard BEFORE the session is launched so a
+  # second poll or double-click can't re-show the button or queue a second agent.
+  def request_conflict_resolution!
+    return false unless conflicting?
+    update!(conflict_resolution_at: Time.current)
   end
 
   # "Approve & merge": flag an in_review item for the daemon to merge its PR.
@@ -283,5 +326,21 @@ class Task < ApplicationRecord
     broadcast_refresh_to [project, :board]
   rescue StandardError => e
     Rails.logger.warn("[board] broadcast failed: #{e.message}")
+  end
+
+  def broadcast_activity
+    broadcast_refresh_to [self, :activity]
+  rescue StandardError => e
+    Rails.logger.warn("[board] activity broadcast failed: #{e.message}")
+  end
+
+  # One timeline node per real board_state transition (guarded by the
+  # saved_change_to_board_state? callback, so a repeated PATCH never dupes it).
+  def emit_board_worklog
+    emit_worklog(
+      "board.#{board_state}",
+      status: BOARD_WORKLOG_STATUS[board_state] || "running",
+      label: "→ #{board_state_label}"
+    )
   end
 end

@@ -3,6 +3,7 @@
 
 <%= turbo_stream_from [@conversation, :messages] %>
 <%= turbo_stream_from [@conversation, :commands] %>
+<%= turbo_stream_from [@conversation, :worklog] %>
 
 <div class="flex items-baseline justify-between mb-4">
   <div class="min-w-0">
@@ -58,6 +59,12 @@
     <% end %>
   </div>
 <% end %>
+
+<div class="mt-4">
+  <%= card title: "Worklog" do %>
+    <%= render "worklog_events/timeline", subject: @conversation %>
+  <% end %>
+</div>
 
 <% docs = @conversation.document_paths %>
 <% if docs.any? %>

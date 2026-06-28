@@ -31,7 +31,15 @@
       </div>
       <% if task.reviewable? %>
         <footer class="flex items-center justify-end gap-2 px-4 py-3 hair-t">
-          <% if task.merge_requested? %>
+          <% if task.resolving_conflicts? %>
+            <span class="text-sm text-[color:var(--color-amber-ink)] animate-pulse"
+                  title="An agent is merging main and re-merging the PR">⚠ Resolving conflicts…</span>
+          <% elsif task.conflicting? %>
+            <span class="text-sm text-[color:var(--color-amber-ink)] mr-auto">⚠ This PR conflicts with main.</span>
+            <%= button_to "⚠ Resolve &amp; merge".html_safe, board_item_resolve_conflicts_path(task.project, task), method: :post,
+                  form: { data: { turbo_confirm: "Resolve conflicts and merge PR ##{task.pr_number}? An agent will merge main, resolve conflicts, lint+test, then squash-merge." } },
+                  class: "text-sm px-3 py-1.5 rounded cursor-pointer text-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-wash)] hair-all" %>
+          <% elsif task.merge_requested? %>
             <span class="text-sm text-[color:var(--color-amber-ink)] animate-pulse"
                   title="Merging on GitHub… moves to Done when confirmed">⋯ Merging…</span>
           <% else %>

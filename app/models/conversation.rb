@@ -3,6 +3,8 @@
 # parses new lines after every turn and POSTs them to /api/v1/conversations/sync,
 # which folds them into this record. One Conversation per CLI sessionId.
 class Conversation < ApplicationRecord
+  include Worklogged
+
   belongs_to :project
   has_many :conversation_messages, -> { order(:position, :occurred_at) }, dependent: :destroy
   # Relay tickets this CLI session filed (linked by cli_session_id). nullify on
@@ -102,6 +104,7 @@ class Conversation < ApplicationRecord
   # context" subline, and the distilled highlights. Done here (one extra pass
   # over this session's messages) so the index list never touches messages.
   def refresh_counts!
+    prev_count = message_count.to_i
     update_columns(
       message_count: conversation_messages.count,
       last_message_at: conversation_messages.maximum(:occurred_at) || last_message_at || created_at,
@@ -109,6 +112,12 @@ class Conversation < ApplicationRecord
       highlights: compute_highlights,
       model_deprecated: model_deprecated | compute_model_deprecated
     )
+    # One timeline node per sync batch that actually added turns, so a live
+    # session's worklog fills in turn-by-turn with what it's now working on.
+    if message_count.to_i > prev_count
+      emit_worklog("session.turn", status: live? ? "running" : "info",
+        label: last_context.presence || "Turn #{message_count}")
+    end
   end
 
   # The most recent thing you asked for — drives the "↳ last:" subline so a long

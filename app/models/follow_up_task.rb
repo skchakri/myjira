@@ -1,5 +1,6 @@
 class FollowUpTask < ApplicationRecord
   include Searchable
+  include Labelable
 
   SEVERITIES = %w[low medium high critical].freeze
   STATUSES   = %w[open in_progress resolved wontfix].freeze
