@@ -105,6 +105,19 @@ module Api
         if cp[:warnings].present? && cp[:warnings].to_s.match?(Conversation::MODEL_DEPRECATION_RE)
           convo.model_deprecated = true
         end
+        # Token counts (cumulative SET — not incremental). When the keys are
+        # present we overwrite the stored counts and recompute the cost.
+        if cp.key?(:input_tokens)
+          convo.input_tokens  = cp[:input_tokens].to_i
+          convo.output_tokens = cp[:output_tokens].to_i
+          convo.cache_tokens  = cp[:cache_tokens].to_i
+          convo.cost_usd      = ModelPricing.cost_for(
+            model:  convo.model.to_s,
+            input:  convo.input_tokens,
+            output: convo.output_tokens,
+            cache:  convo.cache_tokens
+          )
+        end
         convo.save!
         convo
       end
