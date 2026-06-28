@@ -219,6 +219,11 @@ Rails.application.routes.draw do
       get  "board/pr_sync", to: "board#pr_sync"
       post "board/pr_sync", to: "board#pr_sync_apply"
 
+      # Host-side daemon: reconcile in_progress items with their CLI tmux session.
+      # GET = which items to check; POST = apply `tmux has-session` liveness.
+      get  "board/session_sync", to: "board#session_sync"
+      post "board/session_sync", to: "board#session_sync_apply"
+
       # Host-side daemon: poll for queued MCP add/remove requests, report back.
       resources :mcp_installs, only: [:update] do
         collection { get :pending }

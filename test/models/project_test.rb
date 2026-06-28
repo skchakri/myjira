@@ -61,4 +61,21 @@ class ProjectTest < ActiveSupport::TestCase
     refute_predicate p, :archived?
     assert_nil p.archived_at
   end
+
+  test "board_busy? is true only when an in_progress item exists" do
+    p = Project.create!(name: "P", slug: "p-#{SecureRandom.hex(3)}", repo_path: "/tmp/p")
+    assert_not p.board_busy?, "no items → not busy"
+    item = p.tasks.create!(title: "Pend", item_type: "task", board_state: "pending")
+    assert_not p.board_busy?, "a pending item is not in progress"
+    item.update!(board_state: "in_progress")
+    assert p.board_busy?, "an in_progress item makes the project busy"
+    item.update!(board_state: "in_review")
+    assert_not p.board_busy?, "leaving in_progress frees the project"
+  end
+
+  test "a waiting item does not make the project busy" do
+    p = Project.create!(name: "P", slug: "p-#{SecureRandom.hex(3)}", repo_path: "/tmp/p")
+    p.tasks.create!(title: "Wait", item_type: "task", board_state: "waiting")
+    assert_not p.board_busy?
+  end
 end
