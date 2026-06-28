@@ -293,4 +293,11 @@ class TaskTest < ActiveSupport::TestCase
     t = @project.tasks.new(title: "No media", board_state: "done", changelog_summary: "x")
     assert_equal [], t.changelog_media
   end
+
+  test "in_progress scope returns only in_progress items" do
+    wip  = @project.tasks.create!(title: "WIP",  item_type: "task", board_state: "in_progress")
+    @project.tasks.create!(title: "Pend", item_type: "task", board_state: "pending")
+    @project.tasks.create!(title: "Wait", item_type: "task", board_state: "waiting")
+    assert_equal [wip.id], @project.tasks.in_progress.pluck(:id)
+  end
 end

@@ -82,6 +82,7 @@ class Task < ApplicationRecord
                    "WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 9 END ASC, created_at ASC"))
   }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
+  scope :in_progress, -> { where(board_state: "in_progress") }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).
   # awaiting_merge = human clicked "Approve & merge"; the daemon runs `gh pr merge`.
