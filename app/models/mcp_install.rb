@@ -16,6 +16,10 @@ class McpInstall < ApplicationRecord
   # Server names are interpolated nowhere shell-y (the daemon uses arg-lists),
   # but keep them to the charset Claude itself accepts as defense-in-depth.
   NAME_FORMAT = /\A[a-zA-Z0-9_.-]+\z/
+  # Remote (http/sse) servers are URL-only under the stateless 2026-07-28 spec —
+  # the daemon hands the URL straight to `claude mcp add --transport`. Require a
+  # real http(s) endpoint so a malformed/relative URL can't reach the host CLI.
+  REMOTE_URL_FORMAT = %r{\Ahttps?://}
 
   belongs_to :project, optional: true
 
@@ -66,12 +70,15 @@ class McpInstall < ApplicationRecord
 
   private
 
-  # A stdio add needs a command; an http/sse add needs a URL. Removes need neither.
+  # A stdio add needs a command; an http/sse add needs a real http(s) URL.
+  # Removes need neither.
   def add_spec_present
     if transport == "stdio"
       errors.add(:command, "is required for a stdio server") if command.blank?
     elsif url.blank?
       errors.add(:url, "is required for an #{transport} server")
+    elsif url !~ REMOTE_URL_FORMAT
+      errors.add(:url, "must be an http(s) URL for an #{transport} server")
     end
   end
 end
