@@ -1,6 +1,7 @@
 <% processing = inflight_launch&.task_id == item.id %>
 <li data-sortable-item data-id="<%= item.id %>" draggable="true"
-    class="flex items-center gap-3 px-3 py-2 <%= processing ? 'bg-[color:var(--color-amber-wash)] hover:bg-[color:var(--color-amber-wash)]' : 'bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]' %>">
+    class="flex flex-col gap-1 px-3 py-2 <%= processing ? 'bg-[color:var(--color-amber-wash)] hover:bg-[color:var(--color-amber-wash)]' : 'bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]' %>">
+  <div class="flex items-center gap-3">
   <span class="cursor-grab text-[color:var(--color-ink-faint)] select-none shrink-0" title="Drag to reprioritise" aria-hidden="true">⠿</span>
 
   <span class="shrink-0"><%= item_type_chip(item.item_type) %></span>
@@ -105,4 +106,22 @@
       <% end %>
     <% end %>
   </div>
+  </div>
+
+  <%# Mid-run steering — only for an in_progress item with a live session bound. %>
+  <%# Routes a one-line correction into the live session via the SessionCommand inbox. %>
+  <% if item.board_state == "in_progress" && item.last_conversation.present? %>
+    <div class="flex items-center gap-2 pl-7">
+      <%= form_with url: board_item_steer_path(item.project, item), method: :post,
+            data: { controller: "reset-form", action: "turbo:submit-end->reset-form#reset" },
+            class: "flex items-center gap-2 flex-1 min-w-0" do |f| %>
+        <%= f.text_field :body, placeholder: "Steer the live session…",
+              autocomplete: "off",
+              class: "flex-1 min-w-0 text-[11px] bg-transparent hair-all rounded px-2 py-0.5 text-[color:var(--color-ink-soft)] placeholder-[color:var(--color-ink-faint)] focus:border-[color:var(--color-amber-ink)] outline-none" %>
+        <%= f.submit "↪", "aria-label": "Send steer", title: "Inject this instruction into the live session",
+              class: "shrink-0 text-xs px-1.5 py-0.5 hair-all rounded text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-amber-ink)] cursor-pointer" %>
+      <% end %>
+      <%= render "boards/steer_status", item: item %>
+    </div>
+  <% end %>
 </li>

@@ -75,6 +75,7 @@ Rails.application.routes.draw do
     post  "board/items",               to: "boards#create_item", as: :board_items
     patch "board/items/:id",           to: "boards#update_item", as: :board_item
     post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
+    post  "board/items/:id/steer",     to: "boards#steer",       as: :board_item_steer
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge
     post  "board/items/:id/reject",    to: "boards#reject_pr",   as: :board_item_reject
