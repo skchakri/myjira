@@ -71,14 +71,24 @@ class SessionLaunch < ApplicationRecord
   def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
                   agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil)
     transaction do
+      # Derive the conversation title from the RAW user prompt first, then fold
+      # the project memory block (static preamble + learned facts) onto the front
+      # of the stored prompt the daemon spawns verbatim. This is the single
+      # chokepoint for the "＋ New session" button, agent triggers, board pipeline
+      # steps, and scheduled fires, so every launch carries the memory. Empty
+      # memory → prompt is unchanged (no separator, no blank block).
+      convo_title = (title.presence || prompt.split("\n").map(&:strip).find(&:present?).to_s).truncate(80)
+      memory = project.memory_block
+      spawn_prompt = memory.present? ? "#{memory}\n\n---\n\n#{prompt}" : prompt
+
       launch = project.session_launches.create!(
-        prompt: prompt, model: model, permission_mode: permission_mode, agent: agent,
+        prompt: spawn_prompt, model: model, permission_mode: permission_mode, agent: agent,
         task: task, pipeline_step: pipeline_step
       )
       convo = project.conversations.create!(
         session_id: launch.session_id,
         source: source,
-        title: (title.presence || prompt.split("\n").map(&:strip).find(&:present?).to_s).truncate(80),
+        title: convo_title,
         cwd: project.repo_path,
         started_at: Time.current,
         last_message_at: Time.current

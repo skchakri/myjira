@@ -136,4 +136,23 @@ class SessionLaunchTest < ActiveSupport::TestCase
       launch.update!(status: "failed")
     end
   end
+
+  # --- project memory injection ---------------------------------------------
+  test "queue! with empty memory leaves the prompt unchanged" do
+    sl = SessionLaunch.queue!(project: @project, prompt: "build the thing")
+    assert_equal "build the thing", sl.prompt
+  end
+
+  test "queue! prepends the project memory block while keeping the title from the raw prompt" do
+    @project.update!(memory_preamble: "UUID PKs everywhere.")
+    KnowledgeFact.record!(project: @project, body: "auth lives in app/services/auth")
+
+    sl = SessionLaunch.queue!(project: @project, prompt: "build the thing")
+    assert_includes sl.prompt, "UUID PKs everywhere."
+    assert_includes sl.prompt, "auth lives in app/services/auth"
+    assert sl.prompt.end_with?("build the thing"), "raw prompt must be appended after the memory block"
+    assert_includes sl.prompt, "\n\n---\n\n"
+    # The bound conversation's title derives from the raw prompt, not the memory.
+    assert_equal "build the thing", sl.conversation.title
+  end
 end

@@ -40,6 +40,7 @@ module Api
         convo   = upsert_conversation!(project)
         inserted = append_messages!(convo)
         convo.refresh_counts!
+        maybe_extract_facts!(convo)
         # Push the refreshed "Live now" strip to the Conversations index in real time.
         Conversation.broadcast_live_strip!
 
@@ -57,6 +58,26 @@ module Api
       end
 
       private
+
+      # Conversations need a few turns before they've revealed anything durable.
+      FACT_EXTRACTION_MIN_MESSAGES = 4
+      # The Stop hook syncs after every turn; only re-mine a settled session at
+      # most once per window so we don't spawn `claude` on each idempotent sync.
+      FACT_EXTRACTION_DEBOUNCE = 10.minutes
+
+      # Enqueue project-fact extraction for a settled conversation, debounced.
+      # Gated to real client projects (skips the throwaway per-cwd capture
+      # projects), a non-trivial transcript, and not-extracted-recently. The job
+      # stamps facts_extracted_at so repeated syncs collapse into ~one extraction
+      # per settled session.
+      def maybe_extract_facts!(convo)
+        return if convo.message_count.to_i < FACT_EXTRACTION_MIN_MESSAGES
+        last = convo.facts_extracted_at
+        return if last.present? && last > FACT_EXTRACTION_DEBOUNCE.ago
+        return unless Project.clients.exists?(id: convo.project_id)
+
+        ExtractProjectFactsJob.perform_later(convo.id)
+      end
 
       def upsert_project!
         pp = params.require(:project)

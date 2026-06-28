@@ -15,6 +15,11 @@
         hint: "lowercase / digits / dashes — used in URLs and API calls." %>
   <%= render "shared/field", form: f, attribute: :description, type: :textarea, rows: 3 %>
 
+  <%= render "shared/field", form: f, attribute: :memory_preamble, type: :textarea, rows: 5,
+        label: "Project memory",
+        placeholder: "Durable notes prepended into every agent launch — conventions, where things live, gotchas…",
+        hint: "Static preamble carried into every CLI session for this project. Learned facts accumulate automatically alongside it." %>
+
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <%= render "shared/field", form: f, attribute: :repo_path,
           placeholder: "/home/kalyan/platform/...",
