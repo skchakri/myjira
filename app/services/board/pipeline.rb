@@ -62,7 +62,12 @@ module Board
         task: task,
         pipeline_step: step
       )
-      task.update_columns(picked_up_at: Time.current, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+      # Flip to in_progress the instant the session is queued. This closes the gap
+      # where a launched-but-not-yet-started item (the agent hasn't PATCHed back
+      # yet) looked idle and let the next orchestrator tick double-launch the same
+      # project. in_progress is now the single source of truth for both
+      # Project#board_busy? and the daemon session reaper.
+      task.update!(board_state: "in_progress", picked_up_at: Time.current)
       Rails.logger.info("[board] launched #{step} for task #{task.id} (#{project.slug})")
       launch
     end
