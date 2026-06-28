@@ -63,7 +63,8 @@ module Api
       private
 
       BOARD_FIELDS = %i[item_type board_state agent_role position plan branch_name
-                        pr_url pr_number pr_state pr_diff agent_notes changelog_summary].freeze
+                        pr_url pr_number pr_state pr_diff agent_notes changelog_summary
+                        pr_mergeable conflict_resolution_at].freeze
 
       def task_params
         raw = params[:task] || params

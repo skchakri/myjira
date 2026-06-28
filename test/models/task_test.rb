@@ -52,6 +52,39 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal "in_review", no_pr.reload.board_state
   end
 
+  # --- Conflict resolution ---------------------------------------------------
+  test "conflicting? is true only for a reviewable item gh flags CONFLICTING with no resolution in flight" do
+    assert in_review_item(pr_mergeable: "CONFLICTING").conflicting?
+    assert_not in_review_item(pr_mergeable: "MERGEABLE").conflicting?, "a clean PR is not conflicting"
+    assert_not in_review_item(pr_mergeable: "UNKNOWN").conflicting?, "UNKNOWN (still recomputing) is not actionable"
+    assert_not in_review_item(pr_mergeable: nil).conflicting?, "unpolled PRs are not conflicting"
+    assert_not in_review_item(pr_mergeable: "CONFLICTING", conflict_resolution_at: Time.current).conflicting?,
+               "an item already being resolved is not offered again"
+  end
+
+  test "conflicting? is false off the in_review/PR path" do
+    planned = @project.tasks.create!(title: "P", item_type: "task", board_state: "planned", pr_mergeable: "CONFLICTING")
+    assert_not planned.conflicting?
+    no_pr = @project.tasks.create!(title: "N", item_type: "task", board_state: "in_review", pr_mergeable: "CONFLICTING")
+    assert_not no_pr.conflicting?, "no PR → not reviewable → not conflicting"
+  end
+
+  test "request_conflict_resolution! stamps the in-flight guard for a conflicting item" do
+    item = in_review_item(pr_mergeable: "CONFLICTING")
+    assert item.request_conflict_resolution!
+    assert item.reload.resolving_conflicts?, "conflict_resolution_at is stamped"
+    assert_not item.conflicting?, "the button no longer shows while resolution is in flight"
+  end
+
+  test "request_conflict_resolution! is a no-op unless the item is conflicting" do
+    clean = in_review_item(pr_mergeable: "MERGEABLE")
+    refute clean.request_conflict_resolution!
+    assert_nil clean.reload.conflict_resolution_at
+
+    twice = in_review_item(pr_mergeable: "CONFLICTING", conflict_resolution_at: 1.minute.ago)
+    refute twice.request_conflict_resolution!, "a second call can't queue a second agent"
+  end
+
   # board_ordered: default sort is newest-created first; manual position wins
   test "board_ordered returns newest-created items first when no positions are set" do
     # Create items with explicit created_at to avoid sub-second flakiness

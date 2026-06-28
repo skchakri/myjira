@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :add_comment, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :add_comment, :plan, :pr]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -113,6 +113,22 @@ class BoardsController < ApplicationController
       redirect_back fallback_location: board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
     else
       redirect_back fallback_location: board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
+    end
+  end
+
+  # "Resolve & merge" on an in_review item whose PR has diverged from main: stamp
+  # the in-flight guard and queue a Claude CLI agent session to merge origin/main,
+  # resolve the conflicts, lint+test, push, and squash-merge. Only actionable while
+  # the item is in_review and gh reports the PR CONFLICTING.
+  def resolve_conflicts
+    if @task.request_conflict_resolution!
+      Board::Pipeline.launch_resolve_conflicts!(@task, initiated_by: "web")
+      refresh_board!
+      redirect_back fallback_location: board_path(@project),
+                    notice: "Resolving conflicts — an agent is merging main and re-merging the PR. It moves to Done once it succeeds."
+    else
+      redirect_back fallback_location: board_path(@project),
+                    alert: "Can't resolve: the item must be in review with a conflicting PR."
     end
   end
 

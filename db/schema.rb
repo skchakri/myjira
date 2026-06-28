@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000010) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -372,6 +372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000010) do
     t.string "board_state", default: "pending", null: false
     t.string "branch_name"
     t.text "changelog_summary"
+    t.datetime "conflict_resolution_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.uuid "environment_id"
@@ -390,6 +391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000010) do
     t.datetime "plan_updated_at"
     t.integer "position"
     t.text "pr_diff"
+    t.string "pr_mergeable"
     t.integer "pr_number"
     t.string "pr_state"
     t.datetime "pr_synced_at"
