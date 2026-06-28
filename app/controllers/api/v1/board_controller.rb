@@ -20,6 +20,20 @@ module Api
         render json: { applied: applied }
       end
 
+      def session_sync
+        render json: { to_check: Board::SessionSync.work }
+      end
+
+      def session_sync_apply
+        applied = Array(params[:results]).filter_map do |r|
+          task = Task.find_by(id: r[:task_id])
+          next unless task
+
+          { task_id: task.id, result: Board::SessionSync.apply!(task, alive: to_bool(r[:alive])) }
+        end
+        render json: { applied: applied }
+      end
+
       private
 
       def to_bool(value)

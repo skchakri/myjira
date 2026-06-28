@@ -47,4 +47,20 @@ class BoardSessionSyncTest < ActionDispatch::IntegrationTest
     assert_equal "not_in_progress", Board::SessionSync.apply!(task, alive: false)
     assert_equal "in_review", task.reload.board_state
   end
+
+  test "GET session_sync returns the daemon check-list" do
+    task = in_progress_with_launch
+    get "/api/v1/board/session_sync"
+    assert_response :success
+    body = JSON.parse(response.body)
+    assert_equal [task.id], body["to_check"].map { |h| h["task_id"] }
+  end
+
+  test "POST session_sync applies liveness outcomes" do
+    task = in_progress_with_launch
+    post "/api/v1/board/session_sync",
+         params: { results: [{ task_id: task.id, alive: false }] }, as: :json
+    assert_response :success
+    assert_equal "pending", task.reload.board_state
+  end
 end
