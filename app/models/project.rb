@@ -203,8 +203,15 @@ class Project < ApplicationRecord
   # State-based one-item-at-a-time guard: the autopilot picks the next item only
   # when this is false. A dead session's item is returned to the queue by the
   # daemon's session-sync leg (Board::SessionSync), so this can't wedge.
+  #
+  # Two conditions make the project busy:
+  #   1. An in_progress task: the agent claimed the item and is actively working.
+  #   2. A pending/launching board session: the daemon hasn't spawned the agent
+  #      yet (gap between queue! and the agent calling the API to set in_progress).
   def board_busy?
-    tasks.in_progress.exists?
+    tasks.in_progress.exists? ||
+      session_launches.where(status: %w[pending launching])
+                      .where.not(pipeline_step: nil).exists?
   end
 
   # Roll the daily counter forward, resetting it on a new day.
