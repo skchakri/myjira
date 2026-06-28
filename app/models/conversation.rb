@@ -120,6 +120,26 @@ class Conversation < ApplicationRecord
     end
   end
 
+  # Sum per-message token `usage` across this session's assistant turns into a
+  # single rollup, or nil when no usage was captured (the Stop hook only forwards
+  # it when present, so cost degrades to "n/a" rather than a fake $0). Idempotent —
+  # always recomputed from the messages, never accumulated. Drives the cost
+  # reconcile onto the bound SessionLaunch (see ConversationsController#sync).
+  def token_totals
+    agg = { input: 0, output: 0, cache_read: 0, cache_creation: 0 }
+    found = false
+    conversation_messages.where(role: "assistant").pluck(:payload).each do |raw|
+      usage = raw.is_a?(Hash) ? raw["usage"] : nil
+      next unless usage.is_a?(Hash)
+      found = true
+      agg[:input]          += usage["input_tokens"].to_i
+      agg[:output]         += usage["output_tokens"].to_i
+      agg[:cache_read]     += usage["cache_read_input_tokens"].to_i
+      agg[:cache_creation] += usage["cache_creation_input_tokens"].to_i
+    end
+    found ? agg : nil
+  end
+
   # The most recent thing you asked for — drives the "↳ last:" subline so a long
   # session reads as what it's doing now, not the prompt it opened with.
   def compute_last_context

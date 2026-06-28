@@ -20,6 +20,14 @@ module Autopilot
 
     # Advance eligible projects by one step each, up to the free global slots.
     def tick!
+      # Enforce budget caps FIRST, before (and independent of) the global stop /
+      # per-project advance — a runaway run must still be killable when autopilot is
+      # globally stopped. Best-effort: never let a sweep error block the tick.
+      begin
+        BudgetEnforcer.sweep!
+      rescue StandardError => e
+        Rails.logger.error("[autopilot] budget sweep failed: #{e.class} #{e.message}")
+      end
       return { ok: true, stopped: true, launched: [] } if Setting.autopilot_stopped?
       slots = GLOBAL_MAX_CONCURRENT - global_inflight_count
       launched = []
