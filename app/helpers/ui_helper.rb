@@ -165,6 +165,17 @@ module UiHelper
     t.strftime("%b %-d, %Y · %H:%M")
   end
 
+  # Dot colour for a worklog timeline node, keyed on WorklogEvent#status. Reuses
+  # the token-backed `.dot-*` washes so it stays dark-mode-safe (color-mix on the
+  # theme tokens). running/waiting glow amber, done green, failed red, info muted.
+  WORKLOG_DOT_CLASS = {
+    "running" => "dot-block", "waiting" => "dot-block",
+    "done" => "dot-pass", "failed" => "dot-fail", "info" => "dot-idle"
+  }.freeze
+  def worklog_dot_class(status)
+    WORKLOG_DOT_CLASS[status.to_s] || "dot-idle"
+  end
+
   # Readable label for the handful of common cron shapes, else the raw cron.
   COMMON_CRONS = {
     "* * * * *"   => "every minute",
@@ -454,5 +465,14 @@ module UiHelper
   # Total captured CLI conversations — for the pinned sidebar "Conversations" row.
   def conversations_total
     @conversations_total ||= Conversation.count
+  end
+
+  # Items awaiting review across every active project — for the sidebar
+  # "Review queue" row badge. Memoised so it runs once per request.
+  def review_queue_count
+    @review_queue_count ||= Task.where(board_state: "in_review")
+                                .joins(:project)
+                                .where(projects: { archived_at: nil })
+                                .count
   end
 end

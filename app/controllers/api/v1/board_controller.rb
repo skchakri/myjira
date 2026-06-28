@@ -14,7 +14,7 @@ module Api
           next unless task
 
           result = Board::PrSync.apply!(task, action: r[:action], ok: to_bool(r[:ok]),
-                                              state: r[:state], error: r[:error])
+                                              state: r[:state], mergeable: r[:mergeable], error: r[:error])
           { task_id: task.id, result: result }
         end
         render json: { applied: applied }

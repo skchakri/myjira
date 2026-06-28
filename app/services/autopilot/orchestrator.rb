@@ -79,7 +79,7 @@ module Autopilot
     # have exhausted their autopilot attempts are parked to `waiting` for a human
     # and skipped, so one broken item can't consume the queue.
     def advance_project(project)
-      project.tasks.actionable.board_ordered.each do |item|
+      project.tasks.actionable.board_queue_ordered.each do |item|
         step = Board::Pipeline.next_step_for(item)
         return Board::Pipeline.launch_step!(item, step: step) if step
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000011) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -184,6 +184,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.datetime "created_at", null: false
     t.text "description"
     t.string "kind", default: "gap", null: false
+    t.text "labels", default: [], null: false, array: true
     t.uuid "project_id", null: false
     t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, (((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)))", stored: true
     t.string "severity", default: "medium", null: false
@@ -192,6 +193,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.uuid "test_result_id"
     t.string "title", null: false
     t.datetime "updated_at", null: false
+    t.index ["labels"], name: "index_follow_up_tasks_on_labels", using: :gin
     t.index ["project_id"], name: "index_follow_up_tasks_on_project_id"
     t.index ["search_vector"], name: "index_follow_up_tasks_on_search_vector", using: :gin
     t.index ["severity"], name: "index_follow_up_tasks_on_severity"
@@ -369,6 +371,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.integer "autopilot_attempts", default: 0, null: false
     t.string "board_state", default: "pending", null: false
     t.string "branch_name"
+    t.text "changelog_summary"
+    t.datetime "conflict_resolution_at"
     t.datetime "created_at", null: false
     t.text "description"
     t.uuid "environment_id"
@@ -378,6 +382,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.text "implementation_notes"
     t.datetime "implemented_at"
     t.string "item_type", default: "task", null: false
+    t.text "labels", default: [], null: false, array: true
     t.uuid "last_conversation_id"
     t.uuid "last_test_run_id"
     t.datetime "merge_requested_at"
@@ -386,6 +391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.datetime "plan_updated_at"
     t.integer "position"
     t.text "pr_diff"
+    t.string "pr_mergeable"
     t.integer "pr_number"
     t.string "pr_state"
     t.datetime "pr_synced_at"
@@ -400,6 +406,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.index ["environment_id"], name: "index_tasks_on_environment_id"
     t.index ["external_ref"], name: "index_tasks_on_external_ref"
     t.index ["item_type"], name: "index_tasks_on_item_type"
+    t.index ["labels"], name: "index_tasks_on_labels", using: :gin
     t.index ["last_conversation_id"], name: "index_tasks_on_last_conversation_id"
     t.index ["last_test_run_id"], name: "index_tasks_on_last_test_run_id"
     t.index ["merge_requested_at"], name: "index_tasks_on_merge_requested_at"
@@ -483,6 +490,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000006) do
     t.index ["environment_id"], name: "index_test_runs_on_environment_id"
     t.index ["status"], name: "index_test_runs_on_status"
     t.index ["test_plan_id"], name: "index_test_runs_on_test_plan_id"
+  end
+
+  create_table "worklog_events", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "label", default: "", null: false
+    t.string "name", null: false
+    t.datetime "occurred_at", null: false
+    t.jsonb "payload", default: {}, null: false
+    t.uuid "project_id"
+    t.string "status", default: "info", null: false
+    t.uuid "subject_id", null: false
+    t.string "subject_type", null: false
+    t.index ["project_id"], name: "index_worklog_events_on_project_id"
+    t.index ["subject_type", "subject_id", "occurred_at"], name: "index_worklog_events_on_subject_and_time"
+    t.index ["subject_type", "subject_id"], name: "index_worklog_events_on_subject"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"

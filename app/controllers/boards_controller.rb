@@ -4,16 +4,20 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :add_comment, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :add_comment, :plan, :pr]
 
   def show
-    @groups = @project.board_groups
+    @active_label = params[:label].to_s.strip.downcase.presence
+    @all_labels = @project.board_labels
+    @groups = @project.board_groups(label: @active_label)
     @done_count = @project.tasks.where(board_state: "done").count
     @inflight_launch = @project.current_board_launch
   end
 
-  # Persist a drag: `order` is every visible item id top-to-bottom (new priority);
-  # an item dragged into a different status group also carries moved_id/moved_state.
+  # Persist a drag: `order` is the ids of just the group the item was dropped into,
+  # top-to-bottom. We stamp `position` only on those ids, so groups the user never
+  # touched stay all-NULL and keep their recency default. An item dragged into a
+  # different status group also carries moved_id/moved_state to update its state.
   def reorder
     ids = Array(params[:order]).map(&:to_s)
     Task.transaction do
@@ -93,11 +97,11 @@ class BoardsController < ApplicationController
   def request_merge
     if @task.request_merge!
       refresh_board!
-      redirect_to board_path(@project),
-                  notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
+      redirect_back fallback_location: board_path(@project),
+                    notice: "Approved — merging the PR. It moves to Done once GitHub confirms the merge."
     else
-      redirect_to board_path(@project),
-                  alert: "Can't merge: the item must be in review with an open PR."
+      redirect_back fallback_location: board_path(@project),
+                    alert: "Can't merge: the item must be in review with an open PR."
     end
   end
 
@@ -106,9 +110,25 @@ class BoardsController < ApplicationController
   def reject_pr
     if @task.reject_pr!(note: params[:reason])
       refresh_board!
-      redirect_to board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
+      redirect_back fallback_location: board_path(@project), notice: "Rejected — moved to Failed. The PR is left open on GitHub."
     else
-      redirect_to board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
+      redirect_back fallback_location: board_path(@project), alert: "Can't reject: the item must be in review with an open PR."
+    end
+  end
+
+  # "Resolve & merge" on an in_review item whose PR has diverged from main: stamp
+  # the in-flight guard and queue a Claude CLI agent session to merge origin/main,
+  # resolve the conflicts, lint+test, push, and squash-merge. Only actionable while
+  # the item is in_review and gh reports the PR CONFLICTING.
+  def resolve_conflicts
+    if @task.request_conflict_resolution!
+      Board::Pipeline.launch_resolve_conflicts!(@task, initiated_by: "web")
+      refresh_board!
+      redirect_back fallback_location: board_path(@project),
+                    notice: "Resolving conflicts — an agent is merging main and re-merging the PR. It moves to Done once it succeeds."
+    else
+      redirect_back fallback_location: board_path(@project),
+                    alert: "Can't resolve: the item must be in review with a conflicting PR."
     end
   end
 
@@ -174,7 +194,7 @@ class BoardsController < ApplicationController
   end
 
   def create_params
-    params.require(:task).permit(:title, :item_type, :description, :priority, attachments: [])
+    params.require(:task).permit(:title, :item_type, :description, :priority, :labels_text, attachments: [], labels: [])
   end
 
   # A stand-in title from the dump's first meaningful line, shown until the triage
@@ -188,7 +208,7 @@ class BoardsController < ApplicationController
   end
 
   def update_params
-    params.require(:task).permit(:title, :item_type, :board_state, :agent_role, :priority, :plan, :description)
+    params.require(:task).permit(:title, :item_type, :board_state, :agent_role, :priority, :plan, :description, :changelog_summary, :labels_text, labels: [])
   end
 
   def autopilot_params

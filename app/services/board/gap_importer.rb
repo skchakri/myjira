@@ -12,7 +12,6 @@ module Board
       "gap" => "task", "question" => "ask"
     }.freeze
     SEV_TO_PRIO = { "critical" => "urgent", "high" => "high", "medium" => "normal", "low" => "low" }.freeze
-    PRIO_RANK   = { "urgent" => 0, "high" => 1, "normal" => 2, "low" => 3 }.freeze
 
     def import(project)
       created = 0
@@ -42,15 +41,7 @@ module Board
         created += 1
       end
 
-      reorder_pending(project) if created.positive?
       { created: created, moved: moved }
-    end
-
-    # Re-order the pending queue by severity (urgent→low), oldest first.
-    def reorder_pending(project)
-      project.tasks.where(board_state: "pending").to_a
-             .sort_by { |t| [PRIO_RANK[t.priority] || 9, t.created_at] }
-             .each_with_index { |t, i| t.update_columns(position: i + 1, updated_at: Time.current) } # rubocop:disable Rails/SkipsModelValidations
     end
 
     def normalize(str)

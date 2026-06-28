@@ -28,7 +28,7 @@ module Board
     # Apply one daemon-reported outcome; returns a short result tag for the log.
     #   action "merge": ok → done+merged; else stay in_review with the error note.
     #   action "poll" : state merged → done+merged; closed → failed; else throttle.
-    def apply!(task, action:, ok: nil, state: nil, error: nil)
+    def apply!(task, action:, ok: nil, state: nil, mergeable: nil, error: nil)
       case action.to_s
       when "merge"
         return "merge_failed".tap { task.fail_merge!(error.to_s.presence || "unknown error") } unless ok
@@ -45,8 +45,12 @@ module Board
                        agent_notes: "PR #{task.pr_number} was closed on GitHub without merging.")
           "closed"
         else
-          # Still open — just stamp the poll time so it isn't re-checked next loop.
-          task.update_columns(pr_synced_at: Time.current, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+          # Still open — stamp the poll time so it isn't re-checked next loop, and
+          # persist gh's mergeable verdict so the board can surface conflicts. Don't
+          # clobber an in-flight resolution's stamp (conflict_resolution_at is the
+          # button guard; pr_mergeable is just the displayed state).
+          task.update_columns(pr_mergeable: mergeable.to_s.presence, # rubocop:disable Rails/SkipsModelValidations
+                              pr_synced_at: Time.current, updated_at: Time.current)
           "open"
         end
       else

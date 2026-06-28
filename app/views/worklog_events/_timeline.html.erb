@@ -1,0 +1,14 @@
+<%# locals: subject (a Worklogged record). Eager step timeline + live append target.
+    Rendered inline (NOT a lazy class="contents" frame, which never loads). The page
+    must also `turbo_stream_from [subject, :worklog]` for live nodes to arrive. %>
+<%= turbo_frame_tag dom_id(subject, :worklog) do %>
+  <% events = subject.worklog_events.chronological.to_a %>
+  <ul id="<%= dom_id(subject, :worklog_list) %>" class="worklog">
+    <% events.each_with_index do |event, i| %>
+      <%= render "worklog_events/event", event: event, prev: (i.positive? ? events[i - 1] : nil) %>
+    <% end %>
+  </ul>
+  <% if events.empty? %>
+    <p class="text-sm text-[color:var(--color-ink-faint)] py-1">No steps recorded yet — they stream in here as the work runs.</p>
+  <% end %>
+<% end %>

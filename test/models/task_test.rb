@@ -75,6 +75,39 @@ class TaskTest < ActiveSupport::TestCase
     end
   end
 
+  # --- Conflict resolution ---------------------------------------------------
+  test "conflicting? is true only for a reviewable item gh flags CONFLICTING with no resolution in flight" do
+    assert in_review_item(pr_mergeable: "CONFLICTING").conflicting?
+    assert_not in_review_item(pr_mergeable: "MERGEABLE").conflicting?, "a clean PR is not conflicting"
+    assert_not in_review_item(pr_mergeable: "UNKNOWN").conflicting?, "UNKNOWN (still recomputing) is not actionable"
+    assert_not in_review_item(pr_mergeable: nil).conflicting?, "unpolled PRs are not conflicting"
+    assert_not in_review_item(pr_mergeable: "CONFLICTING", conflict_resolution_at: Time.current).conflicting?,
+               "an item already being resolved is not offered again"
+  end
+
+  test "conflicting? is false off the in_review/PR path" do
+    planned = @project.tasks.create!(title: "P", item_type: "task", board_state: "planned", pr_mergeable: "CONFLICTING")
+    assert_not planned.conflicting?
+    no_pr = @project.tasks.create!(title: "N", item_type: "task", board_state: "in_review", pr_mergeable: "CONFLICTING")
+    assert_not no_pr.conflicting?, "no PR → not reviewable → not conflicting"
+  end
+
+  test "request_conflict_resolution! stamps the in-flight guard for a conflicting item" do
+    item = in_review_item(pr_mergeable: "CONFLICTING")
+    assert item.request_conflict_resolution!
+    assert item.reload.resolving_conflicts?, "conflict_resolution_at is stamped"
+    assert_not item.conflicting?, "the button no longer shows while resolution is in flight"
+  end
+
+  test "request_conflict_resolution! is a no-op unless the item is conflicting" do
+    clean = in_review_item(pr_mergeable: "MERGEABLE")
+    refute clean.request_conflict_resolution!
+    assert_nil clean.reload.conflict_resolution_at
+
+    twice = in_review_item(pr_mergeable: "CONFLICTING", conflict_resolution_at: 1.minute.ago)
+    refute twice.request_conflict_resolution!, "a second call can't queue a second agent"
+  end
+
   # board_ordered: default sort is newest-created first; manual position wins
   test "board_ordered returns newest-created items first when no positions are set" do
     # Create items with explicit created_at to avoid sub-second flakiness
@@ -113,5 +146,151 @@ class TaskTest < ActiveSupport::TestCase
     ids = @project.tasks.board_ordered.map(&:id)
     assert_equal first_pos.id, ids.first
     assert_equal second_pos.id, ids.second
+  end
+
+  # --- Worklog timeline ------------------------------------------------------
+  test "a board_state change writes one board.* worklog node, terminal states map to done/failed" do
+    item = @project.tasks.create!(title: "x", item_type: "task", board_state: "pending")
+    assert_difference -> { item.worklog_events.count }, 1 do
+      item.update!(board_state: "in_progress")
+    end
+    running = item.worklog_events.chronological.last
+    assert_equal "board.in_progress", running.name
+    assert_equal "running", running.status
+
+    item.update!(board_state: "done")
+    assert_equal "done", item.worklog_events.chronological.last.status
+  end
+
+  test "touching a non-board_state attribute writes no worklog node" do
+    item = @project.tasks.create!(title: "x", item_type: "task", board_state: "pending")
+    item.worklog_events.delete_all
+    assert_no_difference -> { item.worklog_events.count } do
+      item.update!(priority: "high")
+    end
+  end
+
+  # board_queue_ordered: the autopilot work queue — severity then FIFO, and it must
+  # ignore the display `position` entirely so a human's drag never reshuffles work.
+  test "board_queue_ordered sorts urgent before normal, then oldest-first within a severity" do
+    normal_old = @project.tasks.create!(title: "Normal old", item_type: "task", board_state: "pending",
+                                        priority: "normal", created_at: 3.hours.ago)
+    urgent_new = @project.tasks.create!(title: "Urgent new", item_type: "task", board_state: "pending",
+                                        priority: "urgent", created_at: 1.minute.ago)
+    normal_new = @project.tasks.create!(title: "Normal new", item_type: "task", board_state: "pending",
+                                        priority: "normal", created_at: 1.hour.ago)
+
+    ids = @project.tasks.board_queue_ordered.map(&:id)
+    assert_equal [urgent_new.id, normal_old.id, normal_new.id], ids,
+                 "urgent first, then oldest-created normal before newer normal"
+  end
+
+  test "board_queue_ordered ignores position so display pins don't reorder the work queue" do
+    first_created = @project.tasks.create!(title: "First created", item_type: "task", board_state: "pending",
+                                           priority: "normal", created_at: 2.hours.ago)
+    second_created = @project.tasks.create!(title: "Second created", item_type: "task", board_state: "pending",
+                                            priority: "normal", created_at: 1.hour.ago)
+    # A human pins the newer item to the top of the *display* — must not change queue order.
+    second_created.update_column(:position, 1)
+    first_created.update_column(:position, 99)
+
+    ids = @project.tasks.board_queue_ordered.map(&:id)
+    assert_equal [first_created.id, second_created.id], ids,
+                 "queue order is FIFO regardless of display position"
+  end
+
+  # --- Labels (Labelable concern) -------------------------------------------
+  test "labels normalize: strip, downcase, squish, drop blanks, dedupe, order preserved" do
+    t = @project.tasks.create!(title: "L", item_type: "task",
+                               labels: ["Needs-Human", "  flaky ", "FLAKY", "", "agent  authored"])
+    assert_equal ["needs-human", "flaky", "agent authored"], t.reload.labels
+  end
+
+  test "labels default to an empty array, never nil" do
+    t = @project.tasks.create!(title: "L", item_type: "task")
+    assert_equal [], t.reload.labels
+  end
+
+  test "labels_text round-trips through the comma-separated form field" do
+    t = @project.tasks.new(title: "L", item_type: "task")
+    t.labels_text = "Flaky, needs-human ,, flaky"
+    t.save!
+    assert_equal ["flaky", "needs-human"], t.reload.labels
+    assert_equal "flaky, needs-human", t.labels_text
+  end
+
+  test "labels accept a bare comma string (defensive for API callers)" do
+    t = @project.tasks.create!(title: "L", item_type: "task", labels: "a, b, a")
+    assert_equal ["a", "b"], t.reload.labels
+  end
+
+  test "with_label returns only rows carrying the label, case-insensitively" do
+    flaky = @project.tasks.create!(title: "F", item_type: "task", labels: ["flaky", "needs-human"])
+    other = @project.tasks.create!(title: "O", item_type: "task", labels: ["agent-authored"])
+    result = @project.tasks.with_label("Flaky")
+    assert_includes result, flaky
+    assert_not_includes result, other
+  end
+
+  test "all_labels returns the distinct sorted set across the relation" do
+    @project.tasks.create!(title: "A", item_type: "task", labels: ["flaky", "needs-human"])
+    @project.tasks.create!(title: "B", item_type: "task", labels: ["flaky", "agent-authored"])
+    assert_equal ["agent-authored", "flaky", "needs-human"], @project.tasks.all_labels
+  end
+
+  # --- "What's New" changelog ------------------------------------------------
+  test "changelog scope returns only done items that carry a blurb" do
+    shipped = @project.tasks.create!(title: "Shipped", item_type: "feature", board_state: "done",
+                                     changelog_summary: "You can now do X.", finished_at: 1.hour.ago)
+    @project.tasks.create!(title: "Done, no blurb", item_type: "feature", board_state: "done")
+    @project.tasks.create!(title: "Blank blurb", item_type: "feature", board_state: "done", changelog_summary: "")
+    @project.tasks.create!(title: "Not done", item_type: "feature", board_state: "in_review",
+                           changelog_summary: "Has a blurb but not shipped.")
+
+    ids = @project.tasks.changelog.map(&:id)
+    assert_equal [shipped.id], ids
+  end
+
+  test "changelog scope orders by finished_at desc with NULLS last" do
+    older   = @project.tasks.create!(title: "Older",  item_type: "feature", board_state: "done",
+                                     changelog_summary: "a", finished_at: 2.days.ago)
+    newer   = @project.tasks.create!(title: "Newer",  item_type: "feature", board_state: "done",
+                                     changelog_summary: "b", finished_at: 1.hour.ago)
+    legacy  = @project.tasks.create!(title: "Legacy", item_type: "feature", board_state: "done",
+                                     changelog_summary: "c", finished_at: nil)
+
+    assert_equal [newer.id, older.id, legacy.id], @project.tasks.changelog.map(&:id)
+  end
+
+  test "humanized_title strips a leading [tag] prefix" do
+    t = @project.tasks.new(title: "[user-req] Per-project What's New")
+    assert_equal "Per-project What's New", t.humanized_title
+  end
+
+  test "humanized_title falls back to the raw title when stripping leaves nothing" do
+    t = @project.tasks.new(title: "[only-a-tag]")
+    assert_equal "[only-a-tag]", t.humanized_title
+  end
+
+  test "changelog_entry? is true only for a shipped item with a blurb" do
+    assert @project.tasks.new(board_state: "done", changelog_summary: "x").changelog_entry?
+    assert_not @project.tasks.new(board_state: "done", changelog_summary: "").changelog_entry?
+    assert_not @project.tasks.new(board_state: "in_review", changelog_summary: "x").changelog_entry?
+  end
+
+  test "changelog_media keeps only image/video attachments" do
+    t = @project.tasks.create!(title: "With media", item_type: "feature", board_state: "done",
+                               changelog_summary: "shipped")
+    t.attachments.attach(io: StringIO.new("png"), filename: "shot.png", content_type: "image/png")
+    t.attachments.attach(io: StringIO.new("mp4"), filename: "clip.mp4", content_type: "video/mp4")
+    t.attachments.attach(io: StringIO.new("log"), filename: "run.log", content_type: "text/plain")
+
+    names = t.changelog_media.map { |a| a.filename.to_s }.sort
+    assert_equal ["clip.mp4", "shot.png"], names
+  end
+
+  test "changelog_media is empty when nothing is attached" do
+    t = @project.tasks.new(title: "No media", board_state: "done", changelog_summary: "x")
+    assert_equal [], t.changelog_media
   end
 end

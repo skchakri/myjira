@@ -43,6 +43,27 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_match @b.title, response.body
   end
 
+  test "label pills render on a board item and the filter chips appear" do
+    @a.update!(labels: ["needs-human", "flaky"])
+    get board_path(@project)
+    assert_response :success
+    assert_select "li[data-id='#{@a.id}'] .pill-quiet", text: "needs-human"
+    assert_select "a.pill", text: "flaky", count: 1 # filter chip strip
+  end
+
+  test "?label= filters the board to items carrying that label" do
+    @a.update!(labels: ["flaky"])
+    get board_path(@project, label: "flaky")
+    assert_response :success
+    assert_select "li[data-id='#{@a.id}']"
+    assert_select "li[data-id='#{@b.id}']", false, "items without the label drop out"
+  end
+
+  test "an inline edit persists labels via labels_text" do
+    patch board_item_path(@project, @a), params: { task: { labels_text: "Flaky, needs-human" } }
+    assert_equal ["flaky", "needs-human"], @a.reload.labels
+  end
+
   test "kanban view renders sortable lists" do
     get board_path(@project, view: "kanban")
     assert_response :success

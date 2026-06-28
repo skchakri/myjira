@@ -1,5 +1,7 @@
 class Task < ApplicationRecord
   include Searchable
+  include Worklogged
+  include Labelable
 
   # Legacy lifecycle (kept for the older task views + test-run propagation).
   STATUSES = %w[open in_progress implemented ready_for_test testing done blocked].freeze
@@ -70,6 +72,15 @@ class Task < ApplicationRecord
   # created_at is used (not updated_at) so the order is stable and doesn't reshuffle
   # on every attribute touch.
   scope :board_ordered, -> { order(Arel.sql("position ASC NULLS LAST, created_at DESC")) }
+  # Autopilot work queue order — deliberately independent of the display `position`
+  # so a human's drag-to-reorder (display only) never reshuffles what the agents
+  # pick up next. Severity first (urgent→low), then oldest-first within a severity
+  # (FIFO). This preserves the queue order the gap importer used to seed via
+  # `position`, now decoupled from how the board renders.
+  scope :board_queue_ordered, lambda {
+    order(Arel.sql("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 " \
+                   "WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 9 END ASC, created_at ASC"))
+  }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).
@@ -81,12 +92,27 @@ class Task < ApplicationRecord
       .where.not(pr_url: [nil, ""])
       .where("pr_synced_at IS NULL OR pr_synced_at < ?", stale_before)
   }
+  # "What's New" changelog: shipped items (done) that carry a plain-language blurb.
+  # The blurb is the explicit publish gate — silent chores stay out of the feed.
+  # Ordered newest-shipped first; legacy done items with no finished_at sort last.
+  scope :changelog, lambda {
+    where(board_state: "done").where.not(changelog_summary: [nil, ""])
+      .order(Arel.sql("finished_at DESC NULLS LAST, updated_at DESC"))
+  }
 
   after_update_commit :broadcast_board, if: :saved_change_to_board_state?
   # Live-refresh the item page when the run's plan, direction, or status changes
   # so the ticket stays a current, reviewable record while an agent works it.
   after_update_commit :broadcast_activity,
                       if: -> { saved_change_to_plan? || saved_change_to_agent_notes? || saved_change_to_board_state? }
+  after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
+
+  # Worklog status for a board_state: terminal states map to done/failed, parked
+  # states to waiting, everything else is an active (running) step.
+  BOARD_WORKLOG_STATUS = {
+    "done" => "done", "failed" => "failed",
+    "waiting" => "waiting", "hold" => "waiting"
+  }.freeze
 
   def glyph
     ITEM_TYPE_GLYPHS[item_type] || "•"
@@ -109,6 +135,23 @@ class Task < ApplicationRecord
     board_state == "done"
   end
 
+  # A shipped item with a published "What's New" blurb appears in the changelog.
+  def changelog_entry?
+    done? && changelog_summary.present?
+  end
+
+  # Display title with a leading "[tag]" prefix stripped (e.g. "[user-req] …").
+  def humanized_title
+    title.to_s.sub(/\A\s*\[[^\]]+\]\s*/, "").presence || title
+  end
+
+  # Attachments worth showing as a visual walkthrough in the changelog: the
+  # image/video media captured during a relay test run (logs/PDFs excluded).
+  def changelog_media
+    return [] unless attachments.attached?
+    attachments.select { |a| a.content_type.to_s.start_with?("image/", "video/") }
+  end
+
   def pr?
     pr_url.present?
   end
@@ -121,6 +164,26 @@ class Task < ApplicationRecord
   # An in_review item with an open PR — eligible for the Approve/Reject controls.
   def reviewable?
     board_state == "in_review" && pr?
+  end
+
+  # The PR has diverged from its base (gh reports CONFLICTING) and no resolution is
+  # yet in flight — show the ⚠ + [Resolve & merge] button. Only CONFLICTING is
+  # actionable; UNKNOWN means GitHub is still recomputing mergeability after a push.
+  def conflicting?
+    reviewable? && pr_mergeable == "CONFLICTING" && conflict_resolution_at.nil?
+  end
+
+  # A resolve-conflicts agent session has been queued for this item (button hidden,
+  # spinner shown) until it merges the PR (→ done) or gives up (→ failed, cleared).
+  def resolving_conflicts?
+    conflict_resolution_at.present?
+  end
+
+  # "Resolve & merge": stamp the in-flight guard BEFORE the session is launched so a
+  # second poll or double-click can't re-show the button or queue a second agent.
+  def request_conflict_resolution!
+    return false unless conflicting?
+    update!(conflict_resolution_at: Time.current)
   end
 
   # "Approve & merge": flag an in_review item for the daemon to merge its PR.
@@ -244,12 +307,6 @@ class Task < ApplicationRecord
     end
   end
 
-  # New items append to the bottom of the project's priority queue.
-  def assign_position
-    return if position.present?
-    self.position = (project&.tasks&.maximum(:position) || 0) + 1
-  end
-
   def broadcast_board
     broadcast_refresh_to [project, :board]
   rescue StandardError => e
@@ -260,5 +317,15 @@ class Task < ApplicationRecord
     broadcast_refresh_to [self, :activity]
   rescue StandardError => e
     Rails.logger.warn("[board] activity broadcast failed: #{e.message}")
+  end
+
+  # One timeline node per real board_state transition (guarded by the
+  # saved_change_to_board_state? callback, so a repeated PATCH never dupes it).
+  def emit_board_worklog
+    emit_worklog(
+      "board.#{board_state}",
+      status: BOARD_WORKLOG_STATUS[board_state] || "running",
+      label: "→ #{board_state_label}"
+    )
   end
 end

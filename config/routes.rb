@@ -7,6 +7,10 @@ Rails.application.routes.draw do
   # test results. Optional ?project_id=<slug|uuid> scopes it to one folder.
   get "search", to: "search#index", as: :search
 
+  # Single cross-project review queue — every in_review item, grouped by project,
+  # with the same Approve & merge / Reject actions as the board.
+  get "review", to: "reviews#index", as: :review
+
   # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
   # Auto-provisions the matching Project on first GET so external callers
   # never hit a 404.
@@ -74,9 +78,12 @@ Rails.application.routes.draw do
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge
     post  "board/items/:id/reject",    to: "boards#reject_pr",   as: :board_item_reject
+    post  "board/items/:id/resolve_conflicts", to: "boards#resolve_conflicts", as: :board_item_resolve_conflicts
     post  "board/items/:id/comments",  to: "boards#add_comment", as: :board_item_comments
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr
+    # Per-project "What's New" — the plain-language feed of shipped changes.
+    get   "changelog",                 to: "changelogs#show",    as: :project_changelog
     post "jira_imports", to: "jira_imports#create", as: :project_jira_imports
   end
 
@@ -158,6 +165,9 @@ Rails.application.routes.draw do
           member { post :finish } # agent signals "coding done" → fire the test leg
           resources :follow_up_tasks, only: [:index, :create], path: "follow_ups"
           resources :comments, only: [:index, :create]
+          # Relay/Claude-in-Chrome uploads screenshots / GIFs captured during a
+          # real browser test as base64 (or multipart) → surfaces in changelog.
+          resources :attachments, only: [:create], controller: "task_attachments"
         end
         resources :test_plans, only: [:index, :show, :create, :update] do
           resources :test_cases, only: [:index, :create, :update] do
