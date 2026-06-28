@@ -162,6 +162,26 @@ class Task < ApplicationRecord
     board_state == "in_review" && pr?
   end
 
+  # The PR has diverged from its base (gh reports CONFLICTING) and no resolution is
+  # yet in flight — show the ⚠ + [Resolve & merge] button. Only CONFLICTING is
+  # actionable; UNKNOWN means GitHub is still recomputing mergeability after a push.
+  def conflicting?
+    reviewable? && pr_mergeable == "CONFLICTING" && conflict_resolution_at.nil?
+  end
+
+  # A resolve-conflicts agent session has been queued for this item (button hidden,
+  # spinner shown) until it merges the PR (→ done) or gives up (→ failed, cleared).
+  def resolving_conflicts?
+    conflict_resolution_at.present?
+  end
+
+  # "Resolve & merge": stamp the in-flight guard BEFORE the session is launched so a
+  # second poll or double-click can't re-show the button or queue a second agent.
+  def request_conflict_resolution!
+    return false unless conflicting?
+    update!(conflict_resolution_at: Time.current)
+  end
+
   # "Approve & merge": flag an in_review item for the daemon to merge its PR.
   def request_merge!
     return false unless reviewable?

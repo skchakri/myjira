@@ -14,7 +14,8 @@ module Board
       "planning"    => "board-plan",
       "engineering" => "board-engineer",
       "debugger"    => "board-debug",
-      "answer"      => "board-answer"
+      "answer"      => "board-answer",
+      "resolve_conflicts" => "board-resolve-conflicts"
     }.freeze
 
     def base_url
@@ -63,6 +64,28 @@ module Board
       )
       task.update_columns(picked_up_at: Time.current, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
       Rails.logger.info("[board] launched #{step} for task #{task.id} (#{project.slug})")
+      launch
+    end
+
+    # Queue a resolve-conflicts agent session for an in_review item whose PR has
+    # diverged from main. UI/manual-triggered only (never from next_step_for, so
+    # autopilot can't auto-resolve conflicts unattended). The spawned session merges
+    # origin/main, resolves hunks, lint+tests, pushes, squash-merges, and closes the
+    # item. Returns the SessionLaunch, or nil if the project has no repo to run in.
+    def launch_resolve_conflicts!(task, initiated_by: "web")
+      project = task.project
+      return nil if project.repo_path.blank?
+      launch = SessionLaunch.queue!(
+        project: project,
+        prompt: "/board-resolve-conflicts #{task.id} #{project.slug} #{base_url} #{project.base_branch_or_default}",
+        model: "default",
+        permission_mode: "bypassPermissions",
+        title: "resolve conflicts: #{task.title}".truncate(80),
+        source: "board",
+        task: task,
+        pipeline_step: "resolve_conflicts"
+      )
+      Rails.logger.info("[board] launched resolve_conflicts for task #{task.id} (#{project.slug}) by #{initiated_by}")
       launch
     end
 

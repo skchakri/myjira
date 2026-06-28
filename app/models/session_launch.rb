@@ -16,7 +16,7 @@ class SessionLaunch < ApplicationRecord
   PERMISSION_MODES = %w[default acceptEdits plan bypassPermissions].freeze
   # Which board pipeline step this launch is (nil for plain "＋ New session"s).
   # triage = the lightweight "you dumped context, I'll assign title/type/priority" pass.
-  PIPELINE_STEPS   = %w[triage review planning engineering debugger answer].freeze
+  PIPELINE_STEPS   = %w[triage review planning engineering debugger answer resolve_conflicts].freeze
   # Derived spawn-outcomes the launcher metrics roll up. This reflects whether
   # `claude` got off the ground, not whether the work it then did succeeded (the
   # bound Conversation could refine that later) — a faithful first cut, no column.

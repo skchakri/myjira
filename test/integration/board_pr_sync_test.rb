@@ -91,4 +91,29 @@ class BoardPrSyncTest < ActionDispatch::IntegrationTest
     assert_equal "in_review", item.board_state
     assert item.pr_synced_at.present?, "stamped so it's throttled out of the next poll"
   end
+
+  # --- conflict detection + the web "Resolve & merge" button ----------------
+  test "polling an open PR persists gh's mergeable verdict so the board can flag conflicts" do
+    item = in_review_item(pr_synced_at: nil)
+    post "/api/v1/board/pr_sync",
+         params: { results: [{ task_id: item.id, action: "poll", state: "open", mergeable: "CONFLICTING" }] }, as: :json
+    assert_equal "CONFLICTING", item.reload.pr_mergeable
+    assert item.conflicting?, "a conflicting in_review PR surfaces the Resolve control"
+  end
+
+  test "resolve_conflicts queues a resolution and stamps the in-flight guard on a conflicting item" do
+    item = in_review_item(pr_mergeable: "CONFLICTING")
+    post board_item_resolve_conflicts_path(@project, item)
+    assert_redirected_to board_path(@project)
+    item.reload
+    assert item.resolving_conflicts?, "conflict_resolution_at is stamped"
+    assert_equal "in_review", item.board_state, "stays in review until the agent merges"
+  end
+
+  test "resolve_conflicts is refused when the PR has no conflict" do
+    item = in_review_item(pr_mergeable: "MERGEABLE")
+    post board_item_resolve_conflicts_path(@project, item)
+    assert_nil item.reload.conflict_resolution_at
+    assert_match(/conflicting/i, flash[:alert])
+  end
 end
