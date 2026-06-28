@@ -10,7 +10,11 @@ export default class extends Controller {
   connect() {
     this.dt = new DataTransfer()
     this.urls = []
-    this.onKey = (e) => { if (e.key === "Escape" && this.isOpen) this.close() }
+    this.onKey = (e) => {
+      if (!this.isOpen) return
+      if (e.key === "Escape") this.close()
+      else if (e.key === "Tab") this.trapTab(e)
+    }
     document.addEventListener("keydown", this.onKey)
   }
 
@@ -23,6 +27,8 @@ export default class extends Controller {
   get isOpen() { return !this.overlayTarget.classList.contains("hidden") }
 
   open(e) {
+    // Remember the opener so focus can return to it on close.
+    this.trigger = (e && e.currentTarget) || document.activeElement
     if (e) e.preventDefault()
     this.overlayTarget.classList.remove("hidden")
     document.body.style.overflow = "hidden"
@@ -33,9 +39,28 @@ export default class extends Controller {
     if (e) e.preventDefault()
     this.overlayTarget.classList.add("hidden")
     document.body.style.overflow = ""
+    // Restore focus to the trigger if it's still in the DOM (Turbo may have morphed it).
+    if (this.trigger && document.contains(this.trigger)) this.trigger.focus()
   }
 
   backdrop(e) { if (e.target === this.overlayTarget) this.close(e) }
+
+  // The dialog panel inside the overlay (carries role=dialog).
+  dialog() { return this.overlayTarget.querySelector("[role=dialog]") || this.overlayTarget }
+
+  trapTab(e) {
+    const sel = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const f = Array.from(this.dialog().querySelectorAll(sel)).filter((el) => el.offsetParent !== null)
+    if (!f.length) { e.preventDefault(); return }
+    const first = f[0]
+    const last = f[f.length - 1]
+    const active = document.activeElement
+    if (e.shiftKey && (active === first || !this.dialog().contains(active))) {
+      e.preventDefault(); last.focus()
+    } else if (!e.shiftKey && (active === last || !this.dialog().contains(active))) {
+      e.preventDefault(); first.focus()
+    }
+  }
 
   // --- attachments ---------------------------------------------------------
   browse(e) { if (e) e.preventDefault(); this.inputTarget.click() }

@@ -1,11 +1,12 @@
 <%= turbo_frame_tag "board_modal" do %>
   <div data-controller="modal" data-action="click->modal#backdrop"
        class="fixed inset-0 z-50 flex items-start justify-center p-6 overflow-y-auto" style="background: rgba(26,24,20,0.45)">
-    <div class="paper w-full max-w-2xl mt-12" style="box-shadow: 0 24px 60px -20px rgba(26,24,20,0.5)">
+    <div role="dialog" aria-modal="true" aria-labelledby="board-modal-heading"
+         class="paper w-full max-w-2xl mt-12" style="box-shadow: 0 24px 60px -20px rgba(26,24,20,0.5)">
       <header class="flex items-center justify-between px-4 py-2.5 hair-b">
         <div class="min-w-0">
           <div class="eyebrow">Implementation plan</div>
-          <div class="text-sm font-medium truncate"><%= task.title %></div>
+          <div id="board-modal-heading" class="text-sm font-medium truncate"><%= task.title %></div>
         </div>
         <button data-action="modal#close" class="text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)] text-lg leading-none px-1" aria-label="Close">✕</button>
       </header>
