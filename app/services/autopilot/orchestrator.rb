@@ -14,10 +14,9 @@ module Autopilot
 
     # UTC hour at/after which the daily review may run (≈ the user's morning).
     REVIEW_HOUR = ENV.fetch("MYJIRA_REVIEW_HOUR", "13").to_i
-    # Fleet-wide ceiling: at most this many board agent sessions run across ALL
-    # projects at once. Keeps "autopilot on every project" from spawning a session
-    # per project simultaneously. Per-project one-at-a-time still applies on top.
-    GLOBAL_MAX_CONCURRENT = ENV.fetch("MYJIRA_AUTOPILOT_MAX_CONCURRENT", "3").to_i
+    # With strict per-project serialization (Project#board_busy?) the meaningful
+    # limit is one session per project; this is only a fleet-wide safety ceiling.
+    GLOBAL_MAX_CONCURRENT = ENV.fetch("MYJIRA_AUTOPILOT_MAX_CONCURRENT", "20").to_i
 
     # Advance eligible projects by one step each, up to the free global slots.
     def tick!
@@ -52,7 +51,7 @@ module Autopilot
       launched = nil
       project.with_lock do
         next unless project.autopilot_active?
-        next if project.inflight_board_launch?
+        next if project.board_busy?
         launch = should_review?(project) ? Board::Pipeline.launch_review!(project) : advance_project(project)
         if launch
           project.bump_autopilot_runs!
