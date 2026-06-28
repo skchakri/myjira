@@ -30,6 +30,12 @@ class Conversation < ApplicationRecord
   # sent by the sync hook (e.g. captured stderr from a -p / agent-frontmatter run).
   MODEL_DEPRECATION_RE = /deprecat\w*.*?model|model.*?deprecat\w*|out\s+of\s+policy/i
 
+  # Auto board-ticket enrichment throttle. A captured session is folded into
+  # enriched board tickets (BoardTicketFromSessionJob) at most once per window,
+  # and only once a fresh substantive user turn has landed since the last pass —
+  # so a session that syncs every turn doesn't fire a claude call every turn.
+  BOARD_ENRICH_WINDOW = 4.minutes
+
   # "Live" = synced a turn very recently. The Stop hook updates last_message_at
   # at the end of each turn, so this tracks sessions active in the last few min.
   LIVE_WINDOW = 8.minutes
@@ -38,6 +44,30 @@ class Conversation < ApplicationRecord
 
   def live?
     (last_message_at || created_at) > LIVE_WINDOW.ago
+  end
+
+  # Substantive asks the human typed this session — plain user messages, ignoring
+  # tool results and empty turns. Drives both the enrichment trigger (something new
+  # to log) and the "skip trivial sessions" guard.
+  def substantive_user_message_count
+    conversation_messages.where(role: "user", kind: "message")
+                         .where.not(body: [nil, ""]).count
+  end
+
+  # Should the auto board-ticket enrichment run now? Only when the global flag is
+  # on, a fresh user ask has landed since the last pass, and we're outside the
+  # throttle window (or have never run). Keeps re-fired syncs from re-enriching.
+  def board_enrich_due?
+    return false unless Setting.auto_board_tickets?
+    count = substantive_user_message_count
+    return false if count.zero?
+    return false unless count > board_enriched_count
+    board_enriched_at.nil? || board_enriched_at < BOARD_ENRICH_WINDOW.ago
+  end
+
+  # Stamp a completed enrichment pass so the throttle advances.
+  def mark_board_enriched!(user_count)
+    update_columns(board_enriched_at: Time.current, board_enriched_count: user_count)
   end
 
   # Push the "Live now" strip to everyone on the Conversations index. Called after

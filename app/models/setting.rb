@@ -3,6 +3,7 @@
 # auditable). Values are stored as strings; flag helpers coerce to/from booleans.
 class Setting < ApplicationRecord
   AUTOPILOT_STOP = "autopilot_stopped".freeze
+  AUTO_BOARD_TICKETS = "auto_board_tickets".freeze
 
   validates :key, presence: true, uniqueness: true
 
@@ -32,5 +33,16 @@ class Setting < ApplicationRecord
 
   def self.autopilot_stopped=(value)
     set_flag(AUTOPILOT_STOP, value)
+  end
+
+  # Auto board-ticket enrichment master switch. On by default — when off, captured
+  # CLI sessions are still saved as Conversations but no enriched board tickets are
+  # authored, so the per-session noise can be killed globally without a code change.
+  def self.auto_board_tickets?
+    get(AUTO_BOARD_TICKETS, "true") == "true"
+  end
+
+  def self.auto_board_tickets=(value)
+    set_flag(AUTO_BOARD_TICKETS, value)
   end
 end

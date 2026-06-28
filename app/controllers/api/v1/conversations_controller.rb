@@ -42,6 +42,9 @@ module Api
         convo.refresh_counts!
         # Push the refreshed "Live now" strip to the Conversations index in real time.
         Conversation.broadcast_live_strip!
+        # Fold this session into enriched board tickets (async, throttled, best-effort).
+        # Never affects the sync response — the hook re-sends freely.
+        BoardTicketFromSessionJob.perform_later(convo.id) if convo.board_enrich_due?
 
         render json: {
           ok: true,

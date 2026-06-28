@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000011) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_26_000012) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -145,6 +145,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000011) do
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "board_enriched_at"
+    t.integer "board_enriched_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "cwd"
     t.string "git_branch"
