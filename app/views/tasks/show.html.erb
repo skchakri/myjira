@@ -1,4 +1,5 @@
 <% content_for :title, @task.title %>
+<%= turbo_stream_from [@task, :activity] %>
 
 <%= turbo_stream_from [@task, :worklog] %>
 
@@ -55,6 +56,35 @@
       <% end %>
     <% end %>
 
+    <%= card title: "Plan & direction" do %>
+      <div class="flex items-center gap-2 mb-3">
+        <%= board_state_pill(@task.board_state) %>
+        <span class="pill pill-accent"><%= agent_role_label(@task.agent_role) %></span>
+        <% if @task.plan_updated_at %>
+          <span class="ml-auto text-[11px] text-[color:var(--color-ink-faint)]" title="<%= format_time(@task.plan_updated_at) %>">plan updated <%= ago(@task.plan_updated_at) %></span>
+        <% end %>
+      </div>
+      <% if @task.plan.present? %>
+        <%= markdown(@task.plan) %>
+      <% else %>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No plan yet. The planning agent writes one when it picks this item up.</p>
+      <% end %>
+
+      <% if @task.agent_notes.present? %>
+        <div class="mt-4 pt-3 hair-t">
+          <div class="eyebrow mb-1">Latest agent status</div>
+          <p class="text-sm text-[color:var(--color-ink)] whitespace-pre-wrap"><%= @task.agent_notes %></p>
+        </div>
+      <% end %>
+
+      <% if @task.session_conversation.present? %>
+        <div class="mt-4 pt-3 hair-t">
+          <%= link_to "↗ Watch live session", conversation_path(@task.session_conversation),
+                class: "text-sm font-medium text-[color:var(--color-amber-ink)] hover:text-[color:var(--color-amber-ink-hover)]" %>
+        </div>
+      <% end %>
+    <% end %>
+
     <%= card title: "Implementation notes" do %>
       <% if @task.implementation_notes.present? %>
         <pre class="whitespace-pre-wrap text-sm text-[color:var(--color-ink)] font-mono leading-relaxed"><%= @task.implementation_notes %></pre>
@@ -81,7 +111,8 @@
       <% end %>
     <% end %>
 
-    <%= card title: "Comments" do %>
+    <%= card title: "Activity & decisions log" do %>
+      <p class="text-xs text-[color:var(--color-ink-faint)] mb-3">Append-only trail of agent assumptions, direction, and decisions as the item is worked — plus your own notes.</p>
       <% if @comments.any? %>
         <ul class="space-y-3 mb-4">
           <% @comments.each do |c| %>

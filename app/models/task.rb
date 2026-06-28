@@ -101,6 +101,10 @@ class Task < ApplicationRecord
   }
 
   after_update_commit :broadcast_board, if: :saved_change_to_board_state?
+  # Live-refresh the item page when the run's plan, direction, or status changes
+  # so the ticket stays a current, reviewable record while an agent works it.
+  after_update_commit :broadcast_activity,
+                      if: -> { saved_change_to_plan? || saved_change_to_agent_notes? || saved_change_to_board_state? }
   after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
 
   # Worklog status for a board_state: terminal states map to done/failed, parked
@@ -307,6 +311,12 @@ class Task < ApplicationRecord
     broadcast_refresh_to [project, :board]
   rescue StandardError => e
     Rails.logger.warn("[board] broadcast failed: #{e.message}")
+  end
+
+  def broadcast_activity
+    broadcast_refresh_to [self, :activity]
+  rescue StandardError => e
+    Rails.logger.warn("[board] activity broadcast failed: #{e.message}")
   end
 
   # One timeline node per real board_state transition (guarded by the
