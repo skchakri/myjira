@@ -24,6 +24,18 @@
       <% if item.board_state == "failed" && item.agent_notes.present? %>
         <span class="text-[color:var(--color-fail-ink)] truncate max-w-[260px]" title="<%= item.agent_notes %>"><%= item.agent_notes %></span>
       <% end %>
+      <% if item.session_cost_usd.to_f > 0 %>
+        <span class="text-[color:var(--color-ink-faint)] text-[10px] font-mono shrink-0" title="Agent session cost">$<%= format("%.2f", item.session_cost_usd) %></span>
+      <% end %>
+      <% if item.live_terminal_url.present? %>
+        <%= link_to "▶ Watch CLI", item.live_terminal_url,
+              target: "_blank", rel: "noopener",
+              class: "text-[10px] shrink-0 text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-amber-ink)]" %>
+      <% elsif item.resumable_session_id.present? %>
+        <%= button_to "⤺ Continue", board_item_continue_session_path(item.project, item),
+              method: :post,
+              class: "text-[10px] shrink-0 text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-amber-ink)] cursor-pointer bg-transparent border-0 p-0" %>
+      <% end %>
       <span class="ml-auto shrink-0"><%= board_item_times(item) %></span>
     </div>
   </div>

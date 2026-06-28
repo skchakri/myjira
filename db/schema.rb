@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_26_000012) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -147,16 +147,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000012) do
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "board_enriched_at"
     t.integer "board_enriched_count", default: 0, null: false
+    t.bigint "cache_tokens", default: 0, null: false
+    t.decimal "cost_usd", precision: 10, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.string "cwd"
     t.string "git_branch"
     t.jsonb "highlights", default: [], null: false
+    t.bigint "input_tokens", default: 0, null: false
     t.text "last_context"
     t.datetime "last_message_at"
     t.integer "message_count", default: 0, null: false
     t.string "model"
     t.boolean "model_deprecated", default: false, null: false
     t.string "name"
+    t.bigint "output_tokens", default: 0, null: false
     t.uuid "project_id", null: false
     t.jsonb "prs", default: [], null: false
     t.string "session_id", null: false
@@ -271,6 +275,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000012) do
   create_table "playbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "agent_id"
     t.text "body", null: false
+    t.integer "budget_cap_cents"
     t.datetime "created_at", null: false
     t.boolean "enabled", default: true, null: false
     t.text "guardrails"
@@ -286,6 +291,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000012) do
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "archived_at"
+    t.integer "autopilot_budget_cap_cents"
     t.integer "autopilot_daily_cap", default: 10, null: false
     t.boolean "autopilot_enabled", default: false, null: false
     t.boolean "autopilot_paused", default: false, null: false
@@ -327,23 +333,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_26_000012) do
 
   create_table "session_launches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "agent_id"
+    t.datetime "budget_alerted_at"
+    t.integer "budget_cap_cents"
+    t.bigint "cache_creation_tokens"
+    t.bigint "cache_read_tokens"
     t.uuid "conversation_id"
     t.datetime "created_at", null: false
     t.text "error"
+    t.integer "estimated_cost_cents"
+    t.integer "exit_code"
     t.datetime "launched_at"
+    t.integer "max_turns"
     t.string "model"
+    t.boolean "over_budget", default: false, null: false
+    t.datetime "over_budget_at"
     t.string "permission_mode"
     t.string "pipeline_step"
     t.uuid "project_id", null: false
     t.text "prompt", null: false
     t.string "repo_path", null: false
+    t.string "resume_of_session_id"
     t.string "session_id", null: false
     t.string "status", default: "pending", null: false
     t.uuid "task_id"
     t.string "tmux_target"
+    t.bigint "token_input"
+    t.bigint "token_output"
     t.datetime "updated_at", null: false
     t.index ["agent_id"], name: "index_session_launches_on_agent_id"
     t.index ["conversation_id"], name: "index_session_launches_on_conversation_id"
+    t.index ["project_id", "created_at"], name: "index_session_launches_on_project_id_and_created_at"
     t.index ["project_id"], name: "index_session_launches_on_project_id"
     t.index ["session_id"], name: "index_session_launches_on_session_id", unique: true
     t.index ["status"], name: "index_session_launches_on_status"

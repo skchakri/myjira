@@ -79,6 +79,7 @@ Rails.application.routes.draw do
     post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge
     post  "board/items/:id/reject",    to: "boards#reject_pr",   as: :board_item_reject
     post  "board/items/:id/resolve_conflicts", to: "boards#resolve_conflicts", as: :board_item_resolve_conflicts
+    post  "board/items/:id/continue_session",  to: "boards#continue_session", as: :board_item_continue_session
     post  "board/items/:id/comments",  to: "boards#add_comment", as: :board_item_comments
     get   "board/items/:id/plan",      to: "boards#plan",        as: :board_item_plan
     get   "board/items/:id/pr",        to: "boards#pr",          as: :board_item_pr

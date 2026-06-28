@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :add_comment, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -130,6 +130,32 @@ class BoardsController < ApplicationController
       redirect_back fallback_location: board_path(@project),
                     alert: "Can't resolve: the item must be in review with a conflicting PR."
     end
+  end
+
+  # "Continue in CLI" — queue a resume session for an item that already has a
+  # prior board pipeline launch. The host daemon picks it up and spawns
+  # `claude --resume <session_id>` in a new tmux window.
+  def continue_session
+    sid = @task.resumable_session_id
+    if sid.blank?
+      redirect_back fallback_location: board_path(@task.project),
+                    alert: "No prior CLI session to continue."
+      return
+    end
+
+    launch = SessionLaunch.queue!(
+      project: @task.project,
+      task: @task,
+      prompt: "(resume session)",
+      model: "default",
+      permission_mode: "bypassPermissions",
+      source: "resume",
+      title: "resume: #{@task.title}".truncate(80)
+    )
+    launch.update!(resume_of_session_id: sid)
+
+    redirect_back fallback_location: board_path(@task.project),
+                  notice: "Resuming the CLI session — open it from Watch CLI once it spawns."
   end
 
   # Add an append-only note to an item (from the board or task page). Blank bodies
