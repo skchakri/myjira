@@ -27,6 +27,28 @@
     <% if item.actionable? %>
       <%= button_to "▶", board_item_pick_up_path(item.project, item), method: :post,
             class: "ml-auto text-xs px-1.5 hair-all rounded cursor-pointer", title: "Pick up" %>
+    <% elsif item.reviewable? %>
+      <span class="ml-auto flex items-center gap-1">
+        <% if item.resolving_conflicts? %>
+          <span class="text-xs text-[color:var(--color-amber-ink)] animate-pulse" title="Resolving conflicts — an agent is merging main and re-merging the PR" aria-label="Resolving conflicts">⚠</span>
+        <% elsif item.conflicting? %>
+          <%= button_to "⚠", board_item_resolve_conflicts_path(item.project, item), method: :post,
+                form: { data: { turbo_confirm: "Resolve conflicts and merge PR ##{item.pr_number}? An agent will merge main, resolve conflicts, lint+test, then squash-merge." } },
+                class: "text-xs px-1.5 py-0.5 hair-all rounded text-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-wash)] cursor-pointer",
+                title: "PR conflicts with main — Resolve & merge" %>
+        <% elsif item.merge_requested? %>
+          <span class="text-xs text-[color:var(--color-amber-ink)] animate-pulse" title="Merging on GitHub… moves to Done when confirmed" aria-label="Merging">⋯</span>
+        <% else %>
+          <%= button_to "✓", board_item_merge_path(item.project, item), method: :post,
+                form: { data: { turbo_confirm: "Approve and merge PR ##{item.pr_number}? It will merge on GitHub and move to Done." } },
+                class: "text-xs px-1.5 py-0.5 hair-all rounded text-[color:var(--color-pass-ink)] hover:bg-[color:var(--color-pass-wash)] cursor-pointer",
+                title: "Approve & merge PR → Done" %>
+          <%= button_to "✕", board_item_reject_path(item.project, item), method: :post,
+                form: { data: { turbo_confirm: "Reject PR ##{item.pr_number}? It moves to Failed (the PR stays open on GitHub)." } },
+                class: "text-xs px-1.5 py-0.5 hair-all rounded text-[color:var(--color-fail-ink)] hover:bg-[color:var(--color-fail-wash)] cursor-pointer",
+                title: "Reject PR → Failed" %>
+        <% end %>
+      </span>
     <% end %>
   </div>
   <div class="mt-1.5 text-[10px] text-[color:var(--color-ink-faint)]">
