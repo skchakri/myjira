@@ -300,4 +300,83 @@ class TaskTest < ActiveSupport::TestCase
     @project.tasks.create!(title: "Wait", item_type: "task", board_state: "waiting")
     assert_equal [wip.id], @project.tasks.in_progress.pluck(:id)
   end
+
+  # --- Board watch / resume helpers ------------------------------------------
+
+  test "latest_board_launch returns the most recent pipeline launch" do
+    task = @project.tasks.create!(title: "Watch me", item_type: "task")
+    sl1 = @project.session_launches.create!(prompt: "plan", pipeline_step: "planning", task: task,
+                                            created_at: 2.minutes.ago)
+    sl2 = @project.session_launches.create!(prompt: "eng",  pipeline_step: "engineering", task: task)
+    assert_equal sl2.id, task.latest_board_launch.id
+    assert_not_equal sl1.id, task.latest_board_launch.id
+  end
+
+  test "latest_board_launch returns nil when there are no pipeline launches" do
+    task = @project.tasks.create!(title: "No pipeline", item_type: "task")
+    @project.session_launches.create!(prompt: "ad-hoc", task: task) # no pipeline_step
+    assert_nil task.latest_board_launch
+  end
+
+  test "live_terminal_url returns URL when task is in_progress and latest launch has tmux_target" do
+    task = @project.tasks.create!(title: "WIP", item_type: "task", board_state: "in_progress")
+    @project.session_launches.create!(
+      prompt: "eng", pipeline_step: "engineering", task: task,
+      status: "launched", tmux_target: "myjira:ss-abc"
+    )
+    assert_equal "http://localhost:7681/?arg=attach&arg=-t&arg=myjira%3Ass-abc",
+                 task.live_terminal_url
+  end
+
+  test "live_terminal_url returns nil when task is not in_progress" do
+    task = @project.tasks.create!(title: "Planned", item_type: "task", board_state: "planned")
+    @project.session_launches.create!(
+      prompt: "eng", pipeline_step: "engineering", task: task,
+      status: "launched", tmux_target: "myjira:ss-abc"
+    )
+    assert_nil task.live_terminal_url
+  end
+
+  test "live_terminal_url returns nil when latest launch has no tmux_target" do
+    task = @project.tasks.create!(title: "WIP no tmux", item_type: "task", board_state: "in_progress")
+    @project.session_launches.create!(prompt: "eng", pipeline_step: "engineering", task: task)
+    assert_nil task.live_terminal_url
+  end
+
+  test "resumable_session_id returns the latest board launch session_id" do
+    task = @project.tasks.create!(title: "Resume me", item_type: "task")
+    sl = @project.session_launches.create!(prompt: "eng", pipeline_step: "engineering", task: task)
+    assert_equal sl.session_id, task.resumable_session_id
+  end
+
+  test "resumable_session_id returns nil when no pipeline launches" do
+    task = @project.tasks.create!(title: "No resume", item_type: "task")
+    assert_nil task.resumable_session_id
+  end
+
+  # --- Per-session cost -------------------------------------------------------
+
+  test "session_cost_usd sums cost_usd across board pipeline conversations" do
+    task = @project.tasks.create!(title: "Cost task", item_type: "task")
+    c1 = @project.conversations.create!(session_id: SecureRandom.uuid, cost_usd: 0.0012)
+    c2 = @project.conversations.create!(session_id: SecureRandom.uuid, cost_usd: 0.0025)
+    @project.session_launches.create!(prompt: "plan", pipeline_step: "planning", task: task,
+                                      conversation: c1)
+    @project.session_launches.create!(prompt: "eng",  pipeline_step: "engineering", task: task,
+                                      conversation: c2)
+    assert_in_delta 0.0037, task.session_cost_usd.to_f, 0.0001
+  end
+
+  test "session_cost_usd excludes ad-hoc (non-pipeline) launches" do
+    task = @project.tasks.create!(title: "Ad-hoc", item_type: "task")
+    c = @project.conversations.create!(session_id: SecureRandom.uuid, cost_usd: 0.0050)
+    # Ad-hoc: no pipeline_step
+    @project.session_launches.create!(prompt: "manual", task: task, conversation: c)
+    assert_equal 0, task.session_cost_usd.to_f
+  end
+
+  test "session_cost_usd returns zero when no pipeline launches" do
+    task = @project.tasks.create!(title: "Empty cost", item_type: "task")
+    assert_equal 0, task.session_cost_usd.to_f
+  end
 end

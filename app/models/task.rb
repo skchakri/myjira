@@ -240,6 +240,35 @@ class Task < ApplicationRecord
     last_conversation || session_launches.order(created_at: :desc).filter_map(&:conversation).first
   end
 
+  # --- Board watch / resume helpers ------------------------------------------
+
+  # Most recent board pipeline launch for this item (nil for plain ad-hoc launches).
+  def latest_board_launch
+    session_launches.where.not(pipeline_step: nil).order(created_at: :desc).first
+  end
+
+  # Live ttyd URL while this item is in_progress and the latest pipeline launch
+  # has a tmux_target. Returns nil otherwise.
+  def live_terminal_url
+    lbl = latest_board_launch
+    return nil unless lbl&.tmux_target.present? && board_state == "in_progress"
+
+    lbl.live_terminal_url
+  end
+
+  # session_id of the most recent board pipeline launch — used to seed a resume
+  # launch so the host daemon can tell `claude --resume` which session to re-attach.
+  def resumable_session_id
+    latest_board_launch&.session_id
+  end
+
+  # --- Per-session cost -------------------------------------------------------
+
+  # Sum of cost_usd across all board pipeline conversations linked to this item.
+  def session_cost_usd
+    session_launches.where.not(pipeline_step: nil).filter_map { |l| l.conversation&.cost_usd }.sum
+  end
+
   def latest_test_plan
     test_plans.order(created_at: :desc).first
   end

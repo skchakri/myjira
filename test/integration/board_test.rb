@@ -318,6 +318,74 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?] input[name=return_to][value=task]", board_item_path(@project, @a)
   end
 
+  # --- continue_session -------------------------------------------------------
+
+  test "continue_session creates a resume launch and redirects with notice" do
+    prior = @project.session_launches.create!(
+      prompt: "original", pipeline_step: "engineering", task: @b
+    )
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post board_item_continue_session_path(@project, @b)
+    end
+    assert_redirected_to board_path(@project)
+    assert_match "Resuming", flash[:notice]
+
+    launch = SessionLaunch.order(:created_at).last
+    assert_equal prior.session_id, launch.resume_of_session_id
+    assert_nil launch.pipeline_step, "resume launch must not carry a pipeline_step"
+    assert_equal "resume", launch.conversation.source
+  end
+
+  test "continue_session redirects with alert when no prior pipeline launch exists" do
+    # @a has no pipeline launches
+    assert_no_difference -> { SessionLaunch.count } do
+      post board_item_continue_session_path(@project, @a)
+    end
+    assert_redirected_to board_path(@project)
+    assert_match "No prior CLI session", flash[:alert]
+  end
+
+  # --- board row shows Watch CLI / Continue links ----------------------------
+
+  test "board row shows Watch CLI link when task is in_progress with a tmux_target" do
+    @a.update!(board_state: "in_progress")
+    @project.session_launches.create!(
+      prompt: "eng", pipeline_step: "engineering", task: @a,
+      status: "launched", tmux_target: "myjira:ss-abc"
+    )
+    get board_path(@project)
+    assert_response :success
+    assert_select "li[data-id='#{@a.id}'] a[href*='arg=attach']", text: /Watch CLI/
+  end
+
+  test "board row shows Continue button when task has a prior pipeline launch but no live tmux" do
+    @project.session_launches.create!(
+      prompt: "eng", pipeline_step: "engineering", task: @a
+    )
+    get board_path(@project)
+    assert_response :success
+    assert_select "li[data-id='#{@a.id}'] form[action=?]",
+                  board_item_continue_session_path(@project, @a)
+  end
+
+  # --- board row shows cost chip --------------------------------------------
+
+  test "board row shows cost chip when session cost is non-zero" do
+    c = @project.conversations.create!(session_id: SecureRandom.uuid, cost_usd: 0.05)
+    @project.session_launches.create!(
+      prompt: "eng", pipeline_step: "engineering", task: @a, conversation: c
+    )
+    get board_path(@project)
+    assert_response :success
+    assert_select "li[data-id='#{@a.id}']", text: /\$0\.05/
+  end
+
+  test "board row omits cost chip when session cost is zero" do
+    get board_path(@project)
+    assert_response :success
+    assert_select "li[data-id='#{@a.id}'] [title='Agent session cost']", count: 0
+  end
+
   test "board row shows a processing indicator only on the in-flight pipeline item" do
     @project.session_launches.create!(
       prompt: "/board-engineer #{@b.id}",

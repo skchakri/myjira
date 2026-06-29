@@ -136,4 +136,38 @@ class SessionLaunchTest < ActiveSupport::TestCase
       launch.update!(status: "failed")
     end
   end
+
+  # --- live_terminal_url -------------------------------------------------------
+
+  test "live_terminal_url is nil when tmux_target is blank" do
+    l = launch(status: "pending")
+    assert_nil l.live_terminal_url
+  end
+
+  test "live_terminal_url builds a ttyd URL from the tmux_target" do
+    l = launch(status: "launched")
+    l.update!(tmux_target: "myjira:ss-abc")
+    expected = "http://localhost:7681/?arg=attach&arg=-t&arg=myjira%3Ass-abc"
+    assert_equal expected, l.live_terminal_url
+  end
+
+  test "live_terminal_url uses MYJIRA_TTYD_HOST and MYJIRA_TTYD_PORT env vars when set" do
+    l = launch(status: "launched")
+    l.update!(tmux_target: "myjira:ss-abc")
+    ClimateControl = Module.new unless defined?(ClimateControl)
+    with_env("MYJIRA_TTYD_HOST" => "ttyd.example.com", "MYJIRA_TTYD_PORT" => "8888") do
+      expected = "http://ttyd.example.com:8888/?arg=attach&arg=-t&arg=myjira%3Ass-abc"
+      assert_equal expected, l.live_terminal_url
+    end
+  end
+
+  private
+
+  def with_env(env_hash)
+    old = env_hash.keys.each_with_object({}) { |k, h| h[k] = ENV[k] }
+    env_hash.each { |k, v| ENV[k] = v }
+    yield
+  ensure
+    old.each { |k, v| v.nil? ? ENV.delete(k) : ENV.store(k, v) }
+  end
 end

@@ -132,6 +132,17 @@ class SessionLaunch < ApplicationRecord
     tmux_target.to_s.split(":").first.presence
   end
 
+  # URL to a ttyd instance so the user can watch (or drive) this session live
+  # in the browser. Requires MYJIRA_TTYD_HOST / MYJIRA_TTYD_PORT env vars (or
+  # defaults localhost:7681). Returns nil when there is no tmux_target yet.
+  def live_terminal_url
+    return nil if tmux_target.blank?
+
+    host = ENV.fetch("MYJIRA_TTYD_HOST", "localhost")
+    port = ENV.fetch("MYJIRA_TTYD_PORT", "7681")
+    "http://#{host}:#{port}/?arg=attach&arg=-t&arg=#{CGI.escape(tmux_target)}"
+  end
+
   private
 
   # Map a status flip onto a worklog node. "launched" stays a running step (the
