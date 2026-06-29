@@ -51,6 +51,28 @@ export default class extends Controller {
 
   onDrop = (e) => { if (this.dragged) e.preventDefault() }
 
+  // Keyboard reorder: ArrowUp/Down on a focused handle swaps the row with its
+  // sibling within the same group (intra-group only — no state change), keeps
+  // focus on the moved handle, and persists the destination group's new order.
+  // Boundaries are no-ops (no wrap, no POST).
+  handleKey = (e) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return
+    const handle = e.target.closest("[data-sortable-handle]")
+    if (!handle || !this.element.contains(handle)) return
+    const item = handle.closest("[data-sortable-item]")
+    const list = item?.closest("[data-sortable-list]")
+    if (!item || !list) return
+    e.preventDefault()
+    const up = e.key === "ArrowUp"
+    const sibling = up ? item.previousElementSibling : item.nextElementSibling
+    if (!sibling || !sibling.matches("[data-sortable-item]")) return // boundary
+    if (up) list.insertBefore(item, sibling)
+    else list.insertBefore(sibling, item)
+    handle.focus()
+    const order = Array.from(list.querySelectorAll("[data-sortable-item]")).map((el) => el.dataset.id)
+    this.persist(order, null, null)
+  }
+
   onEnd = () => {
     if (!this.dragged) return
     const moved = this.dragged

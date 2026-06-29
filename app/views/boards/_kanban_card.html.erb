@@ -2,6 +2,11 @@
 <li data-sortable-item data-id="<%= item.id %>" draggable="true"
     class="px-2.5 py-2 cursor-grab <%= processing ? 'bg-[color:var(--color-amber-wash)] hover:bg-[color:var(--color-amber-wash)]' : 'bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]' %>">
   <div class="flex items-center gap-1.5">
+    <span data-sortable-handle role="button" tabindex="0"
+          data-action="keydown->sortable#handleKey"
+          aria-label="Reorder <%= item.title %> — use Up and Down arrow keys"
+          class="text-[color:var(--color-ink-faint)] select-none rounded focus:outline-none focus:ring-2 focus:ring-[color:var(--color-amber-ink)]"
+          title="Drag or use arrow keys to reprioritise">⠿</span>
     <%= item_type_chip(item.item_type) %>
     <% if item.over_budget? %><%= over_budget_badge %><% end %>
     <% if item.pr? %>
@@ -27,7 +32,8 @@
     <% if item.last_test_run %><%= test_run_chip(item.last_test_run) %><% end %>
     <% if item.actionable? %>
       <%= button_to "▶", board_item_pick_up_path(item.project, item), method: :post,
-            class: "ml-auto text-xs px-1.5 hair-all rounded cursor-pointer", title: "Pick up" %>
+            class: "ml-auto text-xs px-1.5 hair-all rounded cursor-pointer", title: "Pick up",
+            "aria-label": "Pick up — run #{Board::Pipeline.next_step_for(item)} agent" %>
     <% elsif item.reviewable? %>
       <span class="ml-auto flex items-center gap-1">
         <% if item.resolving_conflicts? %>
