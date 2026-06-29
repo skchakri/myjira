@@ -264,7 +264,7 @@ class BoardsController < ApplicationController
 
   def autopilot_params
     params.require(:project).permit(:autopilot_enabled, :autopilot_paused, :autopilot_daily_cap,
-                                    :autopilot_review_enabled, :base_branch)
+                                    :autopilot_review_enabled, :base_branch, :autopilot_budget_cap_dollars)
   end
 
   def refresh_board!

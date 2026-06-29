@@ -176,6 +176,31 @@ module UiHelper
     WORKLOG_DOT_CLASS[status.to_s] || "dot-idle"
   end
 
+  # Compact token count for the "Run cost" block — 1.2k / 800k / 1.2M. nil → "n/a"
+  # (we never invent a 0 for usage we simply didn't capture).
+  def format_tokens(n)
+    return "n/a" if n.nil?
+    n = n.to_i
+    return n.to_s if n < 1_000
+    return "#{(n / 1_000.0).round(1)}k" if n < 1_000_000
+    "#{(n / 1_000_000.0).round(1)}M"
+  end
+
+  # Whole-cent cost → "$1.23". nil → "n/a" (unknown model / no usage), distinct
+  # from a real $0.00.
+  def format_cents(cents)
+    return "n/a" if cents.nil?
+    format("$%.2f", cents.to_i / 100.0)
+  end
+
+  # The red "over budget" badge shown on board cards/rows + the item page when a
+  # run was killed for blowing its cap. Mirrors the other pill badges + dark tokens.
+  def over_budget_badge
+    content_tag :span, "over budget",
+      class: "pill pill-fail !text-[10px] !py-0 !px-1.5",
+      title: "A run on this item exceeded its $ budget cap and was stopped"
+  end
+
   # Readable label for the handful of common cron shapes, else the raw cron.
   COMMON_CRONS = {
     "* * * * *"   => "every minute",

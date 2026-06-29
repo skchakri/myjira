@@ -3,6 +3,7 @@
     class="px-2.5 py-2 cursor-grab <%= processing ? 'bg-[color:var(--color-amber-wash)] hover:bg-[color:var(--color-amber-wash)]' : 'bg-[color:var(--color-paper-raised)] hover:bg-[color:var(--color-paper-sunk)]' %>">
   <div class="flex items-center gap-1.5">
     <%= item_type_chip(item.item_type) %>
+    <% if item.over_budget? %><%= over_budget_badge %><% end %>
     <% if item.pr? %>
       <%= link_to "##{item.pr_number}", board_item_pr_path(item.project, item),
             data: { turbo_frame: "board_modal" }, class: "ml-auto pill #{pr_pill_class(item.pr_state)}" %>

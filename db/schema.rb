@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -145,9 +145,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
   end
 
   create_table "conversations", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "board_enriched_at"
+    t.integer "board_enriched_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "cwd"
-    t.datetime "facts_extracted_at"
     t.string "git_branch"
     t.jsonb "highlights", default: [], null: false
     t.text "last_context"
@@ -211,20 +212,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
     t.datetime "updated_at", null: false
   end
 
-  create_table "knowledge_facts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
-    t.text "body", null: false
-    t.datetime "created_at", null: false
-    t.string "fingerprint", null: false
-    t.datetime "last_seen_at"
-    t.uuid "project_id", null: false
-    t.uuid "source_conversation_id"
-    t.integer "times_seen", default: 1, null: false
-    t.datetime "updated_at", null: false
-    t.index ["project_id", "fingerprint"], name: "index_knowledge_facts_on_project_id_and_fingerprint", unique: true
-    t.index ["project_id", "last_seen_at"], name: "index_knowledge_facts_on_project_id_and_last_seen_at"
-    t.index ["project_id"], name: "index_knowledge_facts_on_project_id"
-  end
-
   create_table "mcp_installs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "action", default: "add", null: false
     t.jsonb "args", default: [], null: false
@@ -284,6 +271,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
   create_table "playbooks", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "agent_id"
     t.text "body", null: false
+    t.integer "budget_cap_cents"
     t.datetime "created_at", null: false
     t.boolean "enabled", default: true, null: false
     t.text "guardrails"
@@ -299,6 +287,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "archived_at"
+    t.integer "autopilot_budget_cap_cents"
     t.integer "autopilot_daily_cap", default: 10, null: false
     t.boolean "autopilot_enabled", default: false, null: false
     t.boolean "autopilot_paused", default: false, null: false
@@ -314,7 +303,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
     t.string "default_base_url"
     t.text "description"
     t.boolean "listed", default: false, null: false
-    t.text "memory_preamble"
     t.string "name", null: false
     t.string "repo_path"
     t.string "slug", null: false
@@ -341,11 +329,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
 
   create_table "session_launches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "agent_id"
+    t.datetime "budget_alerted_at"
+    t.integer "budget_cap_cents"
+    t.bigint "cache_creation_tokens"
+    t.bigint "cache_read_tokens"
     t.uuid "conversation_id"
     t.datetime "created_at", null: false
     t.text "error"
+    t.integer "estimated_cost_cents"
+    t.integer "exit_code"
     t.datetime "launched_at"
+    t.integer "max_turns"
     t.string "model"
+    t.boolean "over_budget", default: false, null: false
+    t.datetime "over_budget_at"
     t.string "permission_mode"
     t.string "pipeline_step"
     t.uuid "project_id", null: false
@@ -355,9 +352,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
     t.string "status", default: "pending", null: false
     t.uuid "task_id"
     t.string "tmux_target"
+    t.bigint "token_input"
+    t.bigint "token_output"
     t.datetime "updated_at", null: false
     t.index ["agent_id"], name: "index_session_launches_on_agent_id"
     t.index ["conversation_id"], name: "index_session_launches_on_conversation_id"
+    t.index ["project_id", "created_at"], name: "index_session_launches_on_project_id_and_created_at"
     t.index ["project_id"], name: "index_session_launches_on_project_id"
     t.index ["session_id"], name: "index_session_launches_on_session_id", unique: true
     t.index ["status"], name: "index_session_launches_on_status"
@@ -538,7 +538,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000003) do
   add_foreign_key "follow_up_tasks", "projects"
   add_foreign_key "follow_up_tasks", "tasks"
   add_foreign_key "follow_up_tasks", "test_results"
-  add_foreign_key "knowledge_facts", "projects"
   add_foreign_key "mcp_installs", "projects"
   add_foreign_key "mcp_servers", "projects"
   add_foreign_key "playbook_runs", "playbooks"

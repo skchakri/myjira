@@ -9,7 +9,9 @@
 class SessionLaunch < ApplicationRecord
   include Worklogged
 
-  STATUSES = %w[pending launching launched failed canceled].freeze
+  # canceling = the budget enforcer flagged an over-cap run for the daemon's kill
+  # leg; the daemon `tmux kill-session`s it and PATCHes status → canceled.
+  STATUSES = %w[pending launching launched failed canceled canceling].freeze
   # "default" → omit the flag and let the CLI pick. Kept short and shell-safe;
   # the daemon re-validates before interpolating into the tmux command.
   MODELS           = %w[default opus sonnet haiku].freeze
@@ -68,8 +70,21 @@ class SessionLaunch < ApplicationRecord
   # Conversation it binds to (so it shows in the grid the instant it's queued and
   # fills in live once the daemon spawns `claude --session-id`). Single path for
   # the "＋ New session" button, agent triggers, and scheduled fires.
+  # Coarse launch-time turn backstop for pipeline launches, from MYJIRA_MAX_TURNS
+  # (0/blank → no flag). The $ cap below is the real enforcement; this just bounds
+  # how far a runaway can overshoot between cost syncs.
+  DEFAULT_BOARD_MAX_TURNS = ENV.fetch("MYJIRA_MAX_TURNS", "0").to_i
+
   def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
-                  agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil)
+                  agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil,
+                  budget_cap_cents: nil, max_turns: nil)
+    # Pipeline (board/playbook) launches inherit a per-run $ cap + turn backstop so
+    # an unattended runaway is bounded; ad-hoc "＋ New session" launches stay uncapped
+    # unless a cap is passed explicitly.
+    if pipeline_step.present?
+      budget_cap_cents ||= project.autopilot_budget_cap_cents
+      max_turns        ||= DEFAULT_BOARD_MAX_TURNS
+    end
     transaction do
       # Derive the conversation title from the RAW user prompt first, then fold
       # the project memory block (static preamble + learned facts) onto the front
@@ -83,7 +98,9 @@ class SessionLaunch < ApplicationRecord
 
       launch = project.session_launches.create!(
         prompt: spawn_prompt, model: model, permission_mode: permission_mode, agent: agent,
-        task: task, pipeline_step: pipeline_step
+        task: task, pipeline_step: pipeline_step,
+        budget_cap_cents: budget_cap_cents,
+        max_turns: (max_turns.to_i.positive? ? max_turns.to_i : nil)
       )
       convo = project.conversations.create!(
         session_id: launch.session_id,
@@ -136,6 +153,11 @@ class SessionLaunch < ApplicationRecord
     permission_mode.present? && permission_mode != "default" ? permission_mode : nil
   end
 
+  # The --max-turns value the daemon interpolates, or nil when unset (no flag).
+  def max_turns_flag
+    max_turns.to_i.positive? ? max_turns : nil
+  end
+
   # "tmux attach -t myjira" + the window — shown so the user can take the session
   # over. tmux_target is "session:window"; surface the session for the attach cmd.
   def tmux_session
@@ -168,6 +190,8 @@ class SessionLaunch < ApplicationRecord
         payload: { tmux_target: tmux_target })
     when "failed"
       emit_worklog("launch.failed", status: "failed", label: error.presence || "Launch failed")
+    when "canceling"
+      emit_worklog("launch.canceling", status: "waiting", label: "Killing session (over budget)")
     when "canceled"
       emit_worklog("launch.canceled", status: "info", label: "Canceled")
     end

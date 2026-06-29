@@ -41,6 +41,9 @@ module Api
         inserted = append_messages!(convo)
         convo.refresh_counts!
         maybe_extract_facts!(convo)
+        # Reconcile token usage + $ estimate onto the launch this session is bound to
+        # (board/playbook/＋New-session). update_columns → recompute, never accumulate.
+        reconcile_launch_cost!(convo)
         # Push the refreshed "Live now" strip to the Conversations index in real time.
         Conversation.broadcast_live_strip!
         # Fold this session into enriched board tickets (async, throttled, best-effort).
@@ -167,6 +170,30 @@ module Api
           inserted += 1
         end
         inserted
+      end
+
+      # Fold this session's token usage onto the SessionLaunch it backs (if any),
+      # plus a fresh $ estimate. Recompute (not accumulate) so a re-sync is
+      # idempotent. update_columns skips callbacks/validations — this is a pure
+      # denormalisation of already-persisted message payloads. The budget enforcer
+      # reads estimated_cost_cents off the launch on the next orchestrator tick.
+      def reconcile_launch_cost!(convo)
+        launch = SessionLaunch.find_by(conversation_id: convo.id)
+        return unless launch
+        totals = convo.token_totals
+        return unless totals
+        launch.update_columns(
+          token_input: totals[:input],
+          token_output: totals[:output],
+          cache_read_tokens: totals[:cache_read],
+          cache_creation_tokens: totals[:cache_creation],
+          estimated_cost_cents: CostEstimator.cents(
+            model: convo.model,
+            token_input: totals[:input], token_output: totals[:output],
+            cache_read: totals[:cache_read], cache_creation: totals[:cache_creation]
+          ),
+          updated_at: Time.current
+        )
       end
 
       def parse_time(raw)

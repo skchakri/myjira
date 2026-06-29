@@ -12,6 +12,7 @@
     <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)]"><%= @task.title %></h1>
     <div class="mt-2 flex items-center gap-2">
       <%= status_pill(@task.status) %>
+      <% if @task.over_budget? %><%= over_budget_badge %><% end %>
       <span class="text-xs text-[color:var(--color-ink-soft)]">priority: <%= @task.priority %></span>
       <% if @task.environment %><span class="text-xs font-mono text-[color:var(--color-ink-soft)]">env: <%= @task.environment.name %></span><% end %>
       <% if @task.labels.present? %>
@@ -158,6 +159,32 @@
   <div class="space-y-4">
     <%= card title: "Worklog" do %>
       <%= render "worklog_events/timeline", subject: @task %>
+    <% end %>
+
+    <% run = @task.session_launches.order(created_at: :desc).first %>
+    <% if run %>
+      <%= card title: "Run cost" do %>
+        <dl class="space-y-1.5">
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="text-sm text-[color:var(--color-ink-soft)]">Tokens in / out</dt>
+            <dd class="text-xs font-mono text-[color:var(--color-ink)] tabular">
+              <%= format_tokens(run.token_input) %> / <%= format_tokens(run.token_output) %>
+            </dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="text-sm text-[color:var(--color-ink-soft)]">Estimated cost</dt>
+            <dd class="text-xs font-mono <%= run.over_budget? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink)]' %> tabular">
+              <%= format_cents(run.estimated_cost_cents) %>
+            </dd>
+          </div>
+          <% if run.budget_cap_cents.present? %>
+            <div class="flex items-baseline justify-between gap-3">
+              <dt class="text-sm text-[color:var(--color-ink-soft)]">Budget cap</dt>
+              <dd class="text-xs font-mono text-[color:var(--color-ink-soft)] tabular"><%= format_cents(run.budget_cap_cents) %></dd>
+            </div>
+          <% end %>
+        </dl>
+      <% end %>
     <% end %>
 
     <%= card title: "Timeline" do %>

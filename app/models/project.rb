@@ -238,6 +238,22 @@ class Project < ApplicationRecord
                       .where.not(pipeline_step: nil).exists?
   end
 
+  # Today's total estimated API spend across this project's launches, in cents
+  # (nil costs ignored by SUM). Drives the "$ spent today" board-header figure.
+  def spend_today_cents
+    session_launches.where(created_at: Time.zone.now.all_day).sum(:estimated_cost_cents)
+  end
+
+  # The per-run budget cap as dollars, for the board-header form (blank = uncapped).
+  # Round-trips to autopilot_budget_cap_cents so the stored unit stays integer cents.
+  def autopilot_budget_cap_dollars
+    autopilot_budget_cap_cents && (autopilot_budget_cap_cents / 100.0)
+  end
+
+  def autopilot_budget_cap_dollars=(val)
+    self.autopilot_budget_cap_cents = val.blank? ? nil : (val.to_f * 100).round
+  end
+
   # Roll the daily counter forward, resetting it on a new day.
   def bump_autopilot_runs!
     today = Date.current

@@ -197,7 +197,10 @@ Rails.application.routes.draw do
 
       # Host-side launcher daemon: poll for queued launches, report status back.
       resources :session_launches, only: [:update] do
-        collection { get :pending }
+        collection do
+          get :pending
+          get :to_cancel
+        end
       end
 
       # Host-side daemon pushes the .claude agent/skill/command catalogue here.

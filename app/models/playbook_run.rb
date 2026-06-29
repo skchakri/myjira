@@ -9,6 +9,10 @@ class PlaybookRun < ApplicationRecord
   belongs_to :session_launch, optional: true
   belongs_to :agent_schedule, optional: true
 
+  # Cost/usage lives on the launch (canonical store) — read through it so the two
+  # can never drift. nil when there's no launch or no usage captured yet.
+  delegate :token_input, :token_output, :estimated_cost_cents, to: :session_launch, allow_nil: true
+
   validates :result, inclusion: { in: RESULTS }
 
   scope :recent, -> { order(created_at: :desc) }

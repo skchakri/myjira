@@ -229,6 +229,12 @@ class Task < ApplicationRecord
     plan.present?
   end
 
+  # Did any launch on this item get killed (or flagged) for blowing its budget cap?
+  # Drives the red "over budget" badge on the board + item page.
+  def over_budget?
+    session_launches.where(over_budget: true).exists?
+  end
+
   # The Tests column / "Run test cases" button only lights up once an agent has
   # actually built something (the item has been worked at least once).
   def tests_enabled?
