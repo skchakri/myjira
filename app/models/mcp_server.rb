@@ -8,12 +8,17 @@ class McpServer < ApplicationRecord
   SCOPES     = %w[user project local].freeze
   TRANSPORTS = %w[stdio sse http].freeze
   STATUSES   = %w[connected pending failed].freeze
+  # Mirror of McpInstall::REMOTE_URL_FORMAT — a synced remote server must carry a
+  # real http(s) endpoint. Applied only when a url is present so stdio rows (no
+  # url) and partially-synced rows aren't rejected.
+  REMOTE_URL_FORMAT = %r{\Ahttps?://}
 
   belongs_to :project, optional: true
 
   validates :name, presence: true
   validates :scope,     inclusion: { in: SCOPES }
   validates :transport, inclusion: { in: TRANSPORTS }
+  validates :url, format: { with: REMOTE_URL_FORMAT }, if: -> { url.present? }
 
   scope :enabled,   -> { where(enabled: true) }
   scope :for_scope, ->(s) { where(scope: s) }
