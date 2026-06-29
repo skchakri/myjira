@@ -35,7 +35,6 @@ module Api
           model: launch.model_flag,
           permission_mode: launch.permission_mode_flag,
           status: launch.status,
-          source: launch.source,
           resume_of_session_id: launch.resume_of_session_id,
           project: launch.project.slug
         }
