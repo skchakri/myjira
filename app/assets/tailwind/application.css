@@ -332,11 +332,12 @@ html[data-theme="dark"] {
   --color-skip-wash: #2A2520;
 }
 
-/* The main pane carries a faint per-project wash via an inline --page-bg.
-   In dark mode we flatten it to the dark paper so the tint never leaks a
-   light surface onto the dark canvas. */
-main { background-color: var(--page-bg, transparent); }
-html[data-theme="dark"] main { background-color: var(--color-paper); }
+/* The main pane carries a faint per-project wash: the inline --page-bg holds the
+   folder's raw accent colour, mixed ~8% into the *themed* --color-paper token so
+   the tint always sits on the current canvas (charcoal by default, warm in dark
+   mode) and never leaks a light surface onto the dark theme. Falls back to plain
+   paper when no project wash is set. */
+main { background-color: color-mix(in srgb, var(--page-bg, transparent) 8%, var(--color-paper)); }
 
 /* Conversation cards wash their folder colour over the *themed* paper token,
    so the tint is light on paper and dark on the night canvas — the

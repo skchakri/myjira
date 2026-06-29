@@ -451,13 +451,15 @@ module UiHelper
     mix_with_white(project_color(project), 0.28)
   end
 
-  # Whole-page wash of a folder's colour for project-scoped pages, mixed into
-  # the warm paper tone (not white) so it sits naturally under the raised cards.
+  # The folder's raw accent colour, exposed to the main pane as an inline
+  # --page-bg. The CSS mixes it (faintly) into the *themed* --color-paper token,
+  # so the per-project wash tints whatever the current canvas is instead of
+  # baking in a fixed light tone. Previously this pre-mixed the colour into a
+  # light cream (PAPER_HEX), which leaked a light panel onto Kronos's dark
+  # charcoal canvas in every theme except the dark-mode special case.
   # Views opt in via `content_for :page_bg, project_page_bg(@project)`.
-  PAPER_HEX = "#F7F4ED".freeze
-
   def project_page_bg(project)
-    mix_hex(project_color(project), PAPER_HEX, 0.08)
+    project_color(project)
   end
 
   # Mix a #RRGGBB hex toward white by `ratio` (0 = white, 1 = the colour).
