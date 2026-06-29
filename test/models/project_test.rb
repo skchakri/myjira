@@ -78,4 +78,32 @@ class ProjectTest < ActiveSupport::TestCase
     p.tasks.create!(title: "Wait", item_type: "task", board_state: "waiting")
     assert_not p.board_busy?
   end
+
+  # --- memory_block ----------------------------------------------------------
+  test "memory_block is nil when there is no preamble and no facts" do
+    p = Project.create!(name: "Empty", slug: "empty-mem", repo_path: "/tmp/empty-mem")
+    assert_nil p.memory_block
+  end
+
+  test "memory_block includes the preamble and the learned facts" do
+    p = Project.create!(name: "Mem", slug: "mem-block", repo_path: "/tmp/mem-block",
+                        memory_preamble: "Lint with bin/rubocop.")
+    KnowledgeFact.record!(project: p, body: "tests in test/ with Minitest")
+    block = p.memory_block
+    assert_includes block, "Project memory — Mem"
+    assert_includes block, "Lint with bin/rubocop."
+    assert_includes block, "- tests in test/ with Minitest"
+  end
+
+  test "memory_block caps facts at MEMORY_FACT_LIMIT, most recent first" do
+    p = Project.create!(name: "Cap", slug: "cap-mem", repo_path: "/tmp/cap-mem")
+    base = Time.current
+    (Project::MEMORY_FACT_LIMIT + 3).times do |i|
+      KnowledgeFact.record!(project: p, body: "fact #{i}")
+      p.knowledge_facts.find_by(fingerprint: KnowledgeFact.fingerprint("fact #{i}"))
+       .update_column(:last_seen_at, base + i.seconds)
+    end
+    lines = p.memory_block.scan(/^- /).length
+    assert_equal Project::MEMORY_FACT_LIMIT, lines
+  end
 end

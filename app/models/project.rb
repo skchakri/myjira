@@ -11,6 +11,7 @@ class Project < ApplicationRecord
   has_many :playbooks, dependent: :destroy
   has_many :mcp_servers, dependent: :destroy
   has_many :mcp_installs, dependent: :destroy
+  has_many :knowledge_facts, dependent: :destroy
 
   # Workspace grouping. pyr = per-client iCentris/pyr checkouts; skchakri =
   # personal apps; icentris = the iCentris platform; mobile = Ionic/Capacitor
@@ -123,6 +124,29 @@ class Project < ApplicationRecord
       open_follow_ups: follow_up_tasks.where(status: %w[open in_progress]).count,
       conversations: conversations.count
     }
+  end
+
+  # --- Project memory --------------------------------------------------------
+
+  # How many learned facts ride along in a launch's prompt (the static preamble
+  # is always included in full; facts are the most-recently-seen slice).
+  MEMORY_FACT_LIMIT = 12
+
+  # The combined "project memory" prepended into every agent launch: the
+  # hand-written static preamble plus the top learned facts, as a labelled
+  # bullet list. nil when there's nothing to inject (so launches with no memory
+  # behave exactly as before — see SessionLaunch.queue!).
+  def memory_block
+    facts = knowledge_facts.current.limit(MEMORY_FACT_LIMIT).pluck(:body)
+    return nil if memory_preamble.blank? && facts.empty?
+
+    parts = ["# Project memory — #{name}"]
+    parts << memory_preamble.strip if memory_preamble.present?
+    if facts.any?
+      parts << "Learned facts about this codebase:"
+      parts << facts.map { |b| "- #{b}" }.join("\n")
+    end
+    parts.join("\n\n")
   end
 
   # --- Project Board / Autopilot ---------------------------------------------
