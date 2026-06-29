@@ -60,7 +60,7 @@ module Board
         project: project,
         prompt: "/#{command} #{task.id} #{project.slug} #{base_url} #{project.base_branch_or_default}",
         model: model,
-        permission_mode: "bypassPermissions",
+        permission_mode: "auto",
         title: "#{step}: #{task.title}".truncate(80),
         source: "board",
         task: task,

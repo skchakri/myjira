@@ -15,7 +15,7 @@ class SessionLaunch < ApplicationRecord
   # "default" → omit the flag and let the CLI pick. Kept short and shell-safe;
   # the daemon re-validates before interpolating into the tmux command.
   MODELS           = %w[default opus sonnet haiku].freeze
-  PERMISSION_MODES = %w[default acceptEdits plan bypassPermissions].freeze
+  PERMISSION_MODES = %w[default acceptEdits plan bypassPermissions auto].freeze
   # Which board pipeline step this launch is (nil for plain "＋ New session"s).
   # triage = the lightweight "you dumped context, I'll assign title/type/priority" pass.
   PIPELINE_STEPS   = %w[triage review planning engineering debugger answer resolve_conflicts].freeze

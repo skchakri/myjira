@@ -195,6 +195,13 @@ Rails.application.routes.draw do
       get   "sessions/:session_id/commands",     to: "session_commands#index"
       patch "sessions/:session_id/commands/:id", to: "session_commands#update"
 
+      # Claude Code HTTP hook receiver — Stop/SubagentStop/PostToolUse payloads
+      # from daemon-launched board sessions arrive here in real time.
+      post "agent_events", to: "agent_events#create"
+
+      # Slim task lookup for the myjira_block_guard.py PreToolUse hook.
+      get "sessions/:session_id/task", to: "session_tasks#show"
+
       # Host-side launcher daemon: poll for queued launches, report status back.
       resources :session_launches, only: [:update] do
         collection do
