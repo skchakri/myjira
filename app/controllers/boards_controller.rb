@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -79,6 +79,31 @@ class BoardsController < ApplicationController
       redirect_to board_path(@project), notice: "Queued #{launch.pipeline_step} agent for “#{@task.title}”."
     else
       redirect_to board_path(@project), alert: "Nothing to do for this item (state: #{@task.board_state})."
+    end
+  end
+
+  # Mid-run steering: inject a one-line correction typed on an in_progress board
+  # row into the live CLI session, routed through the *existing* SessionCommand
+  # inbox (the same channel the Conversations view + myjira-listen long-poll use).
+  # No-op when there's no live session bound or the body is blank — so a stale row
+  # racing a finished session can't queue a dangling command.
+  def steer
+    convo = @task.last_conversation
+    body  = params[:body].to_s.strip
+
+    queued = false
+    if convo.present? && body.present?
+      convo.session_commands.create(body: body, source: "board")
+      queued = true
+    end
+
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.update("steer_status_#{@task.id}",
+          partial: "boards/steer_status",
+          locals: { item: @task, queued: queued, no_session: convo.blank? }), status: :ok
+      end
+      format.html { redirect_to board_path(@project) }
     end
   end
 
