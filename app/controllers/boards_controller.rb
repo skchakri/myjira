@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr]
+  before_action :set_task, only: [:update_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -202,6 +202,33 @@ class BoardsController < ApplicationController
 
   def pr
     render partial: "boards/pr_modal", locals: { project: @project, task: @task }
+  end
+
+  # Apply the instant-triage suggestion chips to the task's actual fields.
+  def apply_triage_suggestion
+    suggestion = @task.triage_suggestion
+    if suggestion.blank?
+      redirect_back fallback_location: board_path(@project), alert: "No triage suggestion available."
+      return
+    end
+    attrs = {}
+    attrs[:agent_role] = suggestion["agent_role"] if suggestion["agent_role"].present? && @task.agent_role == "unassigned"
+    attrs[:priority]   = suggestion["priority"]   if suggestion["priority"].present?
+    if suggestion["labels"].present?
+      existing = Array(@task.labels)
+      attrs[:labels] = (existing + Array(suggestion["labels"])).uniq.first(5)
+    end
+    attrs[:triage_suggestion] = nil
+    @task.update!(attrs)
+    refresh_board!
+    redirect_back fallback_location: board_path(@project), notice: "Triage suggestion applied."
+  end
+
+  # Dismiss the instant-triage suggestion without applying it.
+  def dismiss_triage_suggestion
+    @task.update!(triage_suggestion: nil)
+    refresh_board!
+    head :no_content
   end
 
   # Manually advance this project's pipeline by one step now (without waiting for

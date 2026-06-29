@@ -101,6 +101,10 @@ class Task < ApplicationRecord
       .order(Arel.sql("finished_at DESC NULLS LAST, updated_at DESC"))
   }
 
+  # Fire a cheap Haiku triage call for new items so suggestion chips appear within
+  # seconds — no manual autopilot session needed for the initial classification.
+  after_create_commit -> { InstantTriageJob.perform_later(id) }, if: -> { board_state == "pending" }
+
   # Refresh the board whenever the lifecycle moves OR the auto-enrichment rewrites
   # the description / implementation_notes, so a ticket updates live as the
   # BoardTicketFromSessionJob lands its segmented asks + enrichment.
@@ -371,7 +375,8 @@ class Task < ApplicationRecord
   def board_display_changed?
     saved_change_to_board_state? ||
       saved_change_to_description? ||
-      saved_change_to_implementation_notes?
+      saved_change_to_implementation_notes? ||
+      saved_change_to_triage_suggestion?
   end
 
   def broadcast_board

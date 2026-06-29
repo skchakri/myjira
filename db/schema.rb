@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_000012) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -306,6 +306,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000012) do
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.datetime "archived_at"
+    t.boolean "auto_triage_enabled", default: false, null: false
     t.integer "autopilot_budget_cap_cents"
     t.integer "autopilot_daily_cap", default: 10, null: false
     t.boolean "autopilot_enabled", default: false, null: false
@@ -439,6 +440,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_000012) do
     t.string "source", default: "claude-cli"
     t.string "status", default: "open", null: false
     t.string "title", null: false
+    t.jsonb "triage_suggestion"
     t.datetime "updated_at", null: false
     t.index ["environment_id"], name: "index_tasks_on_environment_id"
     t.index ["external_ref"], name: "index_tasks_on_external_ref"
