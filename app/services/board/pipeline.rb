@@ -52,16 +52,22 @@ module Board
       project = task.project
       return nil if project.repo_path.blank?
       command = COMMANDS.fetch(step)
+      # Cost-aware auto-routing: replace the static "default" slot with a concrete
+      # tier scored from the item's existing fields. Defensive fallback to "default"
+      # so a blank pick can never break a launch.
+      model = Board::ModelRouter.pick(task: task, step: step).presence || "default"
       launch = SessionLaunch.queue!(
         project: project,
         prompt: "/#{command} #{task.id} #{project.slug} #{base_url} #{project.base_branch_or_default}",
-        model: "default",
+        model: model,
         permission_mode: "bypassPermissions",
         title: "#{step}: #{task.title}".truncate(80),
         source: "board",
         task: task,
         pipeline_step: step
       )
+      launch.emit_worklog("model.routed", status: "info",
+        label: "Auto-routed model → #{model}", payload: { step: step, model: model })
       # Flip to in_progress the instant the session is queued. This closes the gap
       # where a launched-but-not-yet-started item (the agent hasn't PATCHed back
       # yet) looked idle and let the next orchestrator tick double-launch the same
