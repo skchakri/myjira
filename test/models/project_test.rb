@@ -78,4 +78,69 @@ class ProjectTest < ActiveSupport::TestCase
     p.tasks.create!(title: "Wait", item_type: "task", board_state: "waiting")
     assert_not p.board_busy?
   end
+
+  test "board_busy? is true while a launched board session is live even with no in_progress item" do
+    p = Project.create!(name: "P", slug: "p-#{SecureRandom.hex(3)}", repo_path: "/tmp/p")
+    convo = p.conversations.create!(session_id: "s-#{SecureRandom.hex(4)}", last_message_at: Time.current)
+    # A project-level review session owns no task and never flips anything to
+    # in_progress — the exact case the old guard missed and double-launched.
+    p.session_launches.create!(prompt: "/board-review", status: "launched",
+                               session_id: SecureRandom.uuid, repo_path: "/tmp/p",
+                               conversation: convo, pipeline_step: "review", launched_at: Time.current)
+    assert_not p.tasks.in_progress.exists?, "no in_progress item"
+    assert p.board_busy?, "a live launched board session keeps the project busy"
+  end
+
+  test "board_busy? frees once a launched session falls outside the busy window" do
+    p = Project.create!(name: "P", slug: "p-#{SecureRandom.hex(3)}", repo_path: "/tmp/p")
+    stale = Project::BOARD_LAUNCH_BUSY_WINDOW.ago - 1.minute
+    convo = p.conversations.create!(session_id: "s-#{SecureRandom.hex(4)}", last_message_at: stale)
+    p.session_launches.create!(prompt: "/board-review", status: "launched",
+                               session_id: SecureRandom.uuid, repo_path: "/tmp/p",
+                               conversation: convo, pipeline_step: "review", launched_at: stale)
+    assert_not p.board_busy?, "a long-silent launched session self-heals and no longer wedges the board"
+  end
+
+  test "open_board_duplicate matches an exact restatement of an open item and ignores done items" do
+    p = Project.create!(name: "P", slug: "p-#{SecureRandom.hex(3)}", repo_path: "/tmp/p")
+    p.tasks.create!(title: "Investigate autopilot running three board items at once",
+                    item_type: "issue", board_state: "pending")
+    dup = p.open_board_duplicate("investigate  autopilot running  THREE board-items at once!!")
+    assert_not_nil dup, "punctuation/case/spacing differences still match"
+
+    assert_nil p.open_board_duplicate("Add server-side dedup for board items"), "a genuinely new title is not a dup"
+    assert_nil p.open_board_duplicate("   "), "a blank title never matches"
+
+    p.tasks.update_all(board_state: "done")
+    assert_nil p.open_board_duplicate("Investigate autopilot running three board items at once"),
+               "a done item does not block re-filing"
+  end
+
+  # --- memory_block ----------------------------------------------------------
+  test "memory_block is nil when there is no preamble and no facts" do
+    p = Project.create!(name: "Empty", slug: "empty-mem", repo_path: "/tmp/empty-mem")
+    assert_nil p.memory_block
+  end
+
+  test "memory_block includes the preamble and the learned facts" do
+    p = Project.create!(name: "Mem", slug: "mem-block", repo_path: "/tmp/mem-block",
+                        memory_preamble: "Lint with bin/rubocop.")
+    KnowledgeFact.record!(project: p, body: "tests in test/ with Minitest")
+    block = p.memory_block
+    assert_includes block, "Project memory — Mem"
+    assert_includes block, "Lint with bin/rubocop."
+    assert_includes block, "- tests in test/ with Minitest"
+  end
+
+  test "memory_block caps facts at MEMORY_FACT_LIMIT, most recent first" do
+    p = Project.create!(name: "Cap", slug: "cap-mem", repo_path: "/tmp/cap-mem")
+    base = Time.current
+    (Project::MEMORY_FACT_LIMIT + 3).times do |i|
+      KnowledgeFact.record!(project: p, body: "fact #{i}")
+      p.knowledge_facts.find_by(fingerprint: KnowledgeFact.fingerprint("fact #{i}"))
+       .update_column(:last_seen_at, base + i.seconds)
+    end
+    lines = p.memory_block.scan(/^- /).length
+    assert_equal Project::MEMORY_FACT_LIMIT, lines
+  end
 end

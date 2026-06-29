@@ -143,6 +143,22 @@ class Task < ApplicationRecord
     board_state == "done"
   end
 
+  # --- De-duplication --------------------------------------------------------
+  # Board items are created by several uncoordinated producers (the daily review
+  # agent, the self-improve cycle, captured CLI sessions, the web composer) with
+  # no shared identity key, so they pile up as near-identical "pending" rows. We
+  # collapse the worst case — an exact restatement of a still-open item — by
+  # normalising the title to a fingerprint and matching against the project's
+  # open board items. Reworded variants are left to the review agent's judgment;
+  # this guard kills the literal-repeat flood that no human ever intends.
+  def self.dedup_fingerprint(title)
+    title.to_s.downcase.gsub(/[^a-z0-9]+/, " ").squish
+  end
+
+  def dedup_fingerprint
+    self.class.dedup_fingerprint(title)
+  end
+
   # A shipped item with a published "What's New" blurb appears in the changelog.
   def changelog_entry?
     done? && changelog_summary.present?
@@ -231,6 +247,12 @@ class Task < ApplicationRecord
 
   def has_plan?
     plan.present?
+  end
+
+  # Did any launch on this item get killed (or flagged) for blowing its budget cap?
+  # Drives the red "over budget" badge on the board + item page.
+  def over_budget?
+    session_launches.where(over_budget: true).exists?
   end
 
   # The Tests column / "Run test cases" button only lights up once an agent has

@@ -52,16 +52,22 @@ module Board
       project = task.project
       return nil if project.repo_path.blank?
       command = COMMANDS.fetch(step)
+      # Cost-aware auto-routing: replace the static "default" slot with a concrete
+      # tier scored from the item's existing fields. Defensive fallback to "default"
+      # so a blank pick can never break a launch.
+      model = Board::ModelRouter.pick(task: task, step: step).presence || "default"
       launch = SessionLaunch.queue!(
         project: project,
         prompt: "/#{command} #{task.id} #{project.slug} #{base_url} #{project.base_branch_or_default}",
-        model: "default",
-        permission_mode: "bypassPermissions",
+        model: model,
+        permission_mode: "auto",
         title: "#{step}: #{task.title}".truncate(80),
         source: "board",
         task: task,
         pipeline_step: step
       )
+      launch.emit_worklog("model.routed", status: "info",
+        label: "Auto-routed model → #{model}", payload: { step: step, model: model })
       # Flip to in_progress the instant the session is queued. This closes the gap
       # where a launched-but-not-yet-started item (the agent hasn't PATCHed back
       # yet) looked idle and let the next orchestrator tick double-launch the same
@@ -69,6 +75,10 @@ module Board
       # Project#board_busy? and the daemon session reaper.
       task.update!(board_state: "in_progress", picked_up_at: Time.current)
       Rails.logger.info("[board] launched #{step} for task #{task.id} (#{project.slug})")
+      # The in_progress flip already morphs the board via Task#broadcast_board, but
+      # broadcast explicitly too so the live "processing now" indicator never depends
+      # on that side effect (and stays correct if the flip is ever moved/removed).
+      broadcast_board(project)
       launch
     end
 
@@ -91,6 +101,7 @@ module Board
         pipeline_step: "resolve_conflicts"
       )
       Rails.logger.info("[board] launched resolve_conflicts for task #{task.id} (#{project.slug}) by #{initiated_by}")
+      broadcast_board(project)
       launch
     end
 
@@ -112,13 +123,14 @@ module Board
         pipeline_step: "triage"
       )
       Rails.logger.info("[board] launched triage for task #{task.id} (#{project.slug}) by #{initiated_by}")
+      broadcast_board(project)
       launch
     end
 
     # Queue the morning review for a project (used by pick-up-all / schedules).
     def launch_review!(project, initiated_by: "system")
       return nil if project.repo_path.blank?
-      SessionLaunch.queue!(
+      launch = SessionLaunch.queue!(
         project: project,
         prompt: "/board-review #{project.slug} #{base_url}",
         model: "default",
@@ -127,6 +139,17 @@ module Board
         source: "board",
         pipeline_step: "review"
       )
+      broadcast_board(project)
+      launch
+    end
+
+    # Morph an already-open board the instant a launch is queued, so the per-item
+    # "processing now" indicator (boards/_item, _kanban_card) and the header pill
+    # appear live regardless of who queued the step. Autopilot's daemon path and the
+    # triage/resolve/review paths otherwise queue launches without any board_state
+    # change, so nothing would broadcast. Mirrors Task#broadcast_board's stream.
+    def broadcast_board(project)
+      Turbo::StreamsChannel.broadcast_refresh_to([project, :board])
     end
   end
 end

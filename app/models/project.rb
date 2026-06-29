@@ -11,6 +11,7 @@ class Project < ApplicationRecord
   has_many :playbooks, dependent: :destroy
   has_many :mcp_servers, dependent: :destroy
   has_many :mcp_installs, dependent: :destroy
+  has_many :knowledge_facts, dependent: :destroy
 
   # Workspace grouping. pyr = per-client iCentris/pyr checkouts; skchakri =
   # personal apps; icentris = the iCentris platform; mobile = Ionic/Capacitor
@@ -125,6 +126,29 @@ class Project < ApplicationRecord
     }
   end
 
+  # --- Project memory --------------------------------------------------------
+
+  # How many learned facts ride along in a launch's prompt (the static preamble
+  # is always included in full; facts are the most-recently-seen slice).
+  MEMORY_FACT_LIMIT = 12
+
+  # The combined "project memory" prepended into every agent launch: the
+  # hand-written static preamble plus the top learned facts, as a labelled
+  # bullet list. nil when there's nothing to inject (so launches with no memory
+  # behave exactly as before — see SessionLaunch.queue!).
+  def memory_block
+    facts = knowledge_facts.current.limit(MEMORY_FACT_LIMIT).pluck(:body)
+    return nil if memory_preamble.blank? && facts.empty?
+
+    parts = ["# Project memory — #{name}"]
+    parts << memory_preamble.strip if memory_preamble.present?
+    if facts.any?
+      parts << "Learned facts about this codebase:"
+      parts << facts.map { |b| "- #{b}" }.join("\n")
+    end
+    parts.join("\n\n")
+  end
+
   # --- Project Board / Autopilot ---------------------------------------------
 
   # A board launch is considered in flight while it is queued/launching, or while
@@ -200,18 +224,47 @@ class Project < ApplicationRecord
     current_board_launch.present?
   end
 
-  # State-based one-item-at-a-time guard: the autopilot picks the next item only
-  # when this is false. A dead session's item is returned to the queue by the
-  # daemon's session-sync leg (Board::SessionSync), so this can't wedge.
+  # One-item-at-a-time guard: the autopilot picks the next item only when this is
+  # false. A dead session's item is returned to the queue by the daemon's
+  # session-sync leg (Board::SessionSync) and the launched window self-heals after
+  # BOARD_LAUNCH_BUSY_WINDOW of silence, so this can't wedge.
   #
-  # Two conditions make the project busy:
-  #   1. An in_progress task: the agent claimed the item and is actively working.
-  #   2. A pending/launching board session: the daemon hasn't spawned the agent
-  #      yet (gap between queue! and the agent calling the API to set in_progress).
+  # The project is busy while EITHER:
+  #   1. An in_progress task exists — the agent claimed an item and is working it.
+  #   2. Any board session is still live — pending/launching (queued, not yet
+  #      spawned) OR launched and recently active (delegated to current_board_launch,
+  #      which also bounds it to the busy window). This second leg is what stops a
+  #      launched-but-not-in_progress session — most importantly the project-level
+  #      review session, which owns no task — from looking idle and letting the next
+  #      tick double-launch. Previously board_busy? ignored launched sessions, so
+  #      review + a build step (and successive ticks) could run concurrently.
   def board_busy?
-    tasks.in_progress.exists? ||
-      session_launches.where(status: %w[pending launching])
-                      .where.not(pipeline_step: nil).exists?
+    tasks.in_progress.exists? || inflight_board_launch?
+  end
+
+  # The open (not-done) board item that is an exact, fingerprint-equal restatement
+  # of `title`, or nil. Lets the task-create API collapse duplicate board items at
+  # the boundary instead of appending yet another near-identical pending row.
+  def open_board_duplicate(title)
+    fp = Task.dedup_fingerprint(title)
+    return nil if fp.blank?
+    tasks.on_board.find { |t| t.dedup_fingerprint == fp }
+  end
+
+  # Today's total estimated API spend across this project's launches, in cents
+  # (nil costs ignored by SUM). Drives the "$ spent today" board-header figure.
+  def spend_today_cents
+    session_launches.where(created_at: Time.zone.now.all_day).sum(:estimated_cost_cents)
+  end
+
+  # The per-run budget cap as dollars, for the board-header form (blank = uncapped).
+  # Round-trips to autopilot_budget_cap_cents so the stored unit stays integer cents.
+  def autopilot_budget_cap_dollars
+    autopilot_budget_cap_cents && (autopilot_budget_cap_cents / 100.0)
+  end
+
+  def autopilot_budget_cap_dollars=(val)
+    self.autopilot_budget_cap_cents = val.blank? ? nil : (val.to_f * 100).round
   end
 
   # Roll the daily counter forward, resetting it on a new day.

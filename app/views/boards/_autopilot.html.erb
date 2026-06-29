@@ -16,6 +16,13 @@
             data: { action: "change->auto-submit#submit" },
             class: "w-16 hair-all rounded px-1.5 py-0.5 bg-transparent text-[color:var(--color-ink)]" %>
     </label>
+    <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-faint)]" title="Hard $ cap per autopilot run — a session is killed when its estimated cost exceeds this. Blank = uncapped.">
+      <span>$/run</span>
+      <%= f.number_field :autopilot_budget_cap_dollars, value: project.autopilot_budget_cap_dollars,
+            step: 0.5, min: 0, placeholder: "∞",
+            data: { action: "change->auto-submit#submit" },
+            class: "w-16 hair-all rounded px-1.5 py-0.5 bg-transparent text-[color:var(--color-ink)] tabular" %>
+    </label>
     <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-soft)]" title="Run the daily review agent that auto-creates backlog items">
       <%= f.check_box :autopilot_review_enabled, checked: project.autopilot_review_enabled?, data: { action: "change->auto-submit#submit" } %>
       <span>Review agent</span>
@@ -30,6 +37,10 @@
 
   <div class="text-xs text-[color:var(--color-ink-faint)] font-mono tabular">
     <%= project.autopilot_runs_today %>/<%= project.autopilot_daily_cap %> runs today
+  </div>
+
+  <div class="text-xs text-[color:var(--color-ink-faint)] font-mono tabular" title="Estimated API spend across this project's launches today">
+    <%= format_cents(project.spend_today_cents) %> spent today
   </div>
 
   <% if project.inflight_board_launch? %>

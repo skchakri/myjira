@@ -1,0 +1,9 @@
+<%# Transient confirmation for a mid-run steer. Empty by default (initial render); %>
+<%# the #steer action streams this back with queued/no_session set. %>
+<span id="steer_status_<%= item.id %>" class="text-[11px] text-[color:var(--color-ink-faint)] shrink-0">
+  <% if local_assigns[:queued] %>
+    <span class="text-[color:var(--color-pass-ink)]">Queued — steering the live session ✓</span>
+  <% elsif local_assigns[:no_session] %>
+    <span class="text-[color:var(--color-ink-faint)]">No live session to steer.</span>
+  <% end %>
+</span>

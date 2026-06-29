@@ -75,6 +75,7 @@ Rails.application.routes.draw do
     post  "board/items",               to: "boards#create_item", as: :board_items
     patch "board/items/:id",           to: "boards#update_item", as: :board_item
     post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
+    post  "board/items/:id/steer",     to: "boards#steer",       as: :board_item_steer
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge
     post  "board/items/:id/reject",    to: "boards#reject_pr",   as: :board_item_reject
@@ -196,9 +197,19 @@ Rails.application.routes.draw do
       get   "sessions/:session_id/commands",     to: "session_commands#index"
       patch "sessions/:session_id/commands/:id", to: "session_commands#update"
 
+      # Claude Code HTTP hook receiver — Stop/SubagentStop/PostToolUse payloads
+      # from daemon-launched board sessions arrive here in real time.
+      post "agent_events", to: "agent_events#create"
+
+      # Slim task lookup for the myjira_block_guard.py PreToolUse hook.
+      get "sessions/:session_id/task", to: "session_tasks#show"
+
       # Host-side launcher daemon: poll for queued launches, report status back.
       resources :session_launches, only: [:update] do
-        collection { get :pending }
+        collection do
+          get :pending
+          get :to_cancel
+        end
       end
 
       # Host-side daemon pushes the .claude agent/skill/command catalogue here.

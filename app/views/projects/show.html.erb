@@ -119,6 +119,29 @@
       <div class="mt-3"><%= link_to "+ Environment", new_project_environment_path(@project), class: "text-xs text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %></div>
     <% end %>
 
+    <%= card title: "Project memory", actions: link_to("Edit", edit_project_path(@project), class: "hover:text-[color:var(--color-ink)]") do %>
+      <% facts = @project.knowledge_facts.current.limit(Project::MEMORY_FACT_LIMIT) %>
+      <% if @project.memory_preamble.blank? && facts.empty? %>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No memory yet. Add a static preamble in <%= link_to "Edit", edit_project_path(@project), class: "underline hover:text-[color:var(--color-ink)]" %> — it's prepended into every agent launch. Learned facts accumulate here automatically as CLI sessions run.</p>
+      <% else %>
+        <% if @project.memory_preamble.present? %>
+          <div class="text-xs uppercase tracking-wide text-[color:var(--color-ink-soft)] mb-1">Preamble</div>
+          <p class="text-sm text-[color:var(--color-ink)] whitespace-pre-wrap mb-3"><%= @project.memory_preamble %></p>
+        <% end %>
+        <% if facts.any? %>
+          <div class="text-xs uppercase tracking-wide text-[color:var(--color-ink-soft)] mb-1">Learned facts</div>
+          <ul class="space-y-1.5">
+            <% facts.each do |fact| %>
+              <li class="text-sm text-[color:var(--color-ink)]">
+                <%= fact.body %>
+                <span class="text-xs text-[color:var(--color-ink-faint)]">· seen ×<%= fact.times_seen %> · <%= ago(fact.last_seen_at || fact.created_at) %></span>
+              </li>
+            <% end %>
+          </ul>
+        <% end %>
+      <% end %>
+    <% end %>
+
     <%= card title: "Claude CLI conversations", actions: link_to("View all →", project_conversations_path(@project), class: "hover:text-[color:var(--color-ink)]") do %>
       <% recent_convos = @project.conversations.recent.limit(6) %>
       <% if recent_convos.empty? %>

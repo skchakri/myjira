@@ -40,6 +40,10 @@ module Api
         convo   = upsert_conversation!(project)
         inserted = append_messages!(convo)
         convo.refresh_counts!
+        maybe_extract_facts!(convo)
+        # Reconcile token usage + $ estimate onto the launch this session is bound to
+        # (board/playbook/＋New-session). update_columns → recompute, never accumulate.
+        reconcile_launch_cost!(convo)
         # Push the refreshed "Live now" strip to the Conversations index in real time.
         Conversation.broadcast_live_strip!
         # Fold this session into enriched board tickets (async, throttled, best-effort).
@@ -60,6 +64,26 @@ module Api
       end
 
       private
+
+      # Conversations need a few turns before they've revealed anything durable.
+      FACT_EXTRACTION_MIN_MESSAGES = 4
+      # The Stop hook syncs after every turn; only re-mine a settled session at
+      # most once per window so we don't spawn `claude` on each idempotent sync.
+      FACT_EXTRACTION_DEBOUNCE = 10.minutes
+
+      # Enqueue project-fact extraction for a settled conversation, debounced.
+      # Gated to real client projects (skips the throwaway per-cwd capture
+      # projects), a non-trivial transcript, and not-extracted-recently. The job
+      # stamps facts_extracted_at so repeated syncs collapse into ~one extraction
+      # per settled session.
+      def maybe_extract_facts!(convo)
+        return if convo.message_count.to_i < FACT_EXTRACTION_MIN_MESSAGES
+        last = convo.facts_extracted_at
+        return if last.present? && last > FACT_EXTRACTION_DEBOUNCE.ago
+        return unless Project.clients.exists?(id: convo.project_id)
+
+        ExtractProjectFactsJob.perform_later(convo.id)
+      end
 
       def upsert_project!
         pp = params.require(:project)
@@ -146,6 +170,30 @@ module Api
           inserted += 1
         end
         inserted
+      end
+
+      # Fold this session's token usage onto the SessionLaunch it backs (if any),
+      # plus a fresh $ estimate. Recompute (not accumulate) so a re-sync is
+      # idempotent. update_columns skips callbacks/validations — this is a pure
+      # denormalisation of already-persisted message payloads. The budget enforcer
+      # reads estimated_cost_cents off the launch on the next orchestrator tick.
+      def reconcile_launch_cost!(convo)
+        launch = SessionLaunch.find_by(conversation_id: convo.id)
+        return unless launch
+        totals = convo.token_totals
+        return unless totals
+        launch.update_columns(
+          token_input: totals[:input],
+          token_output: totals[:output],
+          cache_read_tokens: totals[:cache_read],
+          cache_creation_tokens: totals[:cache_creation],
+          estimated_cost_cents: CostEstimator.cents(
+            model: convo.model,
+            token_input: totals[:input], token_output: totals[:output],
+            cache_read: totals[:cache_read], cache_creation: totals[:cache_creation]
+          ),
+          updated_at: Time.current
+        )
       end
 
       def parse_time(raw)

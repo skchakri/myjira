@@ -12,6 +12,13 @@ module Api
       end
 
       def create
+        # Dedup at the boundary: if an open board item is an exact restatement of
+        # this title, return it (idempotently) instead of creating a near-identical
+        # pending row. This is what stops the uncoordinated producers (review agent,
+        # self-improve, captured sessions) from flooding the pending column.
+        if (dup = @project.open_board_duplicate(task_params[:title]))
+          return render json: serialize(dup, detailed: true).merge(deduped: true, next_steps: next_steps_for(dup))
+        end
         task = @project.tasks.new(task_params)
         resolve_environment(task)
         task.save!

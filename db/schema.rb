@@ -151,6 +151,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
     t.decimal "cost_usd", precision: 10, scale: 4, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.string "cwd"
+    t.datetime "facts_extracted_at"
     t.string "git_branch"
     t.jsonb "highlights", default: [], null: false
     t.bigint "input_tokens", default: 0, null: false
@@ -214,6 +215,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
     t.string "email"
     t.string "site_url"
     t.datetime "updated_at", null: false
+  end
+
+  create_table "knowledge_facts", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.text "body", null: false
+    t.datetime "created_at", null: false
+    t.string "fingerprint", null: false
+    t.datetime "last_seen_at"
+    t.uuid "project_id", null: false
+    t.uuid "source_conversation_id"
+    t.integer "times_seen", default: 1, null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id", "fingerprint"], name: "index_knowledge_facts_on_project_id_and_fingerprint", unique: true
+    t.index ["project_id", "last_seen_at"], name: "index_knowledge_facts_on_project_id_and_last_seen_at"
+    t.index ["project_id"], name: "index_knowledge_facts_on_project_id"
   end
 
   create_table "mcp_installs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -308,6 +323,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
     t.string "default_base_url"
     t.text "description"
     t.boolean "listed", default: false, null: false
+    t.text "memory_preamble"
     t.string "name", null: false
     t.string "repo_path"
     t.string "slug", null: false
@@ -545,6 +561,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
   add_foreign_key "follow_up_tasks", "projects"
   add_foreign_key "follow_up_tasks", "tasks"
   add_foreign_key "follow_up_tasks", "test_results"
+  add_foreign_key "knowledge_facts", "projects"
   add_foreign_key "mcp_installs", "projects"
   add_foreign_key "mcp_servers", "projects"
   add_foreign_key "playbook_runs", "playbooks"

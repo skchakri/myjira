@@ -176,6 +176,31 @@ module UiHelper
     WORKLOG_DOT_CLASS[status.to_s] || "dot-idle"
   end
 
+  # Compact token count for the "Run cost" block — 1.2k / 800k / 1.2M. nil → "n/a"
+  # (we never invent a 0 for usage we simply didn't capture).
+  def format_tokens(n)
+    return "n/a" if n.nil?
+    n = n.to_i
+    return n.to_s if n < 1_000
+    return "#{(n / 1_000.0).round(1)}k" if n < 1_000_000
+    "#{(n / 1_000_000.0).round(1)}M"
+  end
+
+  # Whole-cent cost → "$1.23". nil → "n/a" (unknown model / no usage), distinct
+  # from a real $0.00.
+  def format_cents(cents)
+    return "n/a" if cents.nil?
+    format("$%.2f", cents.to_i / 100.0)
+  end
+
+  # The red "over budget" badge shown on board cards/rows + the item page when a
+  # run was killed for blowing its cap. Mirrors the other pill badges + dark tokens.
+  def over_budget_badge
+    content_tag :span, "over budget",
+      class: "pill pill-fail !text-[10px] !py-0 !px-1.5",
+      title: "A run on this item exceeded its $ budget cap and was stopped"
+  end
+
   # Readable label for the handful of common cron shapes, else the raw cron.
   COMMON_CRONS = {
     "* * * * *"   => "every minute",
@@ -426,13 +451,15 @@ module UiHelper
     mix_with_white(project_color(project), 0.28)
   end
 
-  # Whole-page wash of a folder's colour for project-scoped pages, mixed into
-  # the warm paper tone (not white) so it sits naturally under the raised cards.
+  # The folder's raw accent colour, exposed to the main pane as an inline
+  # --page-bg. The CSS mixes it (faintly) into the *themed* --color-paper token,
+  # so the per-project wash tints whatever the current canvas is instead of
+  # baking in a fixed light tone. Previously this pre-mixed the colour into a
+  # light cream (PAPER_HEX), which leaked a light panel onto Kronos's dark
+  # charcoal canvas in every theme except the dark-mode special case.
   # Views opt in via `content_for :page_bg, project_page_bg(@project)`.
-  PAPER_HEX = "#F7F4ED".freeze
-
   def project_page_bg(project)
-    mix_hex(project_color(project), PAPER_HEX, 0.08)
+    project_color(project)
   end
 
   # Mix a #RRGGBB hex toward white by `ratio` (0 = white, 1 = the colour).

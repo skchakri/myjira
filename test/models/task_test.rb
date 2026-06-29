@@ -13,6 +13,15 @@ class TaskTest < ActiveSupport::TestCase
                              pr_url: "https://github.com/x/y/pull/3", pr_number: 3, pr_state: "open" }.merge(attrs))
   end
 
+  test "dedup_fingerprint normalises case, punctuation and whitespace" do
+    assert_equal "fix pendingmigrationerror for worklog events",
+                 Task.dedup_fingerprint("Fix  PendingMigrationError for worklog_events!")
+    assert_equal Task.dedup_fingerprint("Investigate autopilot running three board items at once"),
+                 Task.dedup_fingerprint("  investigate AUTOPILOT running three board-items at once  ")
+    assert_equal "", Task.dedup_fingerprint("   ")
+    assert_equal "", Task.dedup_fingerprint(nil)
+  end
+
   test "reject_pr! moves an in_review item to failed, clears the merge flag, leaves the PR untouched" do
     item = in_review_item(merge_requested_at: Time.current)
     assert item.reject_pr!
