@@ -69,6 +69,10 @@ module Board
       # Project#board_busy? and the daemon session reaper.
       task.update!(board_state: "in_progress", picked_up_at: Time.current)
       Rails.logger.info("[board] launched #{step} for task #{task.id} (#{project.slug})")
+      # The in_progress flip already morphs the board via Task#broadcast_board, but
+      # broadcast explicitly too so the live "processing now" indicator never depends
+      # on that side effect (and stays correct if the flip is ever moved/removed).
+      broadcast_board(project)
       launch
     end
 
@@ -91,6 +95,7 @@ module Board
         pipeline_step: "resolve_conflicts"
       )
       Rails.logger.info("[board] launched resolve_conflicts for task #{task.id} (#{project.slug}) by #{initiated_by}")
+      broadcast_board(project)
       launch
     end
 
@@ -112,13 +117,14 @@ module Board
         pipeline_step: "triage"
       )
       Rails.logger.info("[board] launched triage for task #{task.id} (#{project.slug}) by #{initiated_by}")
+      broadcast_board(project)
       launch
     end
 
     # Queue the morning review for a project (used by pick-up-all / schedules).
     def launch_review!(project, initiated_by: "system")
       return nil if project.repo_path.blank?
-      SessionLaunch.queue!(
+      launch = SessionLaunch.queue!(
         project: project,
         prompt: "/board-review #{project.slug} #{base_url}",
         model: "default",
@@ -127,6 +133,17 @@ module Board
         source: "board",
         pipeline_step: "review"
       )
+      broadcast_board(project)
+      launch
+    end
+
+    # Morph an already-open board the instant a launch is queued, so the per-item
+    # "processing now" indicator (boards/_item, _kanban_card) and the header pill
+    # appear live regardless of who queued the step. Autopilot's daemon path and the
+    # triage/resolve/review paths otherwise queue launches without any board_state
+    # change, so nothing would broadcast. Mirrors Task#broadcast_board's stream.
+    def broadcast_board(project)
+      Turbo::StreamsChannel.broadcast_refresh_to([project, :board])
     end
   end
 end
