@@ -48,6 +48,34 @@ class BoardSessionSyncTest < ActionDispatch::IntegrationTest
     assert_equal "in_review", task.reload.board_state
   end
 
+  def in_progress_with_failed_launch(error: "tmux: create window failed: index 0 in use", created_at: 10.minutes.ago)
+    task = @project.tasks.create!(title: "WIP", item_type: "task", board_state: "in_progress")
+    @project.session_launches.create!(prompt: "/board-engineer", status: "failed",
+                                      repo_path: "/tmp/ss", session_id: SecureRandom.uuid,
+                                      pipeline_step: "engineering", error: error,
+                                      tmux_target: nil, created_at: created_at, task: task)
+    task
+  end
+
+  test "reap_failed! requeues an in_progress item whose latest launch failed to spawn" do
+    task = in_progress_with_failed_launch
+    assert_equal [task.id], Board::SessionSync.reap_failed!
+    task.reload
+    assert_equal "pending", task.board_state
+    assert_equal 1, task.autopilot_attempts
+    assert_match(/failed to spawn/i, task.agent_notes)
+  end
+
+  test "reap_failed! leaves a fresh failed launch inside the spawn grace alone" do
+    in_progress_with_failed_launch(created_at: 5.seconds.ago)
+    assert_empty Board::SessionSync.reap_failed!
+  end
+
+  test "reap_failed! ignores items whose latest launch is healthy" do
+    in_progress_with_launch
+    assert_empty Board::SessionSync.reap_failed!
+  end
+
   test "GET session_sync returns the daemon check-list" do
     task = in_progress_with_launch
     get "/api/v1/board/session_sync"

@@ -21,6 +21,9 @@ module Autopilot
     # Advance eligible projects by one step each, up to the free global slots.
     def tick!
       return { ok: true, stopped: true, launched: [] } if Setting.autopilot_stopped?
+      # Self-heal items wedged in_progress by a launch that never spawned, before
+      # they block their project's one-at-a-time guard for this tick.
+      Board::SessionSync.reap_failed!
       slots = GLOBAL_MAX_CONCURRENT - global_inflight_count
       launched = []
       if slots.positive?
