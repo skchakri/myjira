@@ -139,6 +139,22 @@ class Task < ApplicationRecord
     board_state == "done"
   end
 
+  # --- De-duplication --------------------------------------------------------
+  # Board items are created by several uncoordinated producers (the daily review
+  # agent, the self-improve cycle, captured CLI sessions, the web composer) with
+  # no shared identity key, so they pile up as near-identical "pending" rows. We
+  # collapse the worst case — an exact restatement of a still-open item — by
+  # normalising the title to a fingerprint and matching against the project's
+  # open board items. Reworded variants are left to the review agent's judgment;
+  # this guard kills the literal-repeat flood that no human ever intends.
+  def self.dedup_fingerprint(title)
+    title.to_s.downcase.gsub(/[^a-z0-9]+/, " ").squish
+  end
+
+  def dedup_fingerprint
+    self.class.dedup_fingerprint(title)
+  end
+
   # A shipped item with a published "What's New" blurb appears in the changelog.
   def changelog_entry?
     done? && changelog_summary.present?

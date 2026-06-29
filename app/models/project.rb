@@ -224,18 +224,31 @@ class Project < ApplicationRecord
     current_board_launch.present?
   end
 
-  # State-based one-item-at-a-time guard: the autopilot picks the next item only
-  # when this is false. A dead session's item is returned to the queue by the
-  # daemon's session-sync leg (Board::SessionSync), so this can't wedge.
+  # One-item-at-a-time guard: the autopilot picks the next item only when this is
+  # false. A dead session's item is returned to the queue by the daemon's
+  # session-sync leg (Board::SessionSync) and the launched window self-heals after
+  # BOARD_LAUNCH_BUSY_WINDOW of silence, so this can't wedge.
   #
-  # Two conditions make the project busy:
-  #   1. An in_progress task: the agent claimed the item and is actively working.
-  #   2. A pending/launching board session: the daemon hasn't spawned the agent
-  #      yet (gap between queue! and the agent calling the API to set in_progress).
+  # The project is busy while EITHER:
+  #   1. An in_progress task exists — the agent claimed an item and is working it.
+  #   2. Any board session is still live — pending/launching (queued, not yet
+  #      spawned) OR launched and recently active (delegated to current_board_launch,
+  #      which also bounds it to the busy window). This second leg is what stops a
+  #      launched-but-not-in_progress session — most importantly the project-level
+  #      review session, which owns no task — from looking idle and letting the next
+  #      tick double-launch. Previously board_busy? ignored launched sessions, so
+  #      review + a build step (and successive ticks) could run concurrently.
   def board_busy?
-    tasks.in_progress.exists? ||
-      session_launches.where(status: %w[pending launching])
-                      .where.not(pipeline_step: nil).exists?
+    tasks.in_progress.exists? || inflight_board_launch?
+  end
+
+  # The open (not-done) board item that is an exact, fingerprint-equal restatement
+  # of `title`, or nil. Lets the task-create API collapse duplicate board items at
+  # the boundary instead of appending yet another near-identical pending row.
+  def open_board_duplicate(title)
+    fp = Task.dedup_fingerprint(title)
+    return nil if fp.blank?
+    tasks.on_board.find { |t| t.dedup_fingerprint == fp }
   end
 
   # Today's total estimated API spend across this project's launches, in cents
