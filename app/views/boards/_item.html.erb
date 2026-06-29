@@ -8,6 +8,27 @@
   <div class="min-w-0 flex-1">
     <%= link_to item.title, [item.project, item],
           class: "text-sm text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] truncate block font-medium" %>
+    <% if item.triage_suggestion.present? %>
+      <div class="flex items-center gap-1.5 mt-1 flex-wrap">
+        <span class="text-[10px] text-[color:var(--color-ink-faint)] font-medium shrink-0">Suggested:</span>
+        <% if item.triage_suggestion["agent_role"].present? %>
+          <span class="pill pill-quiet !py-0 !px-1.5 !text-[10px]"><%= agent_role_label(item.triage_suggestion["agent_role"]) %></span>
+        <% end %>
+        <% if item.triage_suggestion["priority"].present? %>
+          <span class="pill pill-quiet !py-0 !px-1.5 !text-[10px]"><%= item.triage_suggestion["priority"] %></span>
+        <% end %>
+        <% Array(item.triage_suggestion["labels"]).first(3).each do |l| %>
+          <span class="pill pill-quiet font-mono !py-0 !px-1.5 !text-[10px]"><%= l %></span>
+        <% end %>
+        <% if item.triage_suggestion["plan_sketch"].present? %>
+          <span class="text-[10px] text-[color:var(--color-ink-soft)] italic truncate max-w-[220px]" title="<%= item.triage_suggestion["plan_sketch"] %>"><%= item.triage_suggestion["plan_sketch"].truncate(80) %></span>
+        <% end %>
+        <%= button_to "Apply", board_item_apply_triage_path(item.project, item), method: :post,
+              class: "text-[10px] shrink-0 px-1.5 py-0 hair-all rounded text-[color:var(--color-pass-ink)] hover:bg-[color:var(--color-pass-wash)] cursor-pointer" %>
+        <%= button_to "×", board_item_dismiss_triage_path(item.project, item), method: :post,
+              class: "text-[10px] shrink-0 px-1 py-0 hair-all rounded text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] cursor-pointer", title: "Dismiss suggestion" %>
+      </div>
+    <% end %>
     <div class="flex items-center gap-2 mt-0.5 text-[11px] text-[color:var(--color-ink-faint)]">
       <% if processing %>
         <span class="pill pill-accent flex items-center gap-1" style="font-size:10px;padding:1px 6px">
