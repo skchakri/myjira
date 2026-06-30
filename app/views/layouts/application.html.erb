@@ -204,6 +204,19 @@
               <span class="clink-slug truncate max-w-[90px]">prs</span>
             <% end %>
           <% end %>
+
+          <%# Cross-project approvals inbox — items parked waiting on the human %>
+          <% approvals_active = controller_name == "approvals"
+             appr_count = approvals_count %>
+          <%= link_to approvals_path, class: "clink #{approvals_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= appr_count.positive? ? 'dot-pass' : 'dot-idle' %>" role="img" aria-label="Items awaiting you: <%= appr_count %>" title="Items awaiting you: <%= appr_count %>"></span>
+            <span class="truncate">Approvals</span>
+            <% if appr_count.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-amber-ink)]"><%= appr_count %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">inbox</span>
+            <% end %>
+          <% end %>
         </nav>
 
         <!-- Footer -->

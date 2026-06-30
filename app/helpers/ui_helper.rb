@@ -502,4 +502,11 @@ module UiHelper
                                 .where(projects: { archived_at: nil })
                                 .count
   end
+
+  # Items parked waiting on the human across active projects — for the sidebar
+  # "Approvals" row badge. Memoised so it runs once per request.
+  def approvals_count
+    @approvals_count ||= Task.awaiting_human.joins(:project)
+                             .where(projects: { archived_at: nil }).count
+  end
 end
