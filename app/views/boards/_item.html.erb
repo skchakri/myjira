@@ -148,6 +148,15 @@
       <% end %>
     <% end %>
   </div>
+
+  <!-- Delete -->
+  <div class="shrink-0 w-6 text-center">
+    <%= button_to "🗑", board_item_destroy_path(item.project, item), method: :delete,
+          form: { data: { turbo_confirm: "Delete “#{item.title}”? This can't be undone." }, class: "inline" },
+          class: "text-xs px-1 py-0.5 rounded text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-fail-ink)] hover:bg-[color:var(--color-fail-wash)] cursor-pointer bg-transparent border-0",
+          title: "Delete item",
+          "aria-label": "Delete #{item.title}" %>
+  </div>
   </div>
 
   <%# Mid-run steering — only for an in_progress item with a live session bound. %>

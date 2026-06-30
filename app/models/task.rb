@@ -114,6 +114,8 @@ class Task < ApplicationRecord
   after_update_commit :broadcast_activity,
                       if: -> { saved_change_to_plan? || saved_change_to_agent_notes? || saved_change_to_board_state? }
   after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
+  # Drop the item live from every open board when it is deleted.
+  after_destroy_commit :broadcast_board
 
   # Worklog status for a board_state: terminal states map to done/failed, parked
   # states to waiting, everything else is an active (running) step.

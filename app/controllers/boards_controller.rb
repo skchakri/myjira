@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion]
+  before_action :set_task, only: [:update_item, :destroy_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -68,6 +68,15 @@ class BoardsController < ApplicationController
     else
       head :no_content
     end
+  end
+
+  # Permanently delete a board item. Associated test plans / follow-ups /
+  # comments cascade per the Task model's dependent: options; the model's
+  # after_destroy_commit broadcast removes the row live for other viewers.
+  def destroy_item
+    title = @task.title
+    @task.destroy
+    redirect_to board_path(@project), notice: "Deleted “#{title}”."
   end
 
   # Manually hand the item to the next pipeline agent (the same step autopilot

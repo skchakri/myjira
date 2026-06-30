@@ -72,8 +72,9 @@ Rails.application.routes.draw do
     post  "board/reorder",             to: "boards#reorder",     as: :board_reorder
     post  "board/tick",                to: "boards#tick_now",    as: :board_tick
     patch "board/autopilot",           to: "boards#autopilot",   as: :board_autopilot
-    post  "board/items",               to: "boards#create_item", as: :board_items
-    patch "board/items/:id",           to: "boards#update_item", as: :board_item
+    post   "board/items",              to: "boards#create_item",  as: :board_items
+    patch  "board/items/:id",          to: "boards#update_item",  as: :board_item
+    delete "board/items/:id",          to: "boards#destroy_item", as: :board_item_destroy
     post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
     post  "board/items/:id/steer",     to: "boards#steer",       as: :board_item_steer
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
