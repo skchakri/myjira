@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <meta name="vapid-public-key" content="<%= ENV['VAPID_PUBLIC_KEY'] %>">
+
     <%= yield :head %>
 
     <%# Night mode: resolve the stored preference and set the theme on <html>
@@ -30,7 +32,8 @@
   </head>
 
   <body class="h-full">
-    <div class="flex min-h-screen" data-controller="client-filter">
+    <div class="flex min-h-screen" data-controller="client-filter web-push"
+         data-web-push-public-key-value="<%= ENV['VAPID_PUBLIC_KEY'] %>">
       <!-- ========== Sidebar ========== -->
       <aside class="w-[260px] shrink-0 hair-r flex flex-col sticky top-0 h-screen">
         <!-- Brand -->
