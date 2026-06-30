@@ -97,7 +97,10 @@ class Task < ApplicationRecord
   # PR review reconciliation (run by the host daemon, which has GitHub access).
   # awaiting_merge = human clicked "Approve & merge"; the daemon runs `gh pr merge`.
   # pr_pollable    = in_review PRs to poll for an external (GitHub-side) merge/close.
-  scope :awaiting_merge, -> { where(board_state: "in_review").where.not(merge_requested_at: nil) }
+  scope :awaiting_merge, lambda {
+    where(board_state: "in_review").where.not(merge_requested_at: nil)
+      .order(Arel.sql("review_ready_at ASC NULLS LAST, created_at ASC"))
+  }
   scope :pr_pollable, lambda { |stale_before|
     where(board_state: "in_review", merge_requested_at: nil)
       .where.not(pr_url: [nil, ""])
@@ -400,7 +403,9 @@ class Task < ApplicationRecord
       branch_name: branch_name.presence || self.branch_name,
       pr_diff: pr_diff.presence || self.pr_diff,
       pr_synced_at: Time.current,
-      finished_at: finished_at || Time.current
+      finished_at: finished_at || Time.current,
+      # Immutable finish-of-development order key — stamped once, never overwritten.
+      review_ready_at: review_ready_at || Time.current
     )
     update!(board_state: "in_review")
   end

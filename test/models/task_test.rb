@@ -389,6 +389,24 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal 0, task.session_cost_usd.to_f
   end
 
+  # --- in_review ordering -----------------------------------------------------
+
+  test "mark_in_review! stamps review_ready_at once and never overwrites it" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "in_progress")
+    item.mark_in_review!(pr_url: "https://github.com/x/y/pull/1", pr_number: 1)
+    first = item.reload.review_ready_at
+    assert first.present?
+    item.update!(pr_synced_at: Time.current)
+    item.mark_in_review!(pr_url: "https://github.com/x/y/pull/1", pr_number: 1)
+    assert_equal first.to_i, item.reload.review_ready_at.to_i, "review_ready_at is immutable"
+  end
+
+  test "awaiting_merge is ordered by review_ready_at ascending" do
+    newer = in_review_item(merge_requested_at: Time.current, review_ready_at: 1.minute.ago)
+    older = in_review_item(merge_requested_at: Time.current, review_ready_at: 1.hour.ago)
+    assert_equal [older.id, newer.id], @project.tasks.awaiting_merge.pluck(:id)
+  end
+
   # --- Approvals surface -----------------------------------------------------
 
   test "awaiting_human covers waiting items with a wait_reason" do
