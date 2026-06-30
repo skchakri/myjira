@@ -1,0 +1,35 @@
+<%# Renders the gate UI when an item is parked in waiting. needs_input → a Q&A form;
+    awaiting_approval → the plan plus Approve / Request-changes. %>
+<% if task.needs_input? %>
+  <%= card title: "The agent needs your input" do %>
+    <%= form_with url: board_item_answer_questions_path(project, task), method: :post do |f| %>
+      <% task.pending_questions.each do |q| %>
+        <div class="mb-3">
+          <label class="block text-sm text-[color:var(--color-ink)] mb-1"><%= q["q"] %></label>
+          <%= text_area_tag "answers[#{q['id']}]", q["a"], rows: 2,
+                class: "w-full text-sm border border-[color:var(--color-hair)] rounded-md px-2 py-1.5" %>
+        </div>
+      <% end %>
+      <%= f.submit "Send answers", class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-ink)] px-3 py-1.5 rounded-md cursor-pointer" %>
+    <% end %>
+  <% end %>
+<% elsif task.awaiting_approval? %>
+  <%= card title: "Plan awaiting your approval#{task.plan_version.to_i > 1 ? " (revised v#{task.plan_version})" : ''}" do %>
+    <div class="mb-4 text-sm text-[color:var(--color-ink)]">
+      <% if task.plan.present? %>
+        <%= markdown(task.plan) %>
+      <% else %>
+        <p class="text-[color:var(--color-ink-faint)]">No plan text was provided.</p>
+      <% end %>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <%= button_to "Approve & execute", board_item_approve_path(project, task),
+            method: :post, class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-ok-ink)] px-3 py-1.5 rounded-md cursor-pointer" %>
+      <%= form_with url: board_item_request_changes_path(project, task), method: :post, class: "flex items-center gap-2" do |f| %>
+        <%= text_field_tag :note, nil, placeholder: "What should change?",
+              class: "text-sm border border-[color:var(--color-hair)] rounded-md px-2 py-1.5 w-64" %>
+        <%= f.submit "Request changes", class: "text-sm border border-[color:var(--color-hair)] px-3 py-1.5 rounded-md text-[color:var(--color-ink-soft)] cursor-pointer" %>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

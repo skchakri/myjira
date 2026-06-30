@@ -388,4 +388,82 @@ class TaskTest < ActiveSupport::TestCase
     task = @project.tasks.create!(title: "Empty cost", item_type: "task")
     assert_equal 0, task.session_cost_usd.to_f
   end
+
+  # --- Approval gate ---------------------------------------------------------
+
+  test "wait_reason must be a known value or blank" do
+    item = @project.tasks.create!(title: "X", item_type: "task", board_state: "pending")
+    item.update!(board_state: "waiting", wait_reason: "needs_input")
+    assert item.needs_input?
+    item.update!(wait_reason: "awaiting_approval")
+    assert item.awaiting_approval?
+    item.wait_reason = "bogus"
+    assert_not item.valid?
+  end
+
+  test "leaving the waiting state clears wait_reason" do
+    item = @project.tasks.create!(title: "X", item_type: "task",
+                                  board_state: "waiting", wait_reason: "awaiting_approval")
+    item.update!(board_state: "planned")
+    assert_nil item.reload.wait_reason
+  end
+
+  test "submit_plan! parks the item awaiting approval with the plan and role" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "in_progress")
+    item.submit_plan!(role: "engineering", plan: "## Plan\nDo the thing")
+    item.reload
+    assert_equal "waiting", item.board_state
+    assert_equal "awaiting_approval", item.wait_reason
+    assert_equal "engineering", item.agent_role
+    assert_equal "## Plan\nDo the thing", item.plan
+    assert item.awaiting_approval?
+  end
+
+  test "ask_questions! parks the item needing input with structured questions" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "in_progress")
+    item.ask_questions!(questions: ["Which API key?", "Vertical or horizontal?"])
+    item.reload
+    assert_equal "waiting", item.board_state
+    assert_equal "needs_input", item.wait_reason
+    assert_equal 2, item.pending_questions.size
+    assert_equal "Which API key?", item.pending_questions.first["q"]
+    assert_nil item.pending_questions.first["a"]
+    assert item.pending_questions.first["id"].present?
+  end
+
+  test "approve_plan! moves an awaiting-approval item to planned and clears wait_reason" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "waiting",
+                                  wait_reason: "awaiting_approval", agent_role: "engineering",
+                                  plan: "do it")
+    assert item.approve_plan!
+    item.reload
+    assert_equal "planned", item.board_state
+    assert_nil item.wait_reason
+  end
+
+  test "approve_plan! refuses an item that is not awaiting approval" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "waiting",
+                                  wait_reason: "needs_input")
+    assert_not item.approve_plan!
+    assert_equal "waiting", item.reload.board_state
+  end
+
+  test "record_answers! fills answers by question id" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "waiting",
+                                  wait_reason: "needs_input",
+                                  pending_questions: [{ "id" => "q1", "q" => "Key?", "a" => nil }])
+    item.record_answers!("q1" => "Use Pexels")
+    assert_equal "Use Pexels", item.reload.pending_questions.first["a"]
+  end
+
+  test "request_changes! bumps plan_version and logs the note" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "waiting",
+                                  wait_reason: "awaiting_approval", agent_role: "engineering", plan: "v1")
+    assert_equal 1, item.plan_version
+    item.request_changes!(note: "Use a different template")
+    item.reload
+    assert_equal 2, item.plan_version
+    assert_equal 1, item.comments.where(author: "you").count
+    assert item.awaiting_approval?, "stays awaiting approval until the planner re-parks it"
+  end
 end

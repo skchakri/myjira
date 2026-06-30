@@ -416,4 +416,78 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert_equal launch.id, @project.current_board_launch.id
     assert @project.inflight_board_launch?
   end
+
+  # --- Approval gate ---------------------------------------------------------
+
+  test "the board surfaces an awaiting-approval item with a link to the task" do
+    project = Project.create!(name: "Bd", slug: "bd-#{SecureRandom.hex(3)}", repo_path: "/tmp/bd")
+    task = project.tasks.create!(title: "Needs approval", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "awaiting_approval", agent_role: "engineering", plan: "p")
+    get board_path(project)
+    assert_response :success
+    assert_select "a[href=?]", project_task_path(project, task)
+    assert_match(/Awaiting approval/, response.body)
+  end
+
+  test "the task page renders the approval panel for an awaiting-approval item" do
+    project = Project.create!(name: "Pg", slug: "pg-#{SecureRandom.hex(3)}", repo_path: "/tmp/pg")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "awaiting_approval", agent_role: "engineering",
+                                 plan: "## Plan\n- step one")
+    get project_task_path(project, task)
+    assert_response :success
+    assert_match "Approve &amp; execute", response.body
+    assert_match "Request changes", response.body
+  end
+
+  test "the task page renders the Q&A form for a needs-input item" do
+    project = Project.create!(name: "Pq", slug: "pq-#{SecureRandom.hex(3)}", repo_path: "/tmp/pq")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "needs_input",
+                                 pending_questions: [{ "id" => "q1", "q" => "Which format?", "a" => nil }])
+    get project_task_path(project, task)
+    assert_response :success
+    assert_match "The agent needs your input", response.body
+    assert_match "Which format?", response.body
+  end
+
+  test "approve advances an awaiting-approval item to planned" do
+    project = Project.create!(name: "Ap", slug: "ap-#{SecureRandom.hex(3)}", repo_path: "/tmp/ap")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "awaiting_approval", agent_role: "engineering", plan: "do it")
+    Autopilot::Orchestrator.stub(:run_once, nil) do
+      post board_item_approve_path(project, task)
+    end
+    assert_equal "planned", task.reload.board_state
+    assert_nil task.wait_reason
+  end
+
+  test "answer_questions stores answers and queues a resume launch" do
+    project = Project.create!(name: "Aq", slug: "aq-#{SecureRandom.hex(3)}", repo_path: "/tmp/aq")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "needs_input",
+                                 pending_questions: [{ "id" => "q1", "q" => "Format?", "a" => nil }])
+    SessionLaunch.queue!(project: project, task: task, prompt: "/board-plan", model: "default",
+                         permission_mode: "auto", source: "board", title: "planning",
+                         pipeline_step: "planning").update!(session_id: "sess-1")
+
+    assert_difference -> { SessionLaunch.where.not(resume_of_session_id: nil).count }, 1 do
+      post board_item_answer_questions_path(project, task), params: { answers: { q1: "Vertical" } }
+    end
+    assert_equal "Vertical", task.reload.pending_questions.first["a"]
+  end
+
+  test "request_changes bumps the plan version and queues a resume launch" do
+    project = Project.create!(name: "Rc", slug: "rc-#{SecureRandom.hex(3)}", repo_path: "/tmp/rc")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "awaiting_approval", agent_role: "engineering", plan: "v1")
+    SessionLaunch.queue!(project: project, task: task, prompt: "/board-plan", model: "default",
+                         permission_mode: "auto", source: "board", title: "planning",
+                         pipeline_step: "planning").update!(session_id: "sess-2")
+
+    assert_difference -> { SessionLaunch.where.not(resume_of_session_id: nil).count }, 1 do
+      post board_item_request_changes_path(project, task), params: { note: "Different template" }
+    end
+    assert_equal 2, task.reload.plan_version
+  end
 end

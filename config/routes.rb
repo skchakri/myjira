@@ -76,6 +76,9 @@ Rails.application.routes.draw do
     patch  "board/items/:id",          to: "boards#update_item",  as: :board_item
     delete "board/items/:id",          to: "boards#destroy_item", as: :board_item_destroy
     post  "board/items/:id/pick_up",   to: "boards#pick_up",     as: :board_item_pick_up
+    post  "board/items/:id/approve",          to: "boards#approve",          as: :board_item_approve
+    post  "board/items/:id/request_changes",  to: "boards#request_changes",  as: :board_item_request_changes
+    post  "board/items/:id/answer_questions", to: "boards#answer_questions", as: :board_item_answer_questions
     post  "board/items/:id/steer",     to: "boards#steer",       as: :board_item_steer
     post  "board/items/:id/run_tests", to: "boards#run_tests",   as: :board_item_run_tests
     post  "board/items/:id/merge",     to: "boards#request_merge", as: :board_item_merge

@@ -229,3 +229,19 @@ Phases 1–2 deliver immediate value on their own; agents come online incrementa
 - **Concurrency** — orchestrator guards against double-launch (in-flight check + advisory lock).
 - **Tailwind v4** — rebuild after adding classes; watcher can die in the container.
 - **Failed-item loop** — cap retries (e.g., 2) before parking a `failed` item for human review, so autopilot can't burn the daily cap on one broken item.
+
+## Approval gate (assisted workflow)
+
+The planner no longer lands items in `planned`. When `board-plan` finishes:
+
+- If it needs input: PATCH `{ board_state: "waiting", wait_reason: "needs_input",
+  pending_questions: [{ id, q, a: null }, …], agent_role, plan? }`.
+- Otherwise: PATCH `{ board_state: "planned", agent_role, plan }` — the API converts
+  this to `waiting:awaiting_approval` automatically (the gate). Older planners need
+  no change to be gated; they only need updating to emit `pending_questions`.
+
+`planned` is reached only when the human clicks **Approve** (POST
+`/projects/:slug/board/items/:id/approve`), after which the orchestrator executes the
+item with the role the planner assigned. **Request changes** (POST `…/request_changes`)
+and **answer questions** (POST `…/answer_questions`) resume the planning session in the
+project folder via `resume_of_session_id`, carrying the note/answers as the resume prompt.

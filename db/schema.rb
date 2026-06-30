@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -424,9 +424,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
     t.uuid "last_conversation_id"
     t.uuid "last_test_run_id"
     t.datetime "merge_requested_at"
+    t.jsonb "pending_questions", default: [], null: false
     t.datetime "picked_up_at"
     t.text "plan"
     t.datetime "plan_updated_at"
+    t.integer "plan_version", default: 1, null: false
     t.integer "position"
     t.text "pr_diff"
     t.string "pr_mergeable"
@@ -442,6 +444,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_29_000002) do
     t.string "title", null: false
     t.jsonb "triage_suggestion"
     t.datetime "updated_at", null: false
+    t.string "wait_reason"
     t.index ["environment_id"], name: "index_tasks_on_environment_id"
     t.index ["external_ref"], name: "index_tasks_on_external_ref"
     t.index ["item_type"], name: "index_tasks_on_item_type"
