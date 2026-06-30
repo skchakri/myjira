@@ -183,6 +183,9 @@ class Project < ApplicationRecord
     grouped = scope.group_by(&:board_state)
     Task::BOARD_GROUP_ORDER.filter_map do |state|
       items = grouped[state]
+      # in_review is locked to finish-of-development order (oldest first), not the
+      # display position — its order must mirror the merge order.
+      items = items.sort_by { |t| t.review_ready_at || t.created_at } if state == "in_review" && items
       [state, items] if items.present?
     end
   end

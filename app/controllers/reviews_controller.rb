@@ -6,7 +6,7 @@ class ReviewsController < ApplicationController
   def index
     items = Task.where(board_state: "in_review")
                 .includes(:project) # avoid N+1 on item.project in the partial
-                .order("projects.name ASC", Arel.sql("tasks.updated_at DESC"))
+                .order("projects.name ASC", Arel.sql("tasks.review_ready_at ASC NULLS LAST"))
                 .references(:project)
     # Mirror the sidebar: only surface active folders; archived items stay
     # reachable on their own board.
