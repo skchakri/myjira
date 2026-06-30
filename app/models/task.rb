@@ -90,6 +90,8 @@ class Task < ApplicationRecord
   }
   scope :unmerged, -> { where(merged_into_id: nil) }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES, merged_into_id: nil) }
+  # Items parked waiting on the human — needs input or plan approval.
+  scope :awaiting_human, -> { where(board_state: "waiting").where.not(wait_reason: nil) }
   scope :in_progress, -> { where(board_state: "in_progress") }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).

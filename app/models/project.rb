@@ -161,6 +161,15 @@ class Project < ApplicationRecord
     tasks.unmerged.with_attached_attachments.board_ordered
   end
 
+  # Any board item parked waiting on the human (needs input or plan approval).
+  def needs_attention?
+    tasks.awaiting_human.exists?
+  end
+
+  def attention_count
+    tasks.awaiting_human.count
+  end
+
   # Branch agents fork from and target PRs at. Defaults to main when unset.
   def base_branch_or_default
     base_branch.presence || "main"
