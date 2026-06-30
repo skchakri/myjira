@@ -80,4 +80,13 @@ class InstantTriageJobTest < ActiveSupport::TestCase
     @task.reload
     assert_nil @task.triage_suggestion
   end
+
+  test "runs the consolidator for a pending item after triage" do
+    called = nil
+    job = InstantTriageJob.new
+    Board::Consolidator.stub(:run!, ->(t) { called = t.id }) do
+      job.stub(:call_api, VALID_SUGGESTION) { job.perform(@task.id) }
+    end
+    assert_equal @task.id, called
+  end
 end

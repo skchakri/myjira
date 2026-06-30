@@ -39,6 +39,9 @@ class InstantTriageJob < ApplicationJob
     else
       task.update!(triage_suggestion: suggestion)
     end
+
+    # After triage, fold any related pending items into one (reversible).
+    Board::Consolidator.run!(task.reload) if task.board_state == "pending"
   rescue => e
     Rails.logger.error("[instant-triage] #{task_id}: #{e.class}: #{e.message}")
   end
