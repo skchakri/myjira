@@ -48,6 +48,8 @@ class Task < ApplicationRecord
   belongs_to :environment, optional: true
   belongs_to :last_conversation, class_name: "Conversation", optional: true
   belongs_to :last_test_run, class_name: "TestRun", optional: true
+  belongs_to :merged_into, class_name: "Task", optional: true
+  has_many :merged_children, class_name: "Task", foreign_key: :merged_into_id, dependent: :nullify
 
   has_many :test_plan_tasks, dependent: :destroy
   has_many :test_plans, through: :test_plan_tasks
@@ -86,7 +88,8 @@ class Task < ApplicationRecord
     order(Arel.sql("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 " \
                    "WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 9 END ASC, created_at ASC"))
   }
-  scope :actionable, -> { where(board_state: ACTIONABLE_STATES) }
+  scope :unmerged, -> { where(merged_into_id: nil) }
+  scope :actionable, -> { where(board_state: ACTIONABLE_STATES, merged_into_id: nil) }
   scope :in_progress, -> { where(board_state: "in_progress") }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).
@@ -159,6 +162,10 @@ class Task < ApplicationRecord
 
   def done?
     board_state == "done"
+  end
+
+  def merged?
+    merged_into_id.present?
   end
 
   # --- De-duplication --------------------------------------------------------

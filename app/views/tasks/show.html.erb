@@ -59,6 +59,28 @@
 
     <%= render "boards/approval_panel", project: @project, task: @task %>
 
+    <% if @task.merged_children.any? %>
+      <%= card title: "Merged sub-items" do %>
+        <ul class="space-y-2">
+          <% @task.merged_children.each do |child| %>
+            <li class="flex items-center justify-between gap-2">
+              <span class="text-sm text-[color:var(--color-ink)]"><%= child.title %></span>
+              <%= button_to "Unmerge", board_item_unmerge_path(@project, child), method: :post,
+                    class: "text-xs border border-[color:var(--color-hair)] px-2 py-1 rounded text-[color:var(--color-ink-soft)] cursor-pointer" %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    <% end %>
+
+    <% if @task.merged? %>
+      <div class="mb-4 text-sm text-[color:var(--color-ink-soft)]">
+        Merged into <%= link_to @task.merged_into.title, [@project, @task.merged_into], class: "underline" %>.
+        <%= button_to "Unmerge", board_item_unmerge_path(@project, @task), method: :post,
+              class: "ml-2 text-xs underline cursor-pointer bg-transparent border-0 text-[color:var(--color-amber-ink)]" %>
+      </div>
+    <% end %>
+
     <%= card title: "Plan & direction" do %>
       <div class="flex items-center gap-2 mb-3">
         <%= board_state_pill(@task.board_state) %>

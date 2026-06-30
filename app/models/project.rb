@@ -158,7 +158,7 @@ class Project < ApplicationRecord
   BOARD_LAUNCH_BUSY_WINDOW = 8.minutes
 
   def board_items
-    tasks.with_attached_attachments.board_ordered
+    tasks.unmerged.with_attached_attachments.board_ordered
   end
 
   # Branch agents fork from and target PRs at. Defaults to main when unset.

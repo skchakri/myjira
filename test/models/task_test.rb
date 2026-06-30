@@ -389,6 +389,20 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal 0, task.session_cost_usd.to_f
   end
 
+  # --- Consolidation ---------------------------------------------------------
+
+  test "merged items are excluded from the actionable queue and report merged?" do
+    primary = @project.tasks.create!(title: "Primary", item_type: "feature", board_state: "pending")
+    child   = @project.tasks.create!(title: "Child", item_type: "feature", board_state: "pending",
+                                     merged_into_id: primary.id)
+    assert child.merged?
+    assert_not primary.merged?
+    ids = @project.tasks.actionable.pluck(:id)
+    assert_includes ids, primary.id
+    assert_not_includes ids, child.id, "merged child is not actionable"
+    assert_equal [child.id], primary.merged_children.pluck(:id)
+  end
+
   # --- Approval gate ---------------------------------------------------------
 
   test "wait_reason must be a known value or blank" do

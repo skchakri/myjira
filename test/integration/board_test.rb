@@ -417,6 +417,28 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert @project.inflight_board_launch?
   end
 
+  # --- Consolidation ---------------------------------------------------------
+
+  test "unmerge restores a merged child to the board" do
+    project = Project.create!(name: "Um", slug: "um-#{SecureRandom.hex(3)}", repo_path: "/tmp/um")
+    primary = project.tasks.create!(title: "Primary", item_type: "feature", board_state: "pending")
+    child = project.tasks.create!(title: "Child", item_type: "feature", board_state: "pending",
+                                  merged_into_id: primary.id)
+    post board_item_unmerge_path(project, child)
+    assert_nil child.reload.merged_into_id
+  end
+
+  test "the primary task page lists merged children with an unmerge control" do
+    project = Project.create!(name: "Mv", slug: "mv-#{SecureRandom.hex(3)}", repo_path: "/tmp/mv")
+    primary = project.tasks.create!(title: "Primary", item_type: "feature", board_state: "pending")
+    child = project.tasks.create!(title: "Folded child", item_type: "feature", board_state: "pending",
+                                  merged_into_id: primary.id)
+    get project_task_path(project, primary)
+    assert_response :success
+    assert_match "Folded child", response.body
+    assert_select "form[action=?]", board_item_unmerge_path(project, child)
+  end
+
   # --- Approval gate ---------------------------------------------------------
 
   test "the board surfaces an awaiting-approval item with a link to the task" do
