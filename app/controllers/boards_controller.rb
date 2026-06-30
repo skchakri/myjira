@@ -26,7 +26,10 @@ class BoardsController < ApplicationController
         item.update!(board_state: params[:moved_state])
       end
       ids.each_with_index do |id, i|
-        @project.tasks.where(id: id).update_all(position: i + 1, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
+        # in_review order is locked to finish-of-development (review_ready_at) — never
+        # restamp position for those items, so a drag can't change the merge order.
+        @project.tasks.where(id: id).where.not(board_state: "in_review")
+                .update_all(position: i + 1, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
       end
     end
     refresh_board!

@@ -4,7 +4,8 @@
     <span class="text-xs text-[color:var(--color-ink-faint)] tabular"><%= items.size %></span>
     <span class="ml-auto eyebrow"><%= state.tr("_", " ") %></span>
   </summary>
-  <ul data-sortable-list data-board-state="<%= state %>" class="divide-y divide-[color:var(--color-hair)] min-h-[8px]">
+  <%# in_review is locked to finish-of-development order — not a sortable list. %>
+  <ul <%= "data-sortable-list" unless state == "in_review" %> data-board-state="<%= state %>" class="divide-y divide-[color:var(--color-hair)] min-h-[8px]">
     <% items.each do |item| %>
       <%= render "boards/item", item: item, inflight_launch: inflight_launch %>
     <% end %>
