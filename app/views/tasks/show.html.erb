@@ -57,6 +57,8 @@
       <% end %>
     <% end %>
 
+    <%= render "boards/approval_panel", project: @project, task: @task %>
+
     <%= card title: "Plan & direction" do %>
       <div class="flex items-center gap-2 mb-3">
         <%= board_state_pill(@task.board_state) %>

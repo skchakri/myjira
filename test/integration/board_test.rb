@@ -419,6 +419,28 @@ class BoardTest < ActionDispatch::IntegrationTest
 
   # --- Approval gate ---------------------------------------------------------
 
+  test "the task page renders the approval panel for an awaiting-approval item" do
+    project = Project.create!(name: "Pg", slug: "pg-#{SecureRandom.hex(3)}", repo_path: "/tmp/pg")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "awaiting_approval", agent_role: "engineering",
+                                 plan: "## Plan\n- step one")
+    get project_task_path(project, task)
+    assert_response :success
+    assert_match "Approve &amp; execute", response.body
+    assert_match "Request changes", response.body
+  end
+
+  test "the task page renders the Q&A form for a needs-input item" do
+    project = Project.create!(name: "Pq", slug: "pq-#{SecureRandom.hex(3)}", repo_path: "/tmp/pq")
+    task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "needs_input",
+                                 pending_questions: [{ "id" => "q1", "q" => "Which format?", "a" => nil }])
+    get project_task_path(project, task)
+    assert_response :success
+    assert_match "The agent needs your input", response.body
+    assert_match "Which format?", response.body
+  end
+
   test "approve advances an awaiting-approval item to planned" do
     project = Project.create!(name: "Ap", slug: "ap-#{SecureRandom.hex(3)}", repo_path: "/tmp/ap")
     task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
