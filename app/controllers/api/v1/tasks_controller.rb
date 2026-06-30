@@ -27,7 +27,17 @@ module Api
 
       def update
         task = @project.tasks.find(params[:id])
-        task.assign_attributes(task_params)
+        attrs = task_params
+        # The approval gate: an agent may report a finished plan as board_state
+        # "planned", but in the assisted workflow nothing executes without human
+        # approval. Convert it to waiting:awaiting_approval here. The ONLY path to
+        # "planned" is BoardsController#approve. (Engineering/answer agents move to
+        # in_review/done/failed, never "planned", so they are unaffected.)
+        if attrs[:board_state].to_s == "planned"
+          attrs[:board_state] = "waiting"
+          attrs[:wait_reason] = "awaiting_approval"
+        end
+        task.assign_attributes(attrs)
         resolve_environment(task)
         task.plan_updated_at = Time.current if task.plan_changed?
         task.finished_at ||= Time.current if task.board_state_changed? && %w[in_review done].include?(task.board_state)
@@ -71,12 +81,13 @@ module Api
 
       BOARD_FIELDS = %i[item_type board_state agent_role position plan branch_name
                         pr_url pr_number pr_state pr_diff agent_notes changelog_summary
-                        pr_mergeable conflict_resolution_at].freeze
+                        pr_mergeable conflict_resolution_at wait_reason].freeze
 
       def task_params
         raw = params[:task] || params
         raw.permit(:title, :description, :implementation_notes, :external_ref, :status,
-                   :priority, :source, :environment_id, :labels_text, *BOARD_FIELDS, labels: [])
+                   :priority, :source, :environment_id, :labels_text, *BOARD_FIELDS,
+                   labels: [], pending_questions: [%i[id q a]])
       end
 
       def resolve_environment(task)
