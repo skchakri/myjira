@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -439,6 +439,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_000002) do
     t.string "pr_url"
     t.string "priority", default: "normal"
     t.uuid "project_id", null: false
+    t.datetime "review_ready_at"
     t.virtual "search_vector", type: :tsvector, as: "to_tsvector('english'::regconfig, (((((((((COALESCE(title, ''::character varying))::text || ' '::text) || COALESCE(description, ''::text)) || ' '::text) || COALESCE(implementation_notes, ''::text)) || ' '::text) || COALESCE(plan, ''::text)) || ' '::text) || COALESCE(agent_notes, ''::text)))", stored: true
     t.string "source", default: "claude-cli"
     t.string "status", default: "open", null: false

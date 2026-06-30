@@ -417,6 +417,27 @@ class BoardTest < ActionDispatch::IntegrationTest
     assert @project.inflight_board_launch?
   end
 
+  # --- in_review ordering -----------------------------------------------------
+
+  test "the in_review board group is ordered by review_ready_at ascending" do
+    project = Project.create!(name: "Ro", slug: "ro-#{SecureRandom.hex(3)}", repo_path: "/tmp/ro")
+    newer = project.tasks.create!(title: "Newer review", item_type: "feature", board_state: "in_review",
+                                  pr_url: "https://github.com/x/y/pull/2", pr_number: 2, review_ready_at: 1.minute.ago)
+    older = project.tasks.create!(title: "Older review", item_type: "feature", board_state: "in_review",
+                                  pr_url: "https://github.com/x/y/pull/1", pr_number: 1, review_ready_at: 1.hour.ago)
+    groups = project.board_groups
+    in_review = groups.find { |state, _| state == "in_review" }.last
+    assert_equal [older.id, newer.id], in_review.map(&:id)
+  end
+
+  test "reorder does not restamp position on in_review items" do
+    project = Project.create!(name: "Lk", slug: "lk-#{SecureRandom.hex(3)}", repo_path: "/tmp/lk")
+    item = project.tasks.create!(title: "Locked", item_type: "feature", board_state: "in_review",
+                                 pr_url: "https://github.com/x/y/pull/1", pr_number: 1, position: nil)
+    post board_reorder_path(project), params: { order: [item.id] }
+    assert_nil item.reload.position, "in_review item position is never stamped by reorder"
+  end
+
   # --- Consolidation ---------------------------------------------------------
 
   test "unmerge restores a merged child to the board" do
