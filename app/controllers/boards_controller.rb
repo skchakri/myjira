@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :destroy_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion, :approve, :request_changes, :answer_questions]
+  before_action :set_task, only: [:update_item, :destroy_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion, :approve, :request_changes, :answer_questions, :unmerge]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -238,6 +238,13 @@ class BoardsController < ApplicationController
                     "Finalize the implementation plan and PATCH it back " \
                     "(board_state:'planned' — it will be gated to await approval).")
     redirect_to [@project, @task], notice: "Answers sent — finalizing the plan."
+  end
+
+  # Reverse a consolidation: detach this item from its primary so it returns to the
+  # board as its own pending item.
+  def unmerge
+    @task.update!(merged_into_id: nil)
+    redirect_back fallback_location: [@project, @task], notice: "Unmerged — back on the board."
   end
 
   # Plan + PR modals rendered into the #board_modal turbo-frame.
