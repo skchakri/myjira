@@ -4,7 +4,7 @@
 # [project, :board]; drag-to-reorder and inline edits persist via the actions here.
 class BoardsController < ApplicationController
   before_action :set_project, except: [:stop_all, :resume_all]
-  before_action :set_task, only: [:update_item, :destroy_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion]
+  before_action :set_task, only: [:update_item, :destroy_item, :pick_up, :steer, :run_tests, :request_merge, :reject_pr, :resolve_conflicts, :continue_session, :add_comment, :plan, :pr, :apply_triage_suggestion, :dismiss_triage_suggestion, :approve, :request_changes, :answer_questions]
 
   def show
     @active_label = params[:label].to_s.strip.downcase.presence
@@ -204,6 +204,42 @@ class BoardsController < ApplicationController
     end
   end
 
+  # Human approved the plan on the task page / approvals inbox. Advance to planned
+  # (= approved) and run one orchestrator step now so execution starts promptly.
+  def approve
+    if @task.approve_plan!
+      Autopilot::Orchestrator.run_once(@task.project)
+      redirect_to [@project, @task], notice: "Approved — execution queued."
+    else
+      redirect_to [@project, @task], alert: "Can't approve: the item isn't awaiting approval."
+    end
+  end
+
+  # Human asked for plan changes. Log the note, bump the version, and resume the
+  # planning session in the project folder so it produces a revised plan (which the
+  # API re-gates to awaiting_approval).
+  def request_changes
+    note = params[:note].to_s.strip
+    @task.request_changes!(note: note)
+    resume_planner!("The user requested plan changes: #{note}\n\n" \
+                    "Revise the implementation plan accordingly and PATCH it back " \
+                    "(board_state:'planned' — it will be gated to await approval).")
+    redirect_to [@project, @task], notice: "Sent back to the planner with your notes."
+  end
+
+  # Human answered the planner's questions. Store them and resume the planning
+  # session, passing the answers so it can finalize the plan.
+  def answer_questions
+    # answers is keyed by question id (q1, q2, …) — dynamic keys, so permit! the
+    # whole sub-hash (no-auth app; record_answers! coerces values to strings).
+    @task.record_answers!(params.fetch(:answers, {}).permit!.to_h)
+    answered = @task.pending_questions.map { |q| "Q: #{q['q']}\nA: #{q['a']}" }.join("\n\n")
+    resume_planner!("The user answered your questions:\n\n#{answered}\n\n" \
+                    "Finalize the implementation plan and PATCH it back " \
+                    "(board_state:'planned' — it will be gated to await approval).")
+    redirect_to [@project, @task], notice: "Answers sent — finalizing the plan."
+  end
+
   # Plan + PR modals rendered into the #board_modal turbo-frame.
   def plan
     render partial: "boards/plan_modal", locals: { project: @project, task: @task }
@@ -312,5 +348,24 @@ class BoardsController < ApplicationController
   def open_session_in_browser(launch)
     # No-op server-side; the redirect notice links the session. Kept as a seam.
     launch
+  end
+
+  # Queue a resume of the item's most recent board pipeline session, carrying an
+  # instruction as the resume prompt. The host daemon spawns `claude --resume
+  # <session_id>` in the project folder, so all context comes from the repo.
+  def resume_planner!(instruction)
+    sid = @task.resumable_session_id
+    return if sid.blank?
+    launch = SessionLaunch.queue!(
+      project: @task.project,
+      task: @task,
+      prompt: instruction,
+      model: "default",
+      permission_mode: "auto",
+      source: "resume",
+      title: "re-plan: #{@task.title}".truncate(80),
+      pipeline_step: "planning"
+    )
+    launch.update!(resume_of_session_id: sid)
   end
 end
