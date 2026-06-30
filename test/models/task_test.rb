@@ -389,6 +389,15 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal 0, task.session_cost_usd.to_f
   end
 
+  test "entering waiting with a reason fires a web push" do
+    item = @project.tasks.create!(title: "X", item_type: "feature", board_state: "in_progress")
+    notified = nil
+    WebPushNotifier.stub(:notify_waiting, ->(t) { notified = t.id }) do
+      item.submit_plan!(role: "engineering", plan: "p")
+    end
+    assert_equal item.id, notified
+  end
+
   # --- in_review ordering -----------------------------------------------------
 
   test "mark_in_review! stamps review_ready_at once and never overwrites it" do
