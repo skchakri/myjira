@@ -19,6 +19,10 @@ class Task < ApplicationRecord
   # "ask" questions with a written answer and no PR.
   AGENT_ROLES = %w[unassigned engineering debugger answer_only].freeze
 
+  # Why an item sits in `waiting`: the agent posed questions (needs_input) or the
+  # plan is ready and the human must Approve / Request changes (awaiting_approval).
+  WAIT_REASONS = %w[needs_input awaiting_approval].freeze
+
   # States the autopilot orchestrator may pick up (a first-come-first-out queue).
   ACTIONABLE_STATES = %w[pending planned failed].freeze
   # After this many failed autopilot attempts the item is parked for a human
@@ -63,6 +67,7 @@ class Task < ApplicationRecord
   validates :item_type,   inclusion: { in: ITEM_TYPES }
   validates :board_state, inclusion: { in: BOARD_STATES }
   validates :agent_role,  inclusion: { in: AGENT_ROLES }
+  validates :wait_reason, inclusion: { in: WAIT_REASONS }, allow_blank: true
   validate :attachments_within_limits
 
   scope :recent, -> { order(created_at: :desc) }
@@ -116,6 +121,9 @@ class Task < ApplicationRecord
   after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
   # Drop the item live from every open board when it is deleted.
   after_destroy_commit :broadcast_board
+  # `wait_reason` is only meaningful while parked in `waiting`; clear it on exit so
+  # an approved/executing item never carries a stale reason.
+  before_save :clear_wait_reason_off_waiting
 
   # Worklog status for a board_state: terminal states map to done/failed, parked
   # states to waiting, everything else is an active (running) step.
@@ -139,6 +147,14 @@ class Task < ApplicationRecord
 
   def actionable?
     ACTIONABLE_STATES.include?(board_state)
+  end
+
+  def needs_input?
+    board_state == "waiting" && wait_reason == "needs_input"
+  end
+
+  def awaiting_approval?
+    board_state == "waiting" && wait_reason == "awaiting_approval"
   end
 
   def done?
@@ -310,6 +326,55 @@ class Task < ApplicationRecord
     update!(board_state: "planned")
   end
 
+  # The planner finished and the plan is ready for the human. Parks the item in
+  # `waiting:awaiting_approval` (NOT `planned` — `planned` now means "approved").
+  def submit_plan!(role:, plan: nil)
+    self.plan = plan if plan.present?
+    self.plan_updated_at = Time.current if plan.present?
+    self.agent_role = role if role.present?
+    self.wait_reason = "awaiting_approval"
+    update!(board_state: "waiting")
+  end
+
+  # The planner needs input before it can finish. Parks in `waiting:needs_input`
+  # with structured questions for the human to answer in the browser.
+  def ask_questions!(questions:, role: nil, plan: nil)
+    self.plan = plan if plan.present?
+    self.agent_role = role if role.present?
+    self.pending_questions = Array(questions).map.with_index do |q, i|
+      { "id" => "q#{i + 1}", "q" => q.to_s, "a" => nil }
+    end
+    self.wait_reason = "needs_input"
+    update!(board_state: "waiting")
+  end
+
+  # Human clicked Approve: the plan is accepted, so the item becomes `planned`
+  # (= approved & queued). The next orchestrator tick executes it. No-op unless the
+  # item is actually awaiting approval.
+  def approve_plan!
+    return false unless awaiting_approval?
+    update!(board_state: "planned", wait_reason: nil)
+  end
+
+  # Store the human's answers (keyed by question id) back into pending_questions.
+  def record_answers!(answers)
+    answers = answers.to_h.transform_keys(&:to_s)
+    self.pending_questions = Array(pending_questions).map do |q|
+      next q unless answers.key?(q["id"])
+      q.merge("a" => answers[q["id"]].to_s)
+    end
+    save!
+  end
+
+  # Human asked for plan changes: log the note, bump the version, and keep the item
+  # awaiting approval (the caller resumes the planner, which re-parks it).
+  def request_changes!(note:)
+    transaction do
+      comments.create!(author: "you", body: "Requested changes: #{note}") if note.present?
+      update!(plan_version: plan_version.to_i + 1)
+    end
+  end
+
   def mark_in_progress!
     update!(board_state: "in_progress", picked_up_at: picked_up_at || Time.current)
   end
@@ -372,6 +437,10 @@ class Task < ApplicationRecord
   def assign_position
     return if position.present?
     self.position = (project&.tasks&.maximum(:position) || 0) + 1
+  end
+
+  def clear_wait_reason_off_waiting
+    self.wait_reason = nil if board_state != "waiting"
   end
 
   def board_display_changed?
