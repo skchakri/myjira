@@ -131,6 +131,9 @@ class Task < ApplicationRecord
   # appears/clears the moment an item enters or leaves the waiting state.
   after_update_commit :broadcast_projects_overview,
                       if: -> { saved_change_to_wait_reason? || saved_change_to_board_state? }
+  # Push a desktop notification the moment an item parks waiting on the human.
+  after_update_commit :notify_waiting_push,
+                      if: -> { saved_change_to_board_state? && needs_human_now? }
   # Drop the item live from every open board when it is deleted.
   after_destroy_commit :broadcast_board
   # `wait_reason` is only meaningful while parked in `waiting`; clear it on exit so
@@ -167,6 +170,10 @@ class Task < ApplicationRecord
 
   def awaiting_approval?
     board_state == "waiting" && wait_reason == "awaiting_approval"
+  end
+
+  def needs_human_now?
+    board_state == "waiting" && wait_reason.present?
   end
 
   def done?
@@ -484,6 +491,10 @@ class Task < ApplicationRecord
     Turbo::StreamsChannel.broadcast_refresh_to(:projects_overview)
   rescue StandardError => e
     Rails.logger.warn("[board] overview broadcast failed: #{e.message}")
+  end
+
+  def notify_waiting_push
+    WebPushNotifier.notify_waiting(self)
   end
 
   # One timeline node per real board_state transition (guarded by the

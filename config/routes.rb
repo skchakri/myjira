@@ -15,6 +15,10 @@ Rails.application.routes.draw do
   # into needs-input and awaiting-approval, with answer / Approve / Request-changes.
   get "approvals", to: "approvals#index", as: :approvals
 
+  # Web Push subscription registration (one row per browser); DELETE on unsubscribe.
+  post   "push_subscriptions", to: "push_subscriptions#create"
+  delete "push_subscriptions", to: "push_subscriptions#destroy"
+
   # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
   # Auto-provisions the matching Project on first GET so external callers
   # never hit a 404.
