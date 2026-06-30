@@ -90,6 +90,8 @@ class Task < ApplicationRecord
   }
   scope :unmerged, -> { where(merged_into_id: nil) }
   scope :actionable, -> { where(board_state: ACTIONABLE_STATES, merged_into_id: nil) }
+  # Items parked waiting on the human — needs input or plan approval.
+  scope :awaiting_human, -> { where(board_state: "waiting").where.not(wait_reason: nil) }
   scope :in_progress, -> { where(board_state: "in_progress") }
   scope :on_board, -> { where.not(board_state: "done") }
   # PR review reconciliation (run by the host daemon, which has GitHub access).
@@ -122,6 +124,10 @@ class Task < ApplicationRecord
   after_update_commit :broadcast_activity,
                       if: -> { saved_change_to_plan? || saved_change_to_agent_notes? || saved_change_to_board_state? }
   after_update_commit :emit_board_worklog, if: :saved_change_to_board_state?
+  # Re-render the projects landing page live so a project's "needs you" blink
+  # appears/clears the moment an item enters or leaves the waiting state.
+  after_update_commit :broadcast_projects_overview,
+                      if: -> { saved_change_to_wait_reason? || saved_change_to_board_state? }
   # Drop the item live from every open board when it is deleted.
   after_destroy_commit :broadcast_board
   # `wait_reason` is only meaningful while parked in `waiting`; clear it on exit so
@@ -467,6 +473,12 @@ class Task < ApplicationRecord
     broadcast_refresh_to [self, :activity]
   rescue StandardError => e
     Rails.logger.warn("[board] activity broadcast failed: #{e.message}")
+  end
+
+  def broadcast_projects_overview
+    Turbo::StreamsChannel.broadcast_refresh_to(:projects_overview)
+  rescue StandardError => e
+    Rails.logger.warn("[board] overview broadcast failed: #{e.message}")
   end
 
   # One timeline node per real board_state transition (guarded by the

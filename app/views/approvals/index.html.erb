@@ -1,0 +1,38 @@
+<% content_for :title, "Approvals" %>
+
+<div class="min-w-0">
+  <div class="flex items-center gap-2 eyebrow">
+    <%= link_to "clients", clients_path, class: "hover:text-[color:var(--color-ink)]" %>
+    <span>/</span><span class="text-[color:var(--color-ink-soft)]">approvals</span>
+  </div>
+  <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Approvals</h1>
+  <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">Plans and questions waiting on you.</p>
+</div>
+
+<% sections = [["Needs your input", @needs_input], ["Awaiting approval", @awaiting_approval]] %>
+<% if sections.all? { |_t, g| g.blank? } %>
+  <div class="paper px-5 py-8 text-center mt-5">
+    <p class="text-sm text-[color:var(--color-ink-soft)]">Nothing waiting on you.</p>
+  </div>
+<% else %>
+  <% sections.each do |title, groups| %>
+    <% next if groups.blank? %>
+    <h2 class="mt-6 mb-2 text-xs font-semibold uppercase tracking-wider text-[color:var(--color-ink-soft)]"><%= title %></h2>
+    <div class="space-y-4">
+      <% groups.each do |project, items| %>
+        <div class="paper p-4">
+          <%= link_to project.name, board_path(project),
+                class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)]" %>
+          <div class="mt-3 space-y-4">
+            <% items.each do |item| %>
+              <div class="hair-t pt-3">
+                <%= link_to item.title, [project, item], class: "text-sm font-medium underline" %>
+                <%= render "boards/approval_panel", project: project, task: item %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

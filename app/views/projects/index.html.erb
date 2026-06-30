@@ -1,4 +1,5 @@
 <% content_for :title, "Projects" %>
+<%= turbo_stream_from :projects_overview %>
 
 <div class="flex items-baseline justify-between mb-6">
   <div>
@@ -42,42 +43,7 @@
     </div>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <% cat_projects.each do |project| %>
-        <div class="group relative rounded-xl border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] p-4 shadow-sm hover:shadow-md hover:border-[color:var(--color-hair)] transition <%= "opacity-75" if project.archived? %>">
-          <%# Stretched click target — the whole card opens the project. %>
-          <%= link_to project, class: "absolute inset-0 rounded-xl", aria: { label: project.name } do %><% end %>
-
-          <div class="flex items-center justify-between gap-2">
-            <h3 class="font-semibold text-[color:var(--color-ink)] group-hover:text-[color:var(--color-ink-soft)] truncate"><%= project.name %></h3>
-            <span class="text-xs font-mono text-[color:var(--color-ink-faint)] shrink-0 <%= "group-hover:opacity-0 transition-opacity" unless project.archived? %>"><%= project.slug %></span>
-          </div>
-          <p class="mt-2 text-sm text-[color:var(--color-ink-soft)] line-clamp-2"><%= project.description.presence || "No description." %></p>
-          <% r = project.rollup %>
-          <div class="mt-4 grid grid-cols-4 gap-2 text-center">
-            <div><div class="text-lg font-semibold text-[color:var(--color-ink)]"><%= r[:tasks] %></div><div class="text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">tasks</div></div>
-            <div><div class="text-lg font-semibold text-[color:var(--color-amber-ink)]"><%= r[:open_tasks] %></div><div class="text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">open</div></div>
-            <div><div class="text-lg font-semibold text-[color:var(--color-ink)]"><%= r[:test_plans] %></div><div class="text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">plans</div></div>
-            <div><div class="text-lg font-semibold text-[color:var(--color-fail-ink)]"><%= r[:open_follow_ups] %></div><div class="text-[11px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">gaps</div></div>
-          </div>
-
-          <%# Archive / unarchive control sits above the stretched link. %>
-          <% if project.archived? %>
-            <%= button_to unarchive_project_path(project), method: :patch,
-                  form_class: "absolute top-3 right-3 z-10",
-                  class: "inline-flex items-center gap-1 rounded-md border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] px-2 py-1 text-[11px] font-medium text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] hover:border-[color:var(--color-hair)] shadow-sm cursor-pointer",
-                  title: "Unarchive #{project.name}", aria: { label: "Unarchive #{project.name}" } do %>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-2 4H5z"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M12 19V12"/><path d="m9 15 3-3 3 3"/></svg>
-              Unarchive
-            <% end %>
-          <% else %>
-            <%= button_to archive_project_path(project), method: :patch,
-                  form_class: "absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity",
-                  class: "inline-flex items-center gap-1 rounded-md border border-[color:var(--color-hair)] bg-[color:var(--color-paper-raised)] px-2 py-1 text-[11px] font-medium text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] hover:border-[color:var(--color-hair)] shadow-sm cursor-pointer",
-                  title: "Archive #{project.name}", aria: { label: "Archive #{project.name}" } do %>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-2 4H5z"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 14h4"/></svg>
-              Archive
-            <% end %>
-          <% end %>
-        </div>
+        <%= render "card", project: project %>
       <% end %>
     </div>
   <% end %>

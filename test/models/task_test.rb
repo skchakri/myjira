@@ -389,6 +389,18 @@ class TaskTest < ActiveSupport::TestCase
     assert_equal 0, task.session_cost_usd.to_f
   end
 
+  # --- Approvals surface -----------------------------------------------------
+
+  test "awaiting_human covers waiting items with a wait_reason" do
+    a = @project.tasks.create!(title: "A", item_type: "feature", board_state: "waiting", wait_reason: "needs_input")
+    b = @project.tasks.create!(title: "B", item_type: "feature", board_state: "waiting", wait_reason: "awaiting_approval")
+    @project.tasks.create!(title: "C", item_type: "feature", board_state: "waiting") # parked, no reason
+    @project.tasks.create!(title: "D", item_type: "feature", board_state: "pending")
+    assert_equal [a.id, b.id].sort, @project.tasks.awaiting_human.pluck(:id).sort
+    assert @project.needs_attention?
+    assert_equal 2, @project.attention_count
+  end
+
   # --- Consolidation ---------------------------------------------------------
 
   test "merged items are excluded from the actionable queue and report merged?" do

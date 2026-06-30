@@ -11,6 +11,10 @@ Rails.application.routes.draw do
   # with the same Approve & merge / Reject actions as the board.
   get "review", to: "reviews#index", as: :review
 
+  # Cross-project approvals inbox — every item parked waiting on the human, split
+  # into needs-input and awaiting-approval, with answer / Approve / Request-changes.
+  get "approvals", to: "approvals#index", as: :approvals
+
   # Short, stable per-client URLs — pyr-docker links to /c/<client-slug>.
   # Auto-provisions the matching Project on first GET so external callers
   # never hit a 404.
