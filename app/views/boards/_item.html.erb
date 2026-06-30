@@ -13,6 +13,13 @@
   <div class="min-w-0 flex-1">
     <%= link_to item.title, [item.project, item],
           class: "text-sm text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] truncate block font-medium" %>
+    <% if item.awaiting_approval? %>
+      <%= link_to "Awaiting approval ▸ review", [item.project, item],
+            class: "inline-block mt-1 pill pill-accent !py-0 !px-1.5 !text-[10px]" %>
+    <% elsif item.needs_input? %>
+      <%= link_to "Needs your input ▸ answer", [item.project, item],
+            class: "inline-block mt-1 pill pill-accent !py-0 !px-1.5 !text-[10px]" %>
+    <% end %>
     <% if item.triage_suggestion.present? %>
       <div class="flex items-center gap-1.5 mt-1 flex-wrap">
         <span class="text-[10px] text-[color:var(--color-ink-faint)] font-medium shrink-0">Suggested:</span>

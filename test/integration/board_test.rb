@@ -419,6 +419,16 @@ class BoardTest < ActionDispatch::IntegrationTest
 
   # --- Approval gate ---------------------------------------------------------
 
+  test "the board surfaces an awaiting-approval item with a link to the task" do
+    project = Project.create!(name: "Bd", slug: "bd-#{SecureRandom.hex(3)}", repo_path: "/tmp/bd")
+    task = project.tasks.create!(title: "Needs approval", item_type: "feature", board_state: "waiting",
+                                 wait_reason: "awaiting_approval", agent_role: "engineering", plan: "p")
+    get board_path(project)
+    assert_response :success
+    assert_select "a[href=?]", project_task_path(project, task)
+    assert_match(/Awaiting approval/, response.body)
+  end
+
   test "the task page renders the approval panel for an awaiting-approval item" do
     project = Project.create!(name: "Pg", slug: "pg-#{SecureRandom.hex(3)}", repo_path: "/tmp/pg")
     task = project.tasks.create!(title: "Build", item_type: "feature", board_state: "waiting",
