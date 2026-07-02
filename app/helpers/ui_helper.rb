@@ -338,6 +338,18 @@ module UiHelper
       On EVERY post, include a stable id for THIS Chrome chat as
       "browser_session_id" (reuse the same value for the whole ticket).
 
+      HOW TO CALL THE myjira API (READ THIS — it's what breaks otherwise):
+      Run every GET/POST below from a myjira tab, NOT from the site you're
+      automating. Keep #{api_root} open in its own browser tab; to poll or post,
+      switch to that tab and run the fetch there, then switch back to your work
+      tab. Third-party sites (Firebase, Apple, Google, etc.) block requests to
+      #{api_root} through their content-security-policy, so a fetch fired from
+      one of those pages fails SILENTLY — you'll think you posted but nothing
+      reaches the ticket or the CLI. From a same-origin myjira tab there is no
+      such block. After every POST, re-GET the thread and confirm your message is
+      actually present before moving on; if it's missing, you posted from the
+      wrong tab — retry from the myjira tab.
+
       WORK LOOP — repeat until the ticket status is "done" or "cancelled":
 
       1. Read the thread (long-poll; first call omit since, then reuse the cursor):
@@ -372,6 +384,17 @@ module UiHelper
       You are Claude in Chrome — the STANDING relay worker for myjira. Stay running
       and handle every relay ticket as it arrives. The human does NOT click "Kick
       off"; tickets are auto-dispatched into your queue.
+
+      HOW TO CALL THE myjira API (READ THIS — it's what breaks otherwise):
+      Run every GET/POST below from a myjira tab, NOT from the site you're
+      automating. Keep #{api_root} open in its own browser tab; to poll or post,
+      switch to that tab and run the fetch there, then switch back to your work
+      tab. Third-party sites (Firebase, Apple, Google, etc.) block requests to
+      #{api_root} through their content-security-policy, so a fetch fired from
+      one of those pages fails SILENTLY — you'll think you posted but nothing
+      reaches the ticket or the CLI. From a same-origin myjira tab there is no
+      such block. After every POST, re-GET the thread and confirm your message is
+      present before moving on.
 
       WATCH LOOP — repeat indefinitely (re-poll every ~10–15s):
 
