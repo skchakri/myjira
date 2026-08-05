@@ -29,7 +29,7 @@ gem "solid_queue"
 gem "solid_cable"
 
 # Redis for shared real-time data (per workspace convention)
-gem "redis", "~> 5.0"
+gem "redis", "~> 6.0"
 
 # Add HTTP asset caching/compression and X-Sendfile acceleration to Puma [https://github.com/basecamp/thruster/]
 gem "thruster", require: false
