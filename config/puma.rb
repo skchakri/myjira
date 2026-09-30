@@ -28,8 +28,11 @@
 threads_count = ENV.fetch("RAILS_MAX_THREADS", 3)
 threads threads_count, threads_count
 
-# Specifies the `port` that Puma will listen on to receive requests; default is 3000.
-port ENV.fetch("PORT", 3000)
+# Bind to loopback only by default: the container runs with host networking, so
+# `port` (which listens on 0.0.0.0) would expose the no-auth app + its
+# session-launching API to the whole LAN. Override with BIND_HOST=0.0.0.0 if you
+# genuinely want it reachable from other machines.
+bind "tcp://#{ENV.fetch('BIND_HOST', '127.0.0.1')}:#{ENV.fetch('PORT', 3000)}"
 
 # Allow puma to be restarted by `bin/rails restart` command.
 plugin :tmp_restart
