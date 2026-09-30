@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Symlink this repo's board pipeline commands into ~/.claude/commands so the
+# global Claude CLI (which board agents run as, cwd = each client repo) picks
+# them up. The repo is the single source of truth — edit here, ship via PR;
+# the symlinks make edits live everywhere instantly. Idempotent; run any time.
+set -euo pipefail
+
+repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
+src="$repo_dir/.claude/commands"
+dst="$HOME/.claude/commands"
+mkdir -p "$dst"
+
+for f in "$src"/board-*.md; do
+  name="$(basename "$f")"
+  ln -sf "$f" "$dst/$name"
+  echo "linked $dst/$name -> $f"
+done
