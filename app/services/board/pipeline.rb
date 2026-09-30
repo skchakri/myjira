@@ -12,6 +12,7 @@ module Board
       "triage"      => "board-triage",
       "review"      => "board-review",
       "planning"    => "board-plan",
+      "build"       => "board-build",
       "engineering" => "board-engineer",
       "debugger"    => "board-debug",
       "answer"      => "board-answer",
@@ -24,12 +25,20 @@ module Board
 
     # The next step an actionable item needs, or nil if it is not the pipeline's
     # turn (in_progress/waiting/hold/in_review/done, or a failed item out of tries).
+    #
+    # The FIRST step of an item depends on the project's approval gate. Gated
+    # (default): plan and stop for the human, then engineer/debug/answer once
+    # approved. Un-gated: a single combined `build` session plans → implements →
+    # tests → opens the PR with no human stop (never reaches "planned"). The
+    # "planned" branch below is therefore only exercised by the gated flow (and
+    # the manual approve).
     def next_step_for(task)
+      first_step = task.project&.approval_gate_enabled? ? "planning" : "build"
       case task.board_state
       when "pending"
-        "planning"
+        first_step
       when "failed"
-        task.autopilot_exhausted? ? nil : "planning"
+        task.autopilot_exhausted? ? nil : first_step
       when "planned"
         case task.agent_role
         when "engineering" then "engineering"
@@ -53,9 +62,11 @@ module Board
       return nil if project.repo_path.blank?
       command = COMMANDS.fetch(step)
       # Cost-aware auto-routing: replace the static "default" slot with a concrete
-      # tier scored from the item's existing fields. Defensive fallback to "default"
-      # so a blank pick can never break a launch.
-      model = Board::ModelRouter.pick(task: task, step: step).presence || "default"
+      # tier scored from the item's existing fields. Fall back to "sonnet" (never
+      # "default") so a blank pick can never silently drop a board launch onto the
+      # CLI's default model — which is Opus for this account and is the single
+      # biggest usage sink. Opus is opt-in via ModelRouter.escalate?, not a floor.
+      model = Board::ModelRouter.pick(task: task, step: step).presence || "sonnet"
       launch = SessionLaunch.queue!(
         project: project,
         prompt: "/#{command} #{task.id} #{project.slug} #{base_url} #{project.base_branch_or_default}",

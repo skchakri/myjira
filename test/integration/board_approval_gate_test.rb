@@ -34,4 +34,16 @@ class BoardApprovalGateTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal "in_review", @task.reload.board_state
   end
+
+  test "a project with the gate OFF lets planned stand instead of parking it" do
+    open = Project.create!(name: "Open", slug: "open-#{SecureRandom.hex(3)}", repo_path: "/tmp/o",
+                           approval_gate_enabled: false)
+    item = open.tasks.create!(title: "Build Y", item_type: "feature", board_state: "in_progress")
+    patch "/api/v1/projects/#{open.slug}/tasks/#{item.id}",
+          params: { task: { board_state: "planned", agent_role: "engineering", plan: "## Plan" } }
+    assert_response :success
+    item.reload
+    assert_equal "planned", item.board_state, "un-gated projects execute without a human stop"
+    assert_nil item.wait_reason
+  end
 end

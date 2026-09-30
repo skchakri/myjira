@@ -31,9 +31,14 @@ module Api
         # The approval gate: an agent may report a finished plan as board_state
         # "planned", but in the assisted workflow nothing executes without human
         # approval. Convert it to waiting:awaiting_approval here. The ONLY path to
-        # "planned" is BoardsController#approve. (Engineering/answer agents move to
-        # in_review/done/failed, never "planned", so they are unaffected.)
-        if attrs[:board_state].to_s == "planned"
+        # "planned" is then BoardsController#approve. (Engineering/answer agents
+        # move to in_review/done/failed, never "planned", so they are unaffected.)
+        #
+        # Only projects with the gate ON are held. When a project has opted out
+        # (approval_gate_enabled == false) it runs the combined `board-build` flow,
+        # which never emits "planned"; but if a plain planner ever reports "planned"
+        # for such a project we let it stand so the next tick executes it directly.
+        if attrs[:board_state].to_s == "planned" && @project.approval_gate_enabled?
           attrs[:board_state] = "waiting"
           attrs[:wait_reason] = "awaiting_approval"
         end

@@ -79,4 +79,42 @@ class Board::PipelineTest < ActiveSupport::TestCase
     assert node, "a model.routed worklog node is persisted"
     assert_equal "Auto-routed model → sonnet", node.label
   end
+
+  # --- Approval gate → first step (plan vs combined build) ---
+
+  test "next_step_for plans a pending item when the project's approval gate is on" do
+    gated = Project.create!(name: "G", slug: "g-#{SecureRandom.hex(3)}", repo_path: "/tmp/g",
+                            approval_gate_enabled: true)
+    item = gated.tasks.create!(title: "x", board_state: "pending")
+    assert_equal "planning", Board::Pipeline.next_step_for(item)
+  end
+
+  test "next_step_for runs the combined build for a pending item when the gate is off" do
+    open = Project.create!(name: "O", slug: "o-#{SecureRandom.hex(3)}", repo_path: "/tmp/o",
+                           approval_gate_enabled: false)
+    item = open.tasks.create!(title: "x", board_state: "pending")
+    assert_equal "build", Board::Pipeline.next_step_for(item)
+  end
+
+  test "next_step_for retries a failed item via build when the gate is off" do
+    open = Project.create!(name: "O2", slug: "o2-#{SecureRandom.hex(3)}", repo_path: "/tmp/o2",
+                           approval_gate_enabled: false)
+    item = open.tasks.create!(title: "x", board_state: "failed", autopilot_attempts: 0)
+    assert_equal "build", Board::Pipeline.next_step_for(item)
+  end
+
+  test "build maps to the board-build command" do
+    assert_equal "board-build", Board::Pipeline::COMMANDS.fetch("build")
+  end
+
+  test "every pipeline command has its prompt file in the repo" do
+    # The board-* prompts are version-controlled here (.claude/commands) and
+    # symlinked into ~/.claude/commands by bin/install_commands. If a step is
+    # added to COMMANDS without its prompt, the daemon would launch a session
+    # against a slash command that doesn't exist — catch that at test time.
+    Board::Pipeline::COMMANDS.each_value do |command|
+      path = Rails.root.join(".claude", "commands", "#{command}.md")
+      assert File.exist?(path), "missing prompt file for /#{command}: #{path}"
+    end
+  end
 end

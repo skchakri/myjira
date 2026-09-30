@@ -27,6 +27,10 @@
       <%= f.check_box :autopilot_review_enabled, checked: project.autopilot_review_enabled?, data: { action: "change->auto-submit#submit" } %>
       <span>Review agent</span>
     </label>
+    <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-soft)]" title="On: the planner stops for you to approve the plan before any code is written. Off: one combined board-build session plans → implements → tests → opens the PR with no approval stop.">
+      <%= f.check_box :approval_gate_enabled, checked: project.approval_gate_enabled?, data: { action: "change->auto-submit#submit" } %>
+      <span>Approval gate</span>
+    </label>
     <label class="flex items-center gap-2 text-xs text-[color:var(--color-ink-faint)]" title="Branch agents fork from and target PRs at">
       <span>Base</span>
       <%= f.text_field :base_branch, value: project.base_branch, placeholder: "main",
