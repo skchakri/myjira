@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -305,6 +305,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_000004) do
   end
 
   create_table "projects", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.boolean "approval_gate_enabled", default: true, null: false
     t.datetime "archived_at"
     t.boolean "auto_triage_enabled", default: false, null: false
     t.integer "autopilot_budget_cap_cents"
@@ -364,6 +365,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_000004) do
     t.integer "budget_cap_cents"
     t.bigint "cache_creation_tokens"
     t.bigint "cache_read_tokens"
+    t.boolean "chrome", default: false, null: false
     t.uuid "conversation_id"
     t.datetime "created_at", null: false
     t.text "error"

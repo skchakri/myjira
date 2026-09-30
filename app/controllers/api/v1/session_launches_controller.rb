@@ -51,6 +51,7 @@ module Api
           budget_cap_cents: launch.budget_cap_cents,
           status: launch.status,
           resume_of_session_id: launch.resume_of_session_id,
+          chrome: launch.chrome,
           pipeline_step: launch.pipeline_step,
           project: launch.project.slug
         }

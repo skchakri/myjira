@@ -1,5 +1,5 @@
 class BrowserTasksController < ApplicationController
-  before_action :set_task, only: [:show, :kickoff, :complete, :cancel, :humanize]
+  before_action :set_task, only: [:show, :kickoff, :run_in_chrome, :complete, :cancel, :humanize]
 
   def index
     if params[:project_id]
@@ -41,6 +41,24 @@ class BrowserTasksController < ApplicationController
     redirect_to browser_task_path(@task), notice: "Dispatched. Copy the hand-off prompt below into Claude for Chrome."
   end
 
+  # "Run in Chrome" — skip the copy/paste into the Chrome extension: queue a
+  # host-side `claude --chrome` session (via the launcher daemon) that works this
+  # ticket with its Claude-in-Chrome tools. Runs in the originating CLI's cwd so
+  # it picks up that project's context, falling back to the ticket's project.
+  def run_in_chrome
+    @task.touch_activity!("dispatched") if @task.status == "queued"
+    launch = SessionLaunch.queue!(
+      project: @task.project, prompt: helpers.browser_task_cli_prompt(@task),
+      permission_mode: "auto", chrome: true, source: "relay",
+      title: "Relay: #{@task.title}", repo_path: relay_repo_path
+    )
+    @task.browser_messages.create!(role: "system", kind: "note",
+      body: "Launched a Claude CLI session with Chrome tools to work this ticket.")
+    redirect_to browser_task_path(@task), notice: "Launching Claude in Chrome (session #{launch.session_id.first(8)})…"
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to browser_task_path(@task), alert: "Couldn't launch: #{e.record.errors.full_messages.to_sentence}"
+  end
+
   def complete
     body = params[:summary].presence || "Closed by user."
     @task.browser_messages.create!(role: "user", kind: "note", body: body)
@@ -78,6 +96,11 @@ class BrowserTasksController < ApplicationController
 
   def find_project(key)
     Project.where(slug: key).or(Project.where(id: key)).first!
+  end
+
+  def relay_repo_path
+    @task.conversation&.cwd.presence || @task.project.repo_path.presence ||
+      Project.find_by(slug: "myjira")&.repo_path
   end
 
   def task_params

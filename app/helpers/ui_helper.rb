@@ -375,6 +375,47 @@ module UiHelper
     PROMPT
   end
 
+  # Same ticket loop as browser_task_prompt, but for a host-side `claude --chrome`
+  # session spawned by "Run in Chrome": it drives the browser through its
+  # Claude-in-Chrome tools and talks to myjira with curl — no same-origin-tab
+  # dance, since curl isn't subject to a third-party page's CSP.
+  def browser_task_cli_prompt(task)
+    api_root = request.base_url
+    target   = task.target_url.presence
+    <<~PROMPT
+      You are a Claude CLI session launched by myjira to work a relay ticket in the
+      user's real, logged-in Chrome via your Claude-in-Chrome browser tools. STAY ON
+      the ticket until it is closed — the CLI/human may post follow-ups on the SAME
+      ticket and you pick them up automatically.
+
+      ticket : #{task.title}
+      id     : #{task.id}
+      #{target ? "open   : #{target}" : "open   : (URL is inside the instructions)"}
+
+      Do all browsing with the mcp__claude-in-chrome__* tools (start with
+      tabs_context_mcp, then open a new tab). Talk to myjira with curl from Bash —
+      never from a browser tab. Use browser_session_id "cli-#{task.id.first(8)}" on
+      every post.
+
+      WORK LOOP — repeat until the ticket status is "done" or "cancelled":
+
+      1. Read the thread (long-poll; first call omit since, then reuse the cursor):
+           curl -s "#{api_root}/api/v1/browser_tasks/#{task.id}?wait=25&since=<cursor>"
+      2. Find the LATEST instruction aimed at you (a role=cli or role=user turn).
+         If you haven't done it yet, do exactly what it says in Chrome. Follow any
+         safety rules in the instructions to the letter.
+      3. Blocked or unclear? ASK, then keep polling for the answer:
+           curl -s -X POST -H 'Content-Type: application/json' \
+             "#{api_root}/api/v1/browser_tasks/#{task.id}/messages" \
+             -d '{"role":"browser","kind":"question","body":"<question>","browser_session_id":"cli-#{task.id.first(8)}"}'
+      4. Step done → post kind "result" the same way with what you did + found,
+         then go back to 1. A fresh role=cli instruction flips the ticket to
+         "in_progress" — that's your cue to act again.
+      5. Stop when status is "done"/"cancelled", or after ~10 minutes with nothing
+         new since your last result.
+    PROMPT
+  end
+
   # Channel-level worker prompt: paste ONCE into Claude for Chrome and it watches
   # the whole relay queue, working every auto-dispatched ticket as it lands — so
   # nobody clicks "Kick off" per ticket. Pairs with auto_kickoff.

@@ -160,6 +160,7 @@ Rails.application.routes.draw do
   resources :browser_tasks, only: [:index, :show] do
     member do
       post :kickoff
+      post :run_in_chrome
       post :complete
       post :cancel
       post :humanize

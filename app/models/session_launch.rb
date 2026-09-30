@@ -77,7 +77,7 @@ class SessionLaunch < ApplicationRecord
 
   def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
                   agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil,
-                  budget_cap_cents: nil, max_turns: nil)
+                  budget_cap_cents: nil, max_turns: nil, repo_path: nil, chrome: false)
     # Pipeline (board/playbook) launches inherit a per-run $ cap + turn backstop so
     # an unattended runaway is bounded; ad-hoc "＋ New session" launches stay uncapped
     # unless a cap is passed explicitly.
@@ -98,7 +98,7 @@ class SessionLaunch < ApplicationRecord
 
       launch = project.session_launches.create!(
         prompt: spawn_prompt, model: model, permission_mode: permission_mode, agent: agent,
-        task: task, pipeline_step: pipeline_step,
+        task: task, pipeline_step: pipeline_step, repo_path: repo_path, chrome: chrome,
         budget_cap_cents: budget_cap_cents,
         max_turns: (max_turns.to_i.positive? ? max_turns.to_i : nil)
       )
@@ -106,7 +106,7 @@ class SessionLaunch < ApplicationRecord
         session_id: launch.session_id,
         source: source,
         title: convo_title,
-        cwd: project.repo_path,
+        cwd: launch.repo_path,
         started_at: Time.current,
         last_message_at: Time.current
       )
