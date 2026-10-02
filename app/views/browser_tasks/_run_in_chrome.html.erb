@@ -1,0 +1,23 @@
+<%# "Run in Chrome" control. Idle → launch button. Running → a live status pill
+    linking to the session's terminal, so a click is visibly acknowledged and
+    can't spawn a duplicate. While the daemon is still spawning the session the
+    page re-checks every couple of seconds until it's up. %>
+<% launch = task.active_chrome_launch
+   pad    = size == :sm ? "px-2.5 py-1 text-xs" : "px-3 py-1.5 text-sm" %>
+<% if launch.nil? %>
+  <%= button_to "▶ Run in Chrome", run_in_chrome_browser_task_path(task), method: :post,
+        form_class: "inline", data: { turbo_submits_with: "Launching…" },
+        title: "Launch a Claude CLI session that works this ticket in Chrome — no copy/paste",
+        class: "#{pad} text-[color:var(--color-paper)] bg-[color:var(--color-ink)] hover:opacity-90 rounded-md cursor-pointer" %>
+<% elsif launch.live_terminal_url.present? %>
+  <a href="<%= launch.live_terminal_url %>" target="_blank" rel="noopener"
+     title="Claude is working this ticket in Chrome — open its live terminal"
+     class="<%= pad %> inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-hair)] text-[color:var(--color-ink)] hover:bg-[color:var(--color-paper-sunk)]">
+    <span class="dot dot-pass animate-pulse" aria-hidden="true"></span> Running in Chrome · Watch ↗
+  </a>
+<% else %>
+  <span class="<%= pad %> inline-flex items-center gap-1.5 rounded-md border border-[color:var(--color-hair)] text-[color:var(--color-ink-soft)]"
+        role="status" <%= 'data-controller="refresh-soon"'.html_safe if size == :md %>>
+    <span class="dot dot-block animate-pulse" aria-hidden="true"></span> Starting Claude…
+  </span>
+<% end %>

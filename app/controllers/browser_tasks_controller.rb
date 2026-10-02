@@ -46,11 +46,16 @@ class BrowserTasksController < ApplicationController
   # ticket with its Claude-in-Chrome tools. Runs in the originating CLI's cwd so
   # it picks up that project's context, falling back to the ticket's project.
   def run_in_chrome
+    if (running = @task.active_chrome_launch)
+      return redirect_to browser_task_path(@task),
+                         notice: "Already running in Chrome (session #{running.session_id.first(8)})."
+    end
+
     @task.touch_activity!("dispatched") if @task.status == "queued"
     launch = SessionLaunch.queue!(
       project: @task.project, prompt: helpers.browser_task_cli_prompt(@task),
       permission_mode: "auto", chrome: true, source: "relay",
-      title: "Relay: #{@task.title}", repo_path: relay_repo_path
+      title: "Relay: #{@task.title}", repo_path: relay_repo_path, browser_task: @task
     )
     @task.browser_messages.create!(role: "system", kind: "note",
       body: "Launched a Claude CLI session with Chrome tools to work this ticket.")

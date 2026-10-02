@@ -23,9 +23,7 @@
             class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
     <% end %>
     <% if @task.open? %>
-      <%= button_to "▶ Run in Chrome", run_in_chrome_browser_task_path(@task), method: :post,
-            title: "Launch a Claude CLI session that works this ticket in Chrome — no copy/paste",
-            class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-ink)] hover:opacity-90 px-3 py-1.5 rounded-md" %>
+      <%= render "run_in_chrome", task: @task, size: :md %>
       <%= button_to "Mark done", complete_browser_task_path(@task), method: :post,
             class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
       <%= button_to "Cancel", cancel_browser_task_path(@task), method: :post,
@@ -93,10 +91,7 @@
                 class="text-xs px-2.5 py-1 rounded-md border border-[color:var(--color-hair)] hover:bg-[color:var(--color-paper-sunk)] text-[color:var(--color-ink-soft)] cursor-pointer">
           Copy prompt
         </button>
-        <%= button_to "▶ Run in Chrome", run_in_chrome_browser_task_path(@task), method: :post,
-              form_class: "inline",
-              title: "Launch a Claude CLI session that works this ticket in Chrome — no copy/paste",
-              class: "text-xs text-[color:var(--color-paper)] bg-[color:var(--color-ink)] hover:opacity-90 px-2.5 py-1 rounded-md cursor-pointer" %>
+        <%= render "run_in_chrome", task: @task, size: :sm %>
       </div>
     <% end %>
 

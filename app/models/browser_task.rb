@@ -22,6 +22,11 @@ class BrowserTask < ApplicationRecord
   # the conversation may not be captured yet, or the id may be absent.
   belongs_to :conversation, optional: true
   has_many :browser_messages, -> { order(:created_at) }, dependent: :destroy
+  has_many :session_launches, dependent: :nullify
+
+  # How long a launched "Run in Chrome" session counts as still working the
+  # ticket (its prompt idles out after ~10 min without news).
+  CHROME_RUN_WINDOW = 1.hour
 
   validates :title, presence: true
   validates :status, inclusion: { in: STATUSES }
@@ -66,6 +71,14 @@ class BrowserTask < ApplicationRecord
 
   def open?
     OPEN_STATUSES.include?(status)
+  end
+
+  # The "Run in Chrome" session currently working this ticket, if any — drives
+  # the running state on the page and stops a second click spawning a duplicate.
+  def active_chrome_launch
+    session_launches.where(status: %w[pending launching])
+                    .or(session_launches.where(status: "launched", launched_at: CHROME_RUN_WINDOW.ago..))
+                    .order(created_at: :desc).first
   end
 
   def waiting_on_cli?

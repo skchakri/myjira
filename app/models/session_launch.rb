@@ -34,6 +34,8 @@ class SessionLaunch < ApplicationRecord
   belongs_to :agent, optional: true
   # Set when this launch is a board pipeline step working a specific item.
   belongs_to :task, optional: true
+  # Set when this launch is a relay "Run in Chrome" session working a ticket.
+  belongs_to :browser_task, optional: true
 
   before_validation :assign_session_id, on: :create
   before_validation :inherit_repo_path, on: :create
@@ -77,7 +79,7 @@ class SessionLaunch < ApplicationRecord
 
   def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
                   agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil,
-                  budget_cap_cents: nil, max_turns: nil, repo_path: nil, chrome: false)
+                  budget_cap_cents: nil, max_turns: nil, repo_path: nil, chrome: false, browser_task: nil)
     # Pipeline (board/playbook) launches inherit a per-run $ cap + turn backstop so
     # an unattended runaway is bounded; ad-hoc "＋ New session" launches stay uncapped
     # unless a cap is passed explicitly.
@@ -99,6 +101,7 @@ class SessionLaunch < ApplicationRecord
       launch = project.session_launches.create!(
         prompt: spawn_prompt, model: model, permission_mode: permission_mode, agent: agent,
         task: task, pipeline_step: pipeline_step, repo_path: repo_path, chrome: chrome,
+        browser_task: browser_task,
         budget_cap_cents: budget_cap_cents,
         max_turns: (max_turns.to_i.positive? ? max_turns.to_i : nil)
       )

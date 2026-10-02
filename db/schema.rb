@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_02_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -361,6 +361,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_000001) do
 
   create_table "session_launches", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.uuid "agent_id"
+    t.uuid "browser_task_id"
     t.datetime "budget_alerted_at"
     t.integer "budget_cap_cents"
     t.bigint "cache_creation_tokens"
@@ -390,6 +391,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_000001) do
     t.bigint "token_output"
     t.datetime "updated_at", null: false
     t.index ["agent_id"], name: "index_session_launches_on_agent_id"
+    t.index ["browser_task_id"], name: "index_session_launches_on_browser_task_id"
     t.index ["conversation_id"], name: "index_session_launches_on_conversation_id"
     t.index ["project_id", "created_at"], name: "index_session_launches_on_project_id_and_created_at"
     t.index ["project_id"], name: "index_session_launches_on_project_id"
@@ -588,6 +590,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_000001) do
   add_foreign_key "playbooks", "projects"
   add_foreign_key "session_commands", "conversations"
   add_foreign_key "session_launches", "agents"
+  add_foreign_key "session_launches", "browser_tasks"
   add_foreign_key "session_launches", "conversations"
   add_foreign_key "session_launches", "projects"
   add_foreign_key "session_launches", "tasks", on_delete: :nullify

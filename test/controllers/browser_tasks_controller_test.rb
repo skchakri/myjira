@@ -36,4 +36,23 @@ class BrowserTasksControllerTest < ActionDispatch::IntegrationTest
     post run_in_chrome_browser_task_path(@task)
     assert_equal "/tmp/relay", SessionLaunch.order(:created_at).last.repo_path
   end
+
+  test "a second click while a session is running doesn't launch a duplicate" do
+    post run_in_chrome_browser_task_path(@task)
+    assert_no_difference -> { SessionLaunch.count } do
+      post run_in_chrome_browser_task_path(@task)
+    end
+    assert_equal @task, SessionLaunch.order(:created_at).last.browser_task
+  end
+
+  test "show swaps the button for a running state once launched" do
+    post run_in_chrome_browser_task_path(@task)
+    get browser_task_path(@task)
+    assert_select "form[action='#{run_in_chrome_browser_task_path(@task)}']", count: 0
+    assert_select "[data-controller='refresh-soon']", text: /Starting Claude/
+
+    SessionLaunch.last.update!(status: "launched", launched_at: Time.current, tmux_target: "myjira:general-abc123")
+    get browser_task_path(@task)
+    assert_select "a[href*='general-abc123']", text: /Running in Chrome/
+  end
 end
