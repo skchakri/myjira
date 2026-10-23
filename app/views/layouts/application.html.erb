@@ -220,6 +220,13 @@
               <span class="clink-slug truncate max-w-[90px]">inbox</span>
             <% end %>
           <% end %>
+
+          <%# Calendar — every recurring job: myjira/Claude schedules, cron, timers %>
+          <%= link_to calendar_path, class: "clink #{controller_name.start_with?('calendar') ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Calendar</span>
+            <span class="clink-slug truncate max-w-[90px]">cron</span>
+          <% end %>
         </nav>
 
         <!-- Footer -->

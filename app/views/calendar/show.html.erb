@@ -1,0 +1,152 @@
+<% content_for :title, "Calendar" %>
+<% month_param = ->(d) { d.strftime("%Y-%m") }
+   hide_param  = @hidden.join(",").presence
+   chips_per_day = 4 %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <div class="flex items-center gap-2 eyebrow">
+      <%= link_to "clients", clients_path, class: "hover:text-[color:var(--color-ink)]" %>
+      <span>/</span><span class="text-[color:var(--color-ink-soft)]">calendar</span>
+    </div>
+    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Calendar</h1>
+    <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">
+      Every recurring job on this machine and in Claude, in <span class="font-mono text-[12px]"><%= @zone.tzinfo.name %></span>.
+      <% if @last_synced %>
+        System jobs synced <%= time_ago_in_words(@last_synced) %> ago.
+      <% else %>
+        System jobs haven't synced yet — the host launcher pushes them every few minutes.
+      <% end %>
+    </p>
+  </div>
+
+  <nav class="flex items-center gap-1.5" aria-label="Month">
+    <%= link_to calendar_path(month: month_param.(@month.prev_month), hide: hide_param),
+          class: "paper grid place-items-center h-10 w-10 hover:text-[color:var(--color-amber-ink)]", aria: { label: "Previous month" } do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+    <% end %>
+    <%= link_to "Today", calendar_path(hide: hide_param),
+          class: "paper h-10 px-3 grid place-items-center text-sm hover:text-[color:var(--color-amber-ink)]" %>
+    <%= link_to calendar_path(month: month_param.(@month.next_month), hide: hide_param),
+          class: "paper grid place-items-center h-10 w-10 hover:text-[color:var(--color-amber-ink)]", aria: { label: "Next month" } do %>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+    <% end %>
+    <h2 class="ml-2 font-display text-xl tabular min-w-[150px]"><%= @month.strftime("%B %Y") %></h2>
+  </nav>
+</div>
+
+<div class="flex flex-wrap gap-2 mt-5" role="group" aria-label="Show sources">
+  <% CalendarJob::SOURCES.each do |src, meta| %>
+    <%= link_to calendar_toggle_path(src, @month, @hidden),
+          class: "cal-filter cal-src-#{src}", aria: { pressed: !@hidden.include?(src) } do %>
+      <%= calendar_source_glyph(src) %>
+      <span><%= meta[:label] %></span>
+      <span class="font-mono tabular text-[10.5px] text-[color:var(--color-ink-faint)]"><%= @source_counts[src].to_i %></span>
+    <% end %>
+  <% end %>
+</div>
+
+<div class="grid gap-5 mt-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+  <section aria-label="<%= @month.strftime("%B %Y") %>">
+    <%# Month grid (tablet and up) %>
+    <div class="hidden md:block paper overflow-hidden">
+      <div class="grid grid-cols-7 hair-b">
+        <% %w[Mon Tue Wed Thu Fri Sat Sun].each do |wd| %>
+          <div class="eyebrow px-2 py-2"><%= wd %></div>
+        <% end %>
+      </div>
+      <div class="grid grid-cols-7 gap-px" style="background:var(--color-hair-soft);">
+        <% (@grid_start..@grid_end).each do |day|
+             occs = @by_day[day] || []
+             cls = ["cal-day p-1.5 flex flex-col gap-1 min-w-0"]
+             cls << "cal-day-out" if day.month != @month.month
+             cls << "cal-today" if day == @today %>
+          <div class="<%= cls.join(' ') %>">
+            <div class="flex items-center justify-between px-0.5">
+              <span class="cal-daynum font-mono tabular text-[11px] text-[color:var(--color-ink-soft)]"><%= day.day %></span>
+              <% if occs.size > 0 %><span class="sr-only"><%= pluralize(occs.size, "job") %></span><% end %>
+            </div>
+            <% occs.first(chips_per_day).each do |occ| %>
+              <%= render "calendar/chip", occ: occ %>
+            <% end %>
+            <% if occs.size > chips_per_day %>
+              <details class="text-[11px]">
+                <summary class="cursor-pointer px-1 text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-amber-ink)]">+<%= occs.size - chips_per_day %> more</summary>
+                <div class="flex flex-col gap-1 mt-1">
+                  <% occs.drop(chips_per_day).each do |occ| %>
+                    <%= render "calendar/chip", occ: occ %>
+                  <% end %>
+                </div>
+              </details>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%# Agenda (phones) %>
+    <div class="md:hidden space-y-3">
+      <% month_days = (@month..@month.end_of_month).select { |d| @by_day[d].present? } %>
+      <% if month_days.empty? %>
+        <div class="paper px-5 py-8 text-center text-sm text-[color:var(--color-ink-soft)]">Nothing scheduled this month.</div>
+      <% end %>
+      <% month_days.each do |day| %>
+        <div class="paper p-3">
+          <div class="eyebrow mb-2 <%= 'text-[color:var(--color-amber-ink)]' if day == @today %>"><%= day.strftime("%a %b %-d") %><%= " · today" if day == @today %></div>
+          <div class="flex flex-col gap-1.5">
+            <% @by_day[day].each do |occ| %>
+              <div class="min-h-[36px] flex"><%= render "calendar/chip", occ: occ %></div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </section>
+
+  <aside class="space-y-5">
+    <div class="paper p-4">
+      <h2 class="eyebrow mb-3">Up next</h2>
+      <% if @upcoming.empty? %>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">Nothing upcoming in this view.</p>
+      <% else %>
+        <ol class="space-y-1.5">
+          <% @upcoming.each do |occ| %>
+            <li class="flex items-start gap-2">
+              <span class="font-mono tabular text-[10.5px] text-[color:var(--color-ink-faint)] w-[66px] shrink-0 pt-1"><%= occ.at.strftime("%a %-d %H:%M") %></span>
+              <%= render "calendar/chip", occ: occ %>
+            </li>
+          <% end %>
+        </ol>
+      <% end %>
+    </div>
+
+    <div class="paper p-4">
+      <h2 class="eyebrow">Suggested from your sessions</h2>
+      <p class="text-[12px] text-[color:var(--color-ink-soft)] mt-1 mb-3">
+        Things you keep asking Claude to do, at the cadence you've been doing them. Open one to schedule it.
+      </p>
+      <% if @suggestions.empty? %>
+        <p class="text-sm text-[color:var(--color-ink-soft)]">No suggestions yet.</p>
+      <% else %>
+        <ul class="space-y-1.5">
+          <% @suggestions.each do |job| %>
+            <li>
+              <%= link_to calendar_item_path(type: "job", id: job.id), data: { turbo_frame: "calendar_drawer" },
+                    class: "cal-chip cal-src-suggested min-h-[40px] #{'cal-chip-dim' if job.promoted?}" do %>
+                <%= calendar_source_glyph("suggested") %>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate"><%= job.title %></span>
+                  <span class="block text-[10.5px] text-[color:var(--color-ink-soft)] truncate">
+                    <%= job.schedule_label || job.cron %><%= " · #{job.project.name}" if job.project %><%= " · scheduled" if job.promoted? %>
+                  </span>
+                </span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% end %>
+    </div>
+  </aside>
+</div>
+
+<turbo-frame id="calendar_drawer"></turbo-frame>

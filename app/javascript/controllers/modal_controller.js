@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Wraps content rendered into the #board_modal turbo-frame (plan / PR diff).
+// Wraps content rendered into a modal turbo-frame (#board_modal plan / PR diff,
+// #calendar_drawer item detail).
 // Closes on the close button, a backdrop click, or Escape — by emptying the
 // frame so it can be re-opened cleanly. On open, focus moves into the dialog
 // and is trapped (Tab cycles within); on teardown focus returns to the trigger.
@@ -29,7 +30,7 @@ export default class extends Controller {
 
   close(e) {
     if (e) e.preventDefault()
-    const frame = document.getElementById("board_modal")
+    const frame = this.element.closest("turbo-frame") || document.getElementById("board_modal")
     if (frame) frame.innerHTML = "" // empties the frame → disconnect restores focus
   }
 
