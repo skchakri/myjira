@@ -50,6 +50,8 @@ Rails.application.routes.draw do
     resources :follow_up_tasks, only: [:index, :edit, :update, :destroy]
     resources :browser_tasks, only: [:index, :new, :create]
     resources :conversations, only: [:index]
+    # Plans / specs / reports / notes — filed by CLI sessions or written here.
+    resources :documents
     # Web → launch a new interactive Claude CLI session in this project's repo.
     resources :session_launches, only: [:create]
     # Web → trigger a discovered agent/skill/command (becomes a SessionLaunch),
@@ -204,7 +206,13 @@ Rails.application.routes.draw do
         resources :follow_up_tasks, only: [:index, :create, :update], path: "follow_ups"
         resources :browser_tasks, only: [:index, :create]
         resources :conversations, only: [:index]
+        # Plans / specs / reports filed by CLI sessions (POST upserts by slug).
+        resources :documents, only: [:index, :show, :create, :update]
       end
+
+      # Same upsert, but the project is resolved from repo_path (any cwd inside
+      # the repo) — what `relay doc` calls from an arbitrary project directory.
+      post "documents", to: "documents#upsert"
 
       # Claude CLI conversation capture. The Stop hook posts new turns to sync.
       resources :conversations, only: [:index, :show] do

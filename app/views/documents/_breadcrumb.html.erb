@@ -1,0 +1,11 @@
+<div class="flex items-center gap-2 eyebrow">
+  <%= link_to @project.name, board_path(@project), class: "hover:text-[color:var(--color-ink)] truncate" %>
+  <span aria-hidden="true">/</span>
+  <% if local_assigns[:here] %>
+    <%= link_to "documents", project_documents_path(@project), class: "hover:text-[color:var(--color-ink)]" %>
+    <span aria-hidden="true">/</span>
+    <span class="text-[color:var(--color-ink-soft)] truncate"><%= here %></span>
+  <% else %>
+    <span class="text-[color:var(--color-ink-soft)]">documents</span>
+  <% end %>
+</div>

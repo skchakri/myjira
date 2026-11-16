@@ -1,0 +1,72 @@
+<% content_for :title, "#{@document.title} · #{@project.name}" %>
+<% content_for :page_bg, project_page_bg(@project) %>
+<% btn = "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
+<% shown_title = @revision ? @revision.title : @document.title %>
+<% shown_body  = @revision ? @revision.body  : @document.body %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <%= render "breadcrumb", here: @document.slug %>
+    <h1 class="text-2xl font-semibold tracking-tight text-[color:var(--color-ink)] mt-1"><%= shown_title %></h1>
+    <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--color-ink-soft)]">
+      <%= document_kind_pill(@document.kind) %>
+      <span class="font-mono">v<%= @revision ? @revision.version : @document.version %></span>
+      <span>updated <%= time_ago_in_words(@revision ? @revision.created_at : @document.updated_at) %> ago by <%= (@revision ? @revision.author : @document.author) || "unknown" %></span>
+      <% if @document.task %>
+        <span>· task <%= link_to @document.task.title.truncate(40), project_task_path(@project, @document.task), class: "underline hover:text-[color:var(--color-ink)]" %></span>
+      <% end %>
+      <% if @document.cli_session_id.present? && (convo = Conversation.find_by(session_id: @document.cli_session_id)) %>
+        <span>· from <%= link_to convo.display_title.truncate(40), conversation_path(convo), class: "underline hover:text-[color:var(--color-ink)]" %></span>
+      <% end %>
+    </div>
+    <% if @document.source_path.present? %>
+      <div class="mt-1 text-[11px] font-mono text-[color:var(--color-ink-faint)] break-all"><%= @document.source_path %></div>
+    <% end %>
+  </div>
+  <div class="flex items-center gap-2 shrink-0">
+    <%= link_to "← Documents", project_documents_path(@project), class: btn %>
+    <%= link_to "Edit", edit_project_document_path(@project, @document), class: btn %>
+    <%= button_to "Delete", project_document_path(@project, @document), method: :delete, form_class: "inline",
+          form: { data: { turbo_confirm: "Delete “#{@document.title}” and all its versions?" } },
+          class: "text-sm text-[color:var(--color-fail-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md cursor-pointer hover:bg-[color:var(--color-fail-wash)]" %>
+  </div>
+</div>
+
+<% if @revision %>
+  <div class="mt-4 rounded-md border border-[color:var(--color-hair)] bg-[color:var(--color-paper-sunk)] px-3 py-2 text-sm text-[color:var(--color-ink-soft)]" role="status">
+    You're viewing version <%= @revision.version %> — an older copy.
+    <%= link_to "Back to the current version (v#{@document.version})", project_document_path(@project, @document), class: "underline hover:text-[color:var(--color-ink)]" %>
+  </div>
+<% end %>
+
+<div class="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_220px] gap-4 items-start">
+  <%= card do %>
+    <% if shown_body.blank? %>
+      <p class="text-sm text-[color:var(--color-ink-faint)]">This document is empty.</p>
+    <% else %>
+      <article class="max-w-[72ch] text-[15px] leading-relaxed text-[color:var(--color-ink)]">
+        <%= markdown(shown_body) %>
+      </article>
+    <% end %>
+  <% end %>
+
+  <%= card title: "Versions" do %>
+    <ol class="space-y-1.5 text-xs">
+      <li>
+        <% current = @revision.nil? %>
+        <%= link_to project_document_path(@project, @document), class: "flex justify-between gap-2 #{current ? 'font-semibold text-[color:var(--color-ink)]' : 'text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]'}", "aria-current": (current ? "page" : nil) do %>
+          <span class="font-mono">v<%= @document.version %> · current</span><span class="text-[color:var(--color-ink-faint)]"><%= time_ago_in_words(@document.updated_at) %></span>
+        <% end %>
+      </li>
+      <% @revisions.each do |r| %>
+        <% on = @revision&.version == r.version %>
+        <li>
+          <%= link_to project_document_path(@project, @document, version: r.version), class: "flex justify-between gap-2 #{on ? 'font-semibold text-[color:var(--color-ink)]' : 'text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]'}", "aria-current": (on ? "page" : nil) do %>
+            <span class="font-mono">v<%= r.version %></span><span class="text-[color:var(--color-ink-faint)]"><%= time_ago_in_words(r.created_at) %></span>
+          <% end %>
+        </li>
+      <% end %>
+    </ol>
+    <% if @revisions.empty? %><p class="mt-2 text-xs text-[color:var(--color-ink-faint)]">Re-filing or editing keeps the old text here.</p><% end %>
+  <% end %>
+</div>

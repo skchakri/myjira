@@ -1,0 +1,24 @@
+<%= form_with model: [@project, document], class: "max-w-4xl space-y-4" do |f| %>
+  <% if document.errors.any? %>
+    <div class="rounded-md border border-[color:var(--color-fail-wash)] bg-[color:var(--color-fail-wash)] p-3 text-sm text-[color:var(--color-fail-ink)]" role="alert">
+      <%= pluralize(document.errors.count, "error") %> prevented saving:
+      <ul class="list-disc ml-5 mt-1">
+        <% document.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-4">
+    <%= render "shared/field", form: f, attribute: :title, required: true %>
+    <%= render "shared/field", form: f, attribute: :kind, type: :select, choices: Document::KINDS %>
+  </div>
+  <%= render "shared/field", form: f, attribute: :body, type: :textarea, rows: 24, label: "Body (Markdown)",
+        input_class: "font-mono text-[13px] leading-relaxed",
+        hint: "Saving a change keeps the previous text as an older version." %>
+
+  <div class="flex items-center gap-2 pt-1">
+    <%= f.submit document.new_record? ? "Create document" : "Save", class: "inline-flex items-center rounded-md bg-[color:var(--color-amber-ink)] px-3 py-1.5 text-sm font-medium text-[color:var(--color-paper)] hover:bg-[color:var(--color-amber-ink-hover)] cursor-pointer" %>
+    <%= link_to "Cancel", document.new_record? ? project_documents_path(@project) : project_document_path(@project, document),
+          class: "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-2" %>
+  </div>
+<% end %>

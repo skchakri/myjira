@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_22_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_15_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -196,6 +196,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_000001) do
     t.index ["last_message_at"], name: "index_conversations_on_last_message_at"
     t.index ["project_id"], name: "index_conversations_on_project_id"
     t.index ["session_id"], name: "index_conversations_on_session_id", unique: true
+  end
+
+  create_table "document_revisions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "author"
+    t.text "body", default: "", null: false
+    t.datetime "created_at", null: false
+    t.uuid "document_id", null: false
+    t.string "title", null: false
+    t.integer "version", null: false
+    t.index ["document_id", "version"], name: "index_document_revisions_on_document_id_and_version", unique: true
+    t.index ["document_id"], name: "index_document_revisions_on_document_id"
+  end
+
+  create_table "documents", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "author", default: "claude-cli", null: false
+    t.text "body", default: "", null: false
+    t.string "cli_session_id"
+    t.datetime "created_at", null: false
+    t.string "kind", default: "note", null: false
+    t.uuid "project_id", null: false
+    t.string "slug", null: false
+    t.string "source_path"
+    t.uuid "task_id"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.integer "version", default: 1, null: false
+    t.index ["project_id", "slug"], name: "index_documents_on_project_id_and_slug", unique: true
+    t.index ["project_id", "updated_at"], name: "index_documents_on_project_id_and_updated_at"
+    t.index ["project_id"], name: "index_documents_on_project_id"
+    t.index ["task_id"], name: "index_documents_on_task_id"
   end
 
   create_table "environments", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -601,6 +631,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_22_000001) do
   add_foreign_key "calendar_jobs", "projects", on_delete: :nullify
   add_foreign_key "conversation_messages", "conversations"
   add_foreign_key "conversations", "projects"
+  add_foreign_key "document_revisions", "documents", on_delete: :cascade
+  add_foreign_key "documents", "projects"
+  add_foreign_key "documents", "tasks", on_delete: :nullify
   add_foreign_key "environments", "projects"
   add_foreign_key "follow_up_tasks", "projects"
   add_foreign_key "follow_up_tasks", "tasks"

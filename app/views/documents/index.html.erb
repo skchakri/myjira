@@ -1,0 +1,64 @@
+<% content_for :title, "#{@project.name} · Documents" %>
+<% content_for :page_bg, project_page_bg(@project) %>
+<% btn = "text-sm text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md" %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <%= render "breadcrumb" %>
+    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Documents</h1>
+    <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">Plans, specs, reports and notes for <%= @project.name %>, filed by Claude sessions or written here.</p>
+  </div>
+  <div class="flex items-center gap-2 shrink-0">
+    <%= link_to "← Board", board_path(@project), class: btn %>
+    <%= link_to "+ Document", new_project_document_path(@project, kind: @kind),
+          class: "text-sm text-[color:var(--color-paper)] bg-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-amber-ink-hover)] px-3 py-1.5 rounded-md" %>
+  </div>
+</div>
+
+<nav class="mt-5 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Filter by kind">
+  <% total = @counts.values.sum %>
+  <%= link_to project_documents_path(@project), class: "px-2.5 py-1 rounded-md border #{@kind ? 'border-[color:var(--color-hair)] text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]' : 'border-[color:var(--color-ink)] bg-[color:var(--color-ink)] text-[color:var(--color-paper)]'}",
+        "aria-current": (@kind ? nil : "page") do %>All <span class="tabular opacity-70"><%= total %></span><% end %>
+  <% Document::KINDS.each do |k| %>
+    <% on = @kind == k %>
+    <%= link_to project_documents_path(@project, kind: k), class: "px-2.5 py-1 rounded-md border #{on ? 'border-[color:var(--color-ink)] bg-[color:var(--color-ink)] text-[color:var(--color-paper)]' : 'border-[color:var(--color-hair)] text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]'}",
+          "aria-current": (on ? "page" : nil) do %><%= k.pluralize.capitalize %> <span class="tabular opacity-70"><%= @counts[k].to_i %></span><% end %>
+  <% end %>
+</nav>
+
+<div class="mt-4">
+  <% if @documents.empty? %>
+    <%= card do %>
+      <div class="text-center py-10">
+        <p class="text-sm font-medium text-[color:var(--color-ink)]"><%= @kind ? "No #{@kind.pluralize} yet" : "No documents yet" %></p>
+        <p class="text-sm text-[color:var(--color-ink-soft)] mt-1 max-w-lg mx-auto">
+          Any Claude session in this repo can file one in a single line:
+        </p>
+        <pre class="mt-3 inline-block text-left font-mono text-xs bg-[color:var(--color-paper-sunk)] px-3 py-2 rounded-md text-[color:var(--color-ink)]">relay doc "Rollout plan" plan.md --kind plan</pre>
+        <p class="text-xs text-[color:var(--color-ink-faint)] mt-3">
+          or <code class="font-mono">POST /api/v1/projects/<%= @project.slug %>/documents</code> — or
+          <%= link_to "write one here", new_project_document_path(@project, kind: @kind), class: "underline hover:text-[color:var(--color-ink)]" %>.
+        </p>
+      </div>
+    <% end %>
+  <% else %>
+    <%= card do %>
+      <ul class="divide-y divide-[color:var(--color-hair)] -my-2">
+        <% @documents.each do |d| %>
+          <li class="py-2.5 flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <%= link_to d.title, project_document_path(@project, d), class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] block truncate" %>
+              <div class="mt-0.5 flex items-center gap-2 text-xs text-[color:var(--color-ink-soft)]">
+                <%= document_kind_pill(d.kind) %>
+                <span class="font-mono">v<%= d.version %></span>
+                <span><%= d.author %></span>
+                <% if d.source_path.present? %><span class="font-mono truncate max-w-[320px] text-[color:var(--color-ink-faint)]" title="<%= d.source_path %>"><%= d.source_path %></span><% end %>
+              </div>
+            </div>
+            <time class="text-xs text-[color:var(--color-ink-faint)] shrink-0" datetime="<%= d.updated_at.iso8601 %>" title="<%= d.updated_at %>"><%= time_ago_in_words(d.updated_at) %> ago</time>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% end %>
+</div>
