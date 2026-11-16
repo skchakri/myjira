@@ -15,6 +15,14 @@ Rails.application.routes.draw do
   # into needs-input and awaiting-approval, with answer / Approve / Request-changes.
   get "approvals", to: "approvals#index", as: :approvals
 
+  # Calendar of every recurring job (myjira schedules, Claude crons/routines,
+  # system cron, systemd timers) plus suggestions mined from Claude sessions.
+  get  "calendar", to: "calendar#show", as: :calendar
+  get  "calendar/items/:type/:id", to: "calendar_jobs#show", as: :calendar_item,
+       constraints: { type: /job|schedule/ }
+  post "calendar/jobs/:id/promote", to: "calendar_jobs#promote", as: :promote_calendar_job
+  post "calendar/jobs/:id/dismiss", to: "calendar_jobs#dismiss", as: :dismiss_calendar_job
+
   # Web Push subscription registration (one row per browser); DELETE on unsubscribe.
   post   "push_subscriptions", to: "push_subscriptions#create"
   delete "push_subscriptions", to: "push_subscriptions#destroy"
@@ -237,6 +245,15 @@ Rails.application.routes.draw do
       # Host-side daemon pushes the .claude agent/skill/command catalogue here.
       resources :agents, only: [] do
         collection { post :sync }
+      end
+
+      # Host daemon pushes system cron / systemd timers / Claude crons; a CLI
+      # session pushes Claude routines and repetitive-task suggestions.
+      resources :calendar_jobs, only: [] do
+        collection do
+          post :sync
+          post :suggestions
+        end
       end
 
       # Host-side daemon ticks this each loop; myjira fires any due schedules.

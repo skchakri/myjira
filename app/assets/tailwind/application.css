@@ -441,3 +441,67 @@ form[data-turbo-submitting] input {
   pointer-events: none;
   cursor: progress;
 }
+
+/* ---------------------------------------------------------------
+   Calendar — one hue per job source. Hue only marks the chip's rail
+   and glyph tile; the text stays on --color-ink, and every chip also
+   carries a source letter, so colour is never the only signal.
+--------------------------------------------------------------- */
+:root {
+  --cal-myjira_schedule: #B45309;
+  --cal-claude_cron: #7C3AED;
+  --cal-claude_routine: #2563EB;
+  --cal-system_cron: #0F766E;
+  --cal-systemd_timer: #6B6358;
+  --cal-suggested: #BE185D;
+}
+html[data-theme="dark"] {
+  --cal-myjira_schedule: #FFB800;
+  --cal-claude_cron: #A78BFA;
+  --cal-claude_routine: #60A5FA;
+  --cal-system_cron: #2DD4BF;
+  --cal-systemd_timer: #A3A3A3;
+  --cal-suggested: #F472B6;
+}
+.cal-src-myjira_schedule { --cal-hue: var(--cal-myjira_schedule); }
+.cal-src-claude_cron     { --cal-hue: var(--cal-claude_cron); }
+.cal-src-claude_routine  { --cal-hue: var(--cal-claude_routine); }
+.cal-src-system_cron     { --cal-hue: var(--cal-system_cron); }
+.cal-src-systemd_timer   { --cal-hue: var(--cal-systemd_timer); }
+.cal-src-suggested       { --cal-hue: var(--cal-suggested); }
+
+.cal-glyph {
+  display: inline-grid; place-items: center; flex: none;
+  width: 15px; height: 15px; border-radius: 3px;
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  color: var(--cal-hue);
+  background: color-mix(in srgb, var(--cal-hue) 16%, transparent);
+}
+.cal-chip {
+  display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0;
+  padding: 2px 5px 2px 4px; border-radius: 4px; text-align: left;
+  font-size: 11px; line-height: 1.35; color: var(--color-ink);
+  border-left: 2px solid var(--cal-hue);
+  background: color-mix(in srgb, var(--cal-hue) 7%, var(--color-paper-raised));
+  cursor: pointer; transition: background-color 150ms ease-out;
+}
+.cal-chip:hover { background: color-mix(in srgb, var(--cal-hue) 15%, var(--color-paper-raised)); }
+.cal-chip:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 1px; }
+.cal-chip-past { opacity: 0.55; }
+.cal-chip-dim  { border-left-style: dashed; }
+.cal-day { min-height: 112px; background: var(--color-paper-raised); }
+.cal-day-out { background: var(--color-paper-sunk); }
+.cal-day-out .cal-daynum { color: var(--color-ink-faint); }
+.cal-today .cal-daynum {
+  background: var(--color-amber-ink); color: var(--color-paper-raised);
+  border-radius: 999px; padding: 0 6px;
+}
+.cal-filter {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px;
+  border: 1px solid var(--color-hair); color: var(--color-ink-soft);
+  background: var(--color-paper-raised); transition: background-color 150ms ease-out;
+}
+.cal-filter[aria-pressed="true"] { color: var(--color-ink); border-color: color-mix(in srgb, var(--cal-hue) 45%, var(--color-hair)); }
+.cal-filter[aria-pressed="false"] { opacity: 0.55; text-decoration: line-through; }
+.cal-filter:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 2px; }

@@ -1,0 +1,10 @@
+<%= link_to calendar_item_link_path(occ.item),
+      data: { turbo_frame: "calendar_drawer" },
+      class: "cal-chip cal-src-#{occ.source} #{'cal-chip-past' if occ.past} #{'cal-chip-dim' if calendar_item_disabled?(occ.item)}",
+      title: "#{CalendarJob::SOURCES.dig(occ.source, :label)} · #{occ.title} · #{calendar_occurrence_time(occ)}",
+      aria: { label: "#{CalendarJob::SOURCES.dig(occ.source, :label)}: #{occ.title} at #{calendar_occurrence_time(occ)}#{' (paused)' if calendar_item_disabled?(occ.item)}" } do %>
+  <%= calendar_source_glyph(occ.source) %>
+  <span class="font-mono tabular text-[10px] text-[color:var(--color-ink-soft)] shrink-0"><%= calendar_occurrence_time(occ) %></span>
+  <span class="truncate"><%= occ.title %></span>
+  <% if occ.per_day && occ.per_day > 1 %><span class="ml-auto font-mono text-[10px] text-[color:var(--color-ink-faint)] shrink-0">×<%= occ.per_day %></span><% end %>
+<% end %>

@@ -126,6 +126,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_000001) do
     t.index ["status"], name: "index_browser_tasks_on_status"
   end
 
+  create_table "calendar_jobs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.uuid "agent_schedule_id"
+    t.text "command"
+    t.datetime "created_at", null: false
+    t.string "cron"
+    t.datetime "dismissed_at"
+    t.boolean "enabled", default: true, null: false
+    t.text "evidence"
+    t.string "external_id", null: false
+    t.datetime "last_run_at"
+    t.jsonb "meta", default: {}, null: false
+    t.datetime "next_run_at"
+    t.uuid "project_id"
+    t.string "schedule_label"
+    t.string "source", null: false
+    t.datetime "synced_at"
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id"], name: "index_calendar_jobs_on_project_id"
+    t.index ["source", "external_id"], name: "index_calendar_jobs_on_source_and_external_id", unique: true
+  end
+
   create_table "conversation_messages", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.text "body"
     t.uuid "conversation_id", null: false
@@ -605,6 +627,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_000001) do
   add_foreign_key "browser_messages", "browser_tasks"
   add_foreign_key "browser_tasks", "conversations"
   add_foreign_key "browser_tasks", "projects"
+  add_foreign_key "calendar_jobs", "agent_schedules", on_delete: :nullify
+  add_foreign_key "calendar_jobs", "projects", on_delete: :nullify
   add_foreign_key "conversation_messages", "conversations"
   add_foreign_key "conversations", "projects"
   add_foreign_key "document_revisions", "documents", on_delete: :cascade
