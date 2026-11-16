@@ -12,6 +12,7 @@ class Project < ApplicationRecord
   has_many :mcp_servers, dependent: :destroy
   has_many :mcp_installs, dependent: :destroy
   has_many :knowledge_facts, dependent: :destroy
+  has_many :documents, dependent: :destroy
 
   # Workspace grouping. pyr = per-client iCentris/pyr checkouts; skchakri =
   # personal apps; icentris = the iCentris platform; mobile = Ionic/Capacitor
