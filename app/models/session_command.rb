@@ -10,10 +10,10 @@ class SessionCommand < ApplicationRecord
   # the browser `accept=` filter is advisory only.
   MAX_FILES         = 10
   MAX_FILE_SIZE     = 25.megabytes
-  ALLOWED_FILE_TYPE = %r{\A(image|video|audio)/}
+  ALLOWED_FILE_TYPE = %r{\A((image|video|audio)/|application/pdf\z|text/(plain|markdown|csv)\z)}
 
   belongs_to :conversation
-  # Files the user attached to drive the session — images / video / audio,
+  # Files the user attached to drive the session — images / video / audio / PDF / text,
   # like dropping a file into Claude CLI. The listener downloads them.
   has_many_attached :files
 
@@ -40,7 +40,7 @@ class SessionCommand < ApplicationRecord
     errors.add(:files, "too many files (max #{MAX_FILES})") if attached.size > MAX_FILES
     attached.each do |a|
       errors.add(:files, "#{a.filename} exceeds #{MAX_FILE_SIZE / 1.megabyte} MB") if a.byte_size.to_i > MAX_FILE_SIZE
-      errors.add(:files, "#{a.filename} is not an image, video, or audio file") unless a.content_type.to_s.match?(ALLOWED_FILE_TYPE)
+      errors.add(:files, "#{a.filename} is not an image, video, audio, PDF or text file") unless a.content_type.to_s.match?(ALLOWED_FILE_TYPE)
     end
   end
 

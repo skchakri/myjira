@@ -6,8 +6,9 @@ module Api
     #         — the listener long-polls for new commands to run
     #   PATCH /api/v1/sessions/:session_id/commands/:id   {status,result}
     #         — the listener marks a command running, then done with its result
-    #   POST  /api/v1/sessions/:session_id/commands   {body, source}
-    #         — queue a command from another app (Homey's Sessions page)
+    #   POST  /api/v1/sessions/:session_id/commands   {body, source, files[]}
+    #         — queue a command from another app (Homey's Sessions page). JSON, or
+    #           multipart when it carries files (same limits as the web form).
     #
     # Every index poll stamps the conversation's listener_seen_at, which is how
     # myjira knows the session is listening (Conversation#listening?).
@@ -42,8 +43,10 @@ module Api
 
       def create
         convo = Conversation.find_by!(session_id: params[:session_id].to_s)
-        cmd = convo.session_commands.create!(body: params[:body].to_s.strip.presence,
-                                             source: params[:source].to_s.presence || "api")
+        files = Array(params[:files]).select { |f| f.respond_to?(:original_filename) }
+        body  = params[:body].to_s.strip.presence
+        body ||= "Review the attached file(s)." if files.any?
+        cmd = convo.session_commands.create!(body: body, source: params[:source].to_s.presence || "api", files: files)
         render json: serialize(cmd).merge(listening: convo.listening?), status: :created
       end
 
