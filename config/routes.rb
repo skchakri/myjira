@@ -224,7 +224,10 @@ Rails.application.routes.draw do
 
       # Web → live session command channel, keyed by CLI session_id. The
       # `myjira-listen` listener long-polls index and PATCHes back the result.
+      # Live sessions (+ recent turns, commands, listener state) for Homey.
+      get   "sessions/live",                     to: "live_sessions#index"
       get   "sessions/:session_id/commands",     to: "session_commands#index"
+      post  "sessions/:session_id/commands",     to: "session_commands#create"
       patch "sessions/:session_id/commands/:id", to: "session_commands#update"
 
       # Claude Code HTTP hook receiver — Stop/SubagentStop/PostToolUse payloads

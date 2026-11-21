@@ -46,6 +46,19 @@ class Conversation < ApplicationRecord
     (last_message_at || created_at) > LIVE_WINDOW.ago
   end
 
+  # The listener long-polls with wait=25, so a poll within this window means a
+  # command sent now will be picked up.
+  LISTENER_WINDOW = 90.seconds
+
+  def listening?
+    listener_seen_at.present? && listener_seen_at > LISTENER_WINDOW.ago
+  end
+
+  # Stamped by the command inbox on every listener poll (cheap: no callbacks).
+  def listener_seen!(at = Time.current)
+    update_column(:listener_seen_at, at)
+  end
+
   # Substantive asks the human typed this session — plain user messages, ignoring
   # tool results and empty turns. Drives both the enrichment trigger (something new
   # to log) and the "skip trivial sessions" guard.
