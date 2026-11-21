@@ -6,6 +6,11 @@ module Api
     #         — the listener long-polls for new commands to run
     #   PATCH /api/v1/sessions/:session_id/commands/:id   {status,result}
     #         — the listener marks a command running, then done with its result
+    #   POST  /api/v1/sessions/:session_id/commands   {body, source}
+    #         — queue a command from another app (Homey's Sessions page)
+    #
+    # Every index poll stamps the conversation's listener_seen_at, which is how
+    # myjira knows the session is listening (Conversation#listening?).
     class SessionCommandsController < BaseController
       MAX_WAIT = 30
 
@@ -13,6 +18,7 @@ module Api
         convo = Conversation.find_by(session_id: params[:session_id].to_s)
         return render(json: { commands: [], cursor: nil }) unless convo
 
+        convo.listener_seen!
         wait  = params[:wait].to_i.clamp(0, MAX_WAIT)
         since = parse_time(params[:since])
         scope = -> { command_scope(convo, since) }
@@ -32,6 +38,13 @@ module Api
           commands: cmds.map { |c| serialize(c) },
           cursor: (cmds.last&.created_at || since || Time.current).iso8601(6)
         }
+      end
+
+      def create
+        convo = Conversation.find_by!(session_id: params[:session_id].to_s)
+        cmd = convo.session_commands.create!(body: params[:body].to_s.strip.presence,
+                                             source: params[:source].to_s.presence || "api")
+        render json: serialize(cmd).merge(listening: convo.listening?), status: :created
       end
 
       def update

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_15_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -179,6 +179,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_15_000001) do
     t.bigint "input_tokens", default: 0, null: false
     t.text "last_context"
     t.datetime "last_message_at"
+    t.datetime "listener_seen_at"
     t.integer "message_count", default: 0, null: false
     t.string "model"
     t.boolean "model_deprecated", default: false, null: false
