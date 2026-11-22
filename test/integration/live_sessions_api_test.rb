@@ -46,4 +46,21 @@ class LiveSessionsApiTest < ActionDispatch::IntegrationTest
     post "/api/v1/sessions/nope/commands", params: { body: "x" }, as: :json
     assert_response :not_found
   end
+
+  test "a command can carry files over multipart" do
+    png = Rack::Test::UploadedFile.new(StringIO.new("\x89PNG\r\n\x1a\nfake"), "image/png", true, original_filename: "shot.png")
+    pdf = Rack::Test::UploadedFile.new(StringIO.new("%PDF-1.4 fake"), "application/pdf", true, original_filename: "spec.pdf")
+    post "/api/v1/sessions/#{@live.session_id}/commands", params: { source: "homey", files: [ png, pdf ] }
+    assert_response :created
+    cmd = @live.session_commands.last
+    assert_equal "Review the attached file(s).", cmd.body
+    assert_equal %w[shot.png spec.pdf], cmd.files.map { _1.filename.to_s }.sort
+    assert_equal 2, response.parsed_body["attachments"].size
+  end
+
+  test "a disallowed file type is rejected" do
+    exe = Rack::Test::UploadedFile.new(StringIO.new("MZ"), "application/x-msdownload", true, original_filename: "x.exe")
+    post "/api/v1/sessions/#{@live.session_id}/commands", params: { body: "run", files: [ exe ] }
+    assert_response :unprocessable_entity
+  end
 end
