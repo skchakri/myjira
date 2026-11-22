@@ -1,0 +1,9 @@
+<details class="wq-copy">
+  <summary class="wq-icon-btn" title="Copy a reference to this task" aria-label="Copy reference to #<%= item.n %>">
+    <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+  </summary>
+  <div class="wq-copy-menu" role="menu">
+    <button type="button" role="menuitem" class="wq-copy-item" data-action="work-queue#copyRef" data-text="<%= wq_reference(item, context) %>">Refer to this task</button>
+    <button type="button" role="menuitem" class="wq-copy-item" data-action="work-queue#copyRef" data-text="<%= wq_reference(item, context, sync: true) %>">Sync with this task</button>
+  </div>
+</details>

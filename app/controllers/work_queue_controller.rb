@@ -96,13 +96,15 @@ class WorkQueueController < ApplicationController
     end
 
     result = dispatcher.answer(index, text)
-    WorkQueue::Broadcaster.log_note(@item.agent, note) if result.sent
+    WorkQueue::Broadcaster.item_note(@item, note) if result.sent
     respond_with_dispatch(result, "Answer sent to ##{@item.n}")
   end
 
   def instruct
     text = params[:text].to_s.strip
     return toast("Type an instruction first", :error) if text.blank?
+
+    text.scan(/\[wq-ref ([A-Za-z0-9-]+:\d+)\]/).flatten.uniq.each { |k| WorkQueue::RunState.relate(@item.key, k) }
 
     return respond_with_dispatch(dispatcher.instruct(text), "Instruction sent to ##{@item.n}") if dispatcher.listening?
 
@@ -194,7 +196,7 @@ class WorkQueueController < ApplicationController
 
   def finish_merge(result, prs)
     log = result.steps.map { |s| "#{s[:ok] ? 'ok' : 'FAILED'}  #{s[:cmd]}\n#{s[:out]}" }.join("\n")
-    WorkQueue::Broadcaster.log_note(@item.agent, "Merge (#{merge_target}):\n#{log}")
+    WorkQueue::Broadcaster.item_note(@item, "Merge (#{merge_target}):\n#{log}")
     return toast("Merge failed: #{result.steps.last&.dig(:out).to_s.truncate(160)}", :error) unless result.ok
 
     unless dispatcher.listening?

@@ -3,7 +3,7 @@ module WorkQueue
   # per-item run metadata, per-phase cost records, per-project settings
   # (default model/effort, always-allowed tools) and the editable routing table.
   module RunState
-    PREFIX = "myjira:wq".freeze
+    PREFIX = (Rails.env.test? ? "myjira:wq:test" : "myjira:wq").freeze
     JOBS = "#{PREFIX}:jobs".freeze
 
     module_function
@@ -11,7 +11,9 @@ module WorkQueue
     def redis = Broadcaster.redis
 
     def get(key) = redis.hgetall("#{PREFIX}:run:#{key}")
-    def set(key, attrs) = redis.hset("#{PREFIX}:run:#{key}", attrs.transform_values(&:to_s))
+    def set(key, attrs)
+      redis.hset("#{PREFIX}:run:#{key}", attrs.transform_values(&:to_s)) if attrs.any?
+    end
     def del_fields(key, *fields) = redis.hdel("#{PREFIX}:run:#{key}", fields)
 
     def record_phase(key, row)
@@ -36,6 +38,16 @@ module WorkQueue
 
     # Commands for the supervisor: start / answer / continue / stop / allow.
     def enqueue(action, key, **extra) = redis.rpush(JOBS, extra.merge(action: action, key: key).to_json)
+
+    # Items linked by a pasted [wq-ref …] (both directions).
+    def relate(a, b)
+      return if a == b
+
+      redis.sadd("#{PREFIX}:related:#{a}", b)
+      redis.sadd("#{PREFIX}:related:#{b}", a)
+    end
+
+    def related(key) = redis.smembers("#{PREFIX}:related:#{key}")
 
     def runner
       raw = redis.get("#{PREFIX}:runner")

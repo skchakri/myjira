@@ -4,7 +4,7 @@ module WorkQueue
   # The mod stays the source of truth: nothing here writes those files.
   class Store
     OPEN = %w[triage queued running blocked review].freeze
-    DISPLAY_ORDER = %w[waiting running blocked pending review done].freeze
+    DISPLAY_ORDER = %w[waiting running pending blocked review done].freeze
 
     Question = Struct.new(:q, :a, :at, :options, keyword_init: true) do
       def open? = a.nil?
