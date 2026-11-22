@@ -1,0 +1,30 @@
+<% active = local_assigns[:selected] == item.key %>
+<article id="<%= item.dom_id %>" class="wq-card <%= 'wq-card-active' if active %>"
+         data-work-queue-target="card" data-key="<%= item.key %>" data-status="<%= item.display_status %>"
+         data-title="<%= item.title %>">
+  <div class="flex items-start gap-2">
+    <% if item.open? %>
+      <input type="checkbox" class="wq-check" aria-label="Select #<%= item.n %>" data-action="work-queue#select" value="<%= item.key %>">
+    <% end %>
+    <%= link_to work_queue_path(item: item.key), class: "wq-card-link", data: { turbo_frame: "wq_detail", work_queue_target: "link" } do %>
+      <span class="wq-n">#<%= item.n %></span>
+      <span class="wq-title"><%= item.title %></span>
+    <% end %>
+    <%= render "work_queue/badge", item: item %>
+  </div>
+  <% if item.open? %>
+    <%= render "work_queue/git", item: item, context: context %>
+    <div class="wq-card-actions">
+      <% if item.pending? %>
+        <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true, run_form: true } } %>
+      <% end %>
+      <% if context&.card_merge? %>
+        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge PR", context: context %>
+      <% end %>
+      <% if item.pr.present? %>
+        <a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">PR <%= item.pr_number ? "##{item.pr_number}" : "" %></a>
+      <% end %>
+      <% if item.open_questions.any? %><span class="wq-hint"><%= pluralize(item.open_questions.size, "question") %></span><% end %>
+    </div>
+  <% end %>
+</article>

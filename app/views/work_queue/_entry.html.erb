@@ -1,0 +1,18 @@
+<% e = entry %>
+<li class="wq-entry wq-k-<%= e.kind %>" <% if e.kind == "tool" %>id="wq_tool_<%= e.id %>"<% end %>>
+  <% if e.kind == "tool" %>
+    <details class="wq-tool">
+      <summary><span class="wq-tool-name"><%= e.tool %></span> <span class="wq-tool-title"><%= e.title %></span></summary>
+      <% if e.detail.present? %><pre class="wq-pre"><%= e.detail %></pre><% end %>
+      <div id="wq_out_<%= e.id %>">
+        <% Array(local_assigns[:results]).select { |r| r.kind == "result" && r.tool_use_id == e.id }.each do |r| %>
+          <%= render "work_queue/result", entry: r %>
+        <% end %>
+      </div>
+    </details>
+  <% elsif e.kind == "result" %>
+  <% else %>
+    <div class="wq-note"><%= e.kind == "prompt" ? "Prompt" : (e.kind == "qa" ? "You" : "Agent") %></div>
+    <div class="wq-body"><%= simple_format(h(e.body.to_s.truncate(4000))) %></div>
+  <% end %>
+</li>

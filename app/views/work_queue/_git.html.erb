@@ -1,0 +1,15 @@
+<% git = context&.git %>
+<% if git %>
+  <div class="wq-git <%= 'wq-git-warn' if git.warn? %>" title="worktree <%= git.worktree %>">
+    <span class="wq-mono"><%= git.repo %></span>
+    <span class="wq-mono wq-branch"><%= git.branch %></span>
+    <span aria-hidden="true">&larr;</span>
+    <span class="wq-mono <%= 'wq-flag' if git.base_not_main? %>"><%= git.base %><%= "@#{git.base_sha}" if git.base_sha %></span>
+    <span class="wq-mono" title="ahead / behind base">&uarr;<%= git.ahead %> &darr;<span class="<%= 'wq-flag' if git.behind.to_i.positive? %>"><%= git.behind %></span></span>
+    <% if git.base_not_main? %><span class="wq-mono" title="vs <%= git.main %>"><%= git.main %>: &uarr;<%= git.main_ahead %> &darr;<%= git.main_behind %></span><% end %>
+    <% if git.conflicts %><span class="wq-flag">conflicts</span><% end %>
+    <% if local_assigns[:full] %><span class="wq-mono wq-path"><%= git.worktree %></span><% end %>
+  </div>
+<% elsif item.branch.present? %>
+  <div class="wq-git"><span class="wq-mono wq-branch"><%= item.branch %></span></div>
+<% end %>

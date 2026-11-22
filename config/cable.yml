@@ -1,5 +1,8 @@
 development:
-  adapter: async
+  # Redis so broadcasts from bin/work-queue-watch (a separate process) reach Puma.
+  adapter: redis
+  url: <%= ENV.fetch("REDIS_URL", "redis://127.0.0.1:6379/12") %>
+  channel_prefix: myjira_development
 
 test:
   adapter: test

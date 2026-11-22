@@ -1,0 +1,21 @@
+<% selected = local_assigns[:selected] %>
+<% store = WorkQueue::Store.new %>
+<% open, closed = items.partition(&:open?) %>
+<% order = WorkQueue::Store::DISPLAY_ORDER %>
+<section id="wq_project_<%= slug %>" class="wq-project" data-slug="<%= slug %>">
+  <h2 class="wq-project-h">
+    <span class="truncate"><%= WorkQueue::Store.label(slug) %></span>
+    <span class="wq-count"><%= open.size %> open</span>
+  </h2>
+  <% open.sort_by { |i| [order.index(i.display_status) || 9, -i.n] }.each do |item| %>
+    <%= render "work_queue/card", item: item, context: WorkQueue::ItemContext.new(item, store: store), selected: selected %>
+  <% end %>
+  <% if closed.any? %>
+    <details class="wq-closed">
+      <summary><%= closed.size %> done / merged / dropped</summary>
+      <% closed.sort_by { |i| -i.n }.first(30).each do |item| %>
+        <%= render "work_queue/card", item: item, context: nil, selected: selected %>
+      <% end %>
+    </details>
+  <% end %>
+</section>

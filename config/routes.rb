@@ -147,6 +147,17 @@ Rails.application.routes.draw do
     collection { get :active }
   end
 
+  # Work Queue: live view of the CLI work-queue mod's items across projects.
+  get  "work_queue", to: "work_queue#index", as: :work_queue
+  post "work_queue/group", to: "work_queue#group", as: :work_queue_group
+  scope "work_queue/items/:id", constraints: { id: /[^\/]+/ }, as: :work_queue_item do
+    post :run, to: "work_queue#run"
+    post :answer, to: "work_queue#answer"
+    post :instruct, to: "work_queue#instruct"
+    post :merge_pr, to: "work_queue#merge_pr"
+    post :merge_chain, to: "work_queue#merge_chain"
+  end
+
   # Captured Claude CLI conversations (one thread per CLI session).
   resources :conversations, only: [:index, :show] do
     collection { get :live }

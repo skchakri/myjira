@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# Watches ~/.claude/queues and agent transcripts; pushes changes to the Work Queue page.
+require_relative "../config/environment"
+$stdout.sync = true
+Rails.logger = ActiveSupport::Logger.new($stdout)
+WorkQueue::Watcher.new.start

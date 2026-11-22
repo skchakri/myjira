@@ -62,3 +62,5 @@ end
 gem "web-push", "~> 3.1"
 
 gem "dotenv-rails", "~> 3.2"
+
+gem "listen", "~> 3.9"

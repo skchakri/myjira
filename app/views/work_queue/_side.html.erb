@@ -1,0 +1,36 @@
+<aside id="wq_side" class="wq-side" aria-label="Questions">
+  <h3 class="wq-side-h">Questions</h3>
+  <% open = item.questions.each_with_index.reject { |q, _| q.a } %>
+  <% if open.empty? %>
+    <p class="wq-empty">Nothing waiting on you.</p>
+  <% end %>
+  <% open.each do |q, idx| %>
+    <div class="wq-q" data-work-queue-target="question">
+      <p class="wq-q-text"><%= q.q %></p>
+      <div class="wq-chips">
+        <% q.options.first(4).each_with_index do |opt, k| %>
+          <%= button_to work_queue_item_answer_path(item.key), params: { index: idx, text: opt },
+                class: "wq-chip", form: { data: { turbo_stream: true } }, data: { option: k + 1 } do %>
+            <kbd><%= k + 1 %></kbd> <%= opt %>
+          <% end %>
+        <% end %>
+      </div>
+      <%= form_with url: work_queue_item_answer_path(item.key), data: { turbo_stream: true }, class: "wq-free" do |f| %>
+        <%= hidden_field_tag :index, idx %>
+        <%= text_field_tag :text, nil, placeholder: "Or type an answer…", class: "wq-input", "aria-label": "Answer", data: { work_queue_target: "answer" } %>
+        <button type="button" class="wq-mic" aria-label="Answer by voice" data-action="work-queue#dictate">mic</button>
+      <% end %>
+    </div>
+  <% end %>
+  <% answered = item.questions.select(&:a) %>
+  <% if answered.any? %>
+    <details class="wq-answered"><summary><%= answered.size %> answered</summary>
+      <% answered.each do |q| %><p><strong><%= q.q %></strong><br><%= q.a %></p><% end %>
+    </details>
+  <% end %>
+  <h3 class="wq-side-h mt-4">Instruct</h3>
+  <%= form_with url: work_queue_item_instruct_path(item.key), data: { turbo_stream: true }, class: "wq-free" do %>
+    <%= text_field_tag :text, nil, placeholder: "Tell this item's agent…", class: "wq-input", "aria-label": "Instruction" %>
+    <button type="button" class="wq-mic" aria-label="Speak instruction" data-action="work-queue#dictate">mic</button>
+  <% end %>
+</aside>

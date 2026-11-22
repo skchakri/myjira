@@ -1,0 +1,77 @@
+module WorkQueue
+  # Sends queue actions to the CLI session that owns the item, over the existing
+  # myjira command channel (SessionCommand → myjira-listen long-poll). The
+  # work-queue mod stays the only writer of the queue JSON.
+  #
+  # When the owning session isn't listening, nothing is sent: the result carries
+  # a `/itemN …` line the person can paste into any CLI session in that project
+  # (the mod's own reply command).
+  class Dispatcher
+    Result = Struct.new(:sent, :command, :copy, :reason, keyword_init: true)
+    PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON).".freeze
+
+    def initialize(item)
+      @item = item
+    end
+
+    def conversation
+      @conversation ||= Conversation.find_by(session_id: @item.session) if @item.session.present?
+    end
+
+    def listening? = conversation&.listening? || false
+
+    def run_now
+      text = if @item.awaiting_approval
+        "Approve and start item ##{@item.n} (#{@item.title}) now"
+      else
+        "Start item ##{@item.n} (#{@item.title}) now"
+      end
+      deliver(
+        "#{text}, in parallel with whatever is running (Run now from the myjira Work Queue; this overrides the " \
+        "max-running limit for this one item). Spawn its background worktree Agent per the queue protocol, then " \
+        "op \"update\" n #{@item.n} with status \"running\", agent and branch.",
+        copy: "/item#{@item.n} go — start now"
+      )
+    end
+
+    def answer(index, text)
+      q = @item.questions[index]
+      deliver(
+        "Answer for item ##{@item.n} (#{@item.title}), question #{index + 1}: \"#{q&.q}\"\nAnswer: #{text}\n" \
+        "Record it with op \"update\" n #{@item.n} (answer, in open-question order), set status \"running\", log " \
+        "\"Answered from myjira: #{text.truncate(80)}\", and pass the answer to its agent (#{@item.agent || 'none yet'}) " \
+        "with SendMessage, or start it if it was waiting.",
+        copy: "/item#{@item.n} #{text}"
+      )
+    end
+
+    def instruct(text)
+      deliver("Instruction for item ##{@item.n} (#{@item.title}): #{text}\nBrief its agent (#{@item.agent || 'none'}) " \
+              "with SendMessage, or start it, and update the queue.", copy: "/item#{@item.n} #{text}")
+    end
+
+    def merge_into(target_n, others)
+      list = others.map { |n| "##{n}" }.join(", ")
+      deliver("Group these work-queue items into ##{target_n}: #{list}. For each, op \"update\" with n and " \
+              "mergeInto #{target_n}; if ##{target_n}'s agent is running, SendMessage it the folded requirements.",
+              copy: "Merge items #{list} into ##{target_n} (op update mergeInto #{target_n})")
+    end
+
+    def pr_merged(prs)
+      deliver("PR(s) #{prs.join(', ')} for item ##{@item.n} were squash-merged from myjira. Set the item(s) to " \
+              "status \"done\" with a log line.", copy: "/item#{@item.n} PR merged, mark done")
+    end
+
+    private
+
+    def deliver(body, copy:)
+      unless listening?
+        reason = conversation ? "session #{@item.session.to_s.first(8)} isn't listening" : "no live session owns this item"
+        return Result.new(sent: false, copy: copy, reason: reason)
+      end
+
+      cmd = conversation.session_commands.create!(body: "[work-queue] #{body}\n#{PROTOCOL_HINT}", source: "work-queue")
+      Result.new(sent: true, command: cmd)
+    end
+  end
+end

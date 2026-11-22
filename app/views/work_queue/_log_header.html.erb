@@ -1,0 +1,25 @@
+<% context ||= WorkQueue::ItemContext.new(item, store: WorkQueue::Store.new) %>
+<header id="wq_log_header" class="wq-log-h">
+  <div class="flex items-center gap-2 min-w-0">
+    <span class="wq-n">#<%= item.n %></span>
+    <h2 class="wq-log-title"><%= item.title %></h2>
+    <%= render "work_queue/badge", item: item %>
+  </div>
+  <%= render "work_queue/git", item: item, context: context, full: true %>
+  <% if item.summary.present? %><p class="wq-summary"><%= item.summary %></p><% end %>
+  <div class="flex flex-wrap items-center gap-2 mt-2">
+    <% if item.pending? %>
+      <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
+    <% end %>
+    <% if context.chain_merge? %>
+      <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
+                 label: "Merge both (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
+    <% elsif context.card_merge? %>
+      <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge PR", context: context %>
+    <% end %>
+    <% if context.dependencies.any? %>
+      <span class="wq-hint">Linked open: <%= context.dependencies.map { |d| "##{d.n} #{d.display_status}" }.join(", ") %></span>
+    <% end %>
+    <% if item.pr.present? %><a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">Open PR</a><% end %>
+  </div>
+</header>
