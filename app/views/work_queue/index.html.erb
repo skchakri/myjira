@@ -1,0 +1,67 @@
+<% content_for :title, "Work Queue · myjira" %>
+<% content_for :full_bleed, "1" %>
+<%= turbo_stream_from WorkQueue::Broadcaster::LIST_STREAM %>
+<div class="wq" data-controller="work-queue"
+     data-work-queue-selected-value="<%= @item&.key %>"
+     data-work-queue-group-url-value="<%= work_queue_group_path %>">
+  <header class="wq-top">
+    <div class="flex items-center gap-3 min-w-0">
+      <h1 class="text-[15px] font-semibold tracking-tight">Work Queue</h1>
+      <span class="wq-live" title="Push updates over Action Cable"><span class="wq-live-dot"></span>live</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" class="wq-btn wq-btn-ghost hidden" data-work-queue-target="groupBtn" data-action="work-queue#group">
+        Group / merge <span data-work-queue-target="groupCount"></span>
+      </button>
+      <label class="wq-toggle" title="Speak when an item needs you or is ready for review">
+        <input type="checkbox" data-work-queue-target="speakToggle" data-action="work-queue#toggleSpeak"> Announce
+      </label>
+      <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#enableNotifications" data-work-queue-target="notifyBtn">Notify me</button>
+      <%= link_to "Routing", work_queue_settings_path, class: "wq-btn wq-btn-ghost" %>
+      <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#toggleHelp" aria-label="Keyboard shortcuts">?</button>
+    </div>
+  </header>
+
+  <div class="wq-help hidden" data-work-queue-target="help">
+    <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open · <kbd>x</kbd> select · <kbd>g</kbd> group · <kbd>r</kbd> run now ·
+    <kbd>1</kbd>-<kbd>4</kbd> pick option · <kbd>m</kbd> merge · <kbd>v</kbd> voice · <kbd>/</kbd> answer box · <kbd>n</kbd> new item · <kbd>s</kbd> stop · <kbd>Esc</kbd> close
+  </div>
+
+  <div class="wq-grid">
+    <aside class="wq-list" aria-label="Queue items">
+      <%= render "work_queue/composer" %>
+      <div class="wq-filter">
+        <input type="search" class="wq-input" placeholder="Search items…" aria-label="Search items" data-work-queue-target="search" data-action="input->work-queue#filter">
+        <select class="wq-input wq-input-sm" aria-label="Project filter" data-work-queue-target="projectFilter" data-action="change->work-queue#filter">
+          <option value="">All projects</option>
+          <% @projects.each_key do |slug| %><option value="<%= slug %>"><%= WorkQueue::Store.label(slug) %></option><% end %>
+        </select>
+      </div>
+      <% if @projects.empty? %>
+        <p class="wq-empty">No queue files in <code><%= WorkQueue::Store.dir %></code> yet.</p>
+      <% end %>
+      <% @projects.each do |slug, items| %>
+        <%= render "work_queue/project", slug: slug, items: items, selected: @item&.key %>
+      <% end %>
+    </aside>
+
+    <%= turbo_frame_tag "wq_detail", class: "wq-detail", data: { turbo_action: "advance" } do %>
+      <% if @item %>
+        <%= render "work_queue/detail", item: @item, context: @context, entries: @entries %>
+      <% else %>
+        <div class="wq-placeholder">
+          <p class="text-[13px]">Pick an item to see its live log.</p>
+          <p class="text-[12px] mt-1 opacity-70">Press <kbd>j</kbd> / <kbd>k</kbd> then <kbd>Enter</kbd>.</p>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+
+  <div id="wq_events" class="hidden" data-work-queue-target="events"></div>
+  <div class="wq-confirm hidden" data-work-queue-target="confirm" role="alertdialog" aria-live="assertive">
+    <span data-work-queue-target="confirmText"></span>
+    <button type="button" class="wq-btn wq-btn-primary" data-action="work-queue#confirmMerge">Merge</button>
+    <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#cancelMerge">Cancel</button>
+  </div>
+  <div id="wq_toasts" class="wq-toasts" aria-live="polite"></div>
+</div>

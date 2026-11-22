@@ -1,0 +1,19 @@
+<% pr = context.pr_status %>
+<% base = pr&.base || context.git&.base || "base" %>
+<details class="wq-merge" data-work-queue-target="merge">
+  <summary class="wq-btn wq-btn-merge"><%= label %></summary>
+  <%= form_with url: url, data: { turbo_stream: true }, class: "wq-merge-panel" do %>
+    <p class="text-[12px] font-medium">Merge target (squash)</p>
+    <label class="wq-radio"><input type="radio" name="target" value="base" checked> PR base: <code><%= base %></code></label>
+    <% if base != (context.git&.main || "main") %>
+      <label class="wq-radio"><input type="radio" name="target" value="main"> <code>main</code> (retarget with <code>gh pr edit --base main</code>)</label>
+    <% end %>
+    <% if pr&.conflicts? %><p class="wq-flag">GitHub reports conflicts with <%= pr.base %>.</p><% end %>
+    <% if pr&.behind? || context.git&.behind? %><p class="wq-flag">Branch is behind its base.</p><% end %>
+    <% if pr && !pr.open? %><p class="wq-flag">PR is <%= pr.state.downcase %>.</p><% end %>
+    <div class="flex gap-2 mt-2">
+      <button type="submit" class="wq-btn wq-btn-primary">Confirm merge</button>
+      <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#closeMerge">Cancel</button>
+    </div>
+  <% end %>
+</details>

@@ -1,0 +1,2 @@
+<% s = item.display_status %>
+<span class="wq-badge wq-s-<%= s %>"><span class="wq-badge-dot" aria-hidden="true"></span><%= s == "pending" && item.awaiting_approval ? "needs OK" : s %></span>

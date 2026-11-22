@@ -1,0 +1,25 @@
+<% e = entry %>
+<% slug = local_assigns[:slug] %>
+<% label = local_assigns[:label] %>
+<% unless e.kind == "result" %>
+<li class="wq-entry wq-k-<%= e.kind %>" <% if e.kind == "tool" %>id="wq_tool_<%= e.id %>" data-tool="<%= e.tool %>"<% end %>>
+  <% if e.kind == "tool" %>
+    <details class="wq-tool">
+      <summary>
+        <span class="wq-tool-name"><%= e.tool %></span>
+        <span class="wq-tool-title"><%= e.title.presence || e.detail.to_s.lines.first.to_s.truncate(100) %></span>
+        <% if e.title.present? && e.detail.present? && e.tool == "Bash" %><code class="wq-tool-cmd"><%= e.detail.lines.first.to_s.strip.truncate(90) %></code><% end %>
+      </summary>
+      <% if e.detail.present? %><pre class="wq-pre"><%= e.detail %></pre><% end %>
+      <div id="wq_out_<%= e.id %>">
+        <% Array(local_assigns[:results]).select { |r| r.kind == "result" && r.tool_use_id == e.id }.each do |r| %>
+          <%= render "work_queue/result", entry: r %>
+        <% end %>
+      </div>
+    </details>
+  <% else %>
+    <div class="wq-note"><% if label %><span class="wq-entry-tag"><%= label %></span> <% end %><%= { "prompt" => "Prompt", "qa" => "You", "phase" => "Phase", "error" => "Error" }.fetch(e.kind, "Agent") %></div>
+    <div class="wq-body"><%= wq_linkify(e.body.to_s.truncate(4000), slug, format: true) %></div>
+  <% end %>
+</li>
+<% end %>

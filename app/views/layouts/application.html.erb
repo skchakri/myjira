@@ -184,6 +184,12 @@
           <% end %>
 
           <%# Conversations hub — every CLI session, grouped by project %>
+          <%= link_to work_queue_path, class: "clink #{controller_name == 'work_queue' ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Work Queue</span>
+            <span class="clink-slug truncate max-w-[90px]">live</span>
+          <% end %>
+
           <% convo_active = controller_name == "conversations" %>
           <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
             <span class="dot dot-idle" aria-hidden="true"></span>
@@ -265,7 +271,7 @@
           </div>
         <% end %>
 
-        <div class="px-10 py-8">
+        <div class="<%= content_for?(:full_bleed) ? '' : 'px-10 py-8' %>">
           <%= yield %>
         </div>
       </main>

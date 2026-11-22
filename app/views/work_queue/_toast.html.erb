@@ -1,0 +1,10 @@
+<div class="wq-toast wq-toast-<%= level %>" data-controller="wq-toast">
+  <p><%= message %></p>
+  <% if copy %>
+    <div class="flex items-center gap-2 mt-1.5">
+      <code class="wq-copy-text"><%= copy %></code>
+      <button type="button" class="wq-btn wq-btn-ghost" data-action="wq-toast#copy" data-text="<%= copy %>">Copy command</button>
+    </div>
+  <% end %>
+  <button type="button" class="wq-toast-x" aria-label="Dismiss" data-action="wq-toast#dismiss">&times;</button>
+</div>
