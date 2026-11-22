@@ -118,7 +118,7 @@
         <label title="Attach image, video, or audio"
                class="shrink-0 grid place-items-center h-[42px] w-10 rounded-lg hair-all cursor-pointer text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-amber-ink)] hover:bg-[color:var(--color-paper-sunk)]">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-          <%= f.file_field :files, multiple: true, accept: "image/*,video/*,audio/*",
+          <%= f.file_field :files, multiple: true, accept: "image/*,video/*,audio/*,application/pdf,text/plain,text/markdown,text/csv",
                 class: "hidden", data: { file_input_target: "input", action: "file-input#changed" } %>
         </label>
         <%= f.text_area :body, rows: 2,
