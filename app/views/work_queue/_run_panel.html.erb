@@ -1,0 +1,56 @@
+<% run = context.run %>
+<% runner = WorkQueue::RunState.runner %>
+<div class="wq-run">
+  <div class="flex flex-wrap items-center gap-2">
+    <% if run["phase"].present? %>
+      <span class="wq-chip-static">phase <strong><%= run["phase"] %></strong></span>
+    <% end %>
+    <% if (last = context.phases.last) %>
+      <span class="wq-chip-static wq-mono"><%= last["model"] %> · <%= last["effort"] %></span>
+    <% end %>
+    <% if run["pid"].present? %>
+      <%= button_to "Stop", work_queue_item_stop_path(item.key), class: "wq-btn wq-btn-ghost", form: { data: { turbo_stream: true } } %>
+    <% end %>
+    <% if item.open? && run["pid"].blank? && context.server_run? %>
+      <%= button_to "Retry", work_queue_item_retry_path(item.key), class: "wq-btn wq-btn-ghost", form: { data: { turbo_stream: true } } %>
+    <% end %>
+    <%= button_to "Start relay", work_queue_item_run_path(item.key), params: { relay: 1 }, class: "wq-btn wq-btn-ghost", form: { data: { turbo_stream: true } } %>
+    <% if run["mode"] == "relay" %>
+      <%= button_to "Close relay tabs", work_queue_item_close_relay_tabs_path(item.key), class: "wq-btn wq-btn-ghost", form: { data: { turbo_stream: true } } %>
+    <% end %>
+    <% if runner.nil? %>
+      <span class="wq-flag">runner offline</span>
+    <% elsif !runner["chrome_bridge"] %>
+      <span class="wq-hint" title="The Claude-in-Chrome bridge socket isn't visible where the runner runs">relay unavailable on <%= runner["host"] %></span>
+    <% end %>
+  </div>
+  <details class="wq-model">
+    <summary class="wq-hint">Model: <%= run["override_model"].presence || "auto (router)" %><%= " · locked" if run["lock_model"] == "1" %></summary>
+    <%= form_with url: work_queue_item_model_path(item.key), data: { turbo_stream: true }, class: "flex flex-wrap items-center gap-2 mt-2" do %>
+      <select name="model" class="wq-input wq-input-sm" aria-label="Model">
+        <option value="">auto</option>
+        <% WorkQueue::Router::MODELS.each do |m| %><option <%= "selected" if run["override_model"] == m %>><%= m %></option><% end %>
+      </select>
+      <select name="effort" class="wq-input wq-input-sm" aria-label="Effort">
+        <% WorkQueue::Router::EFFORTS.each do |e| %><option <%= "selected" if run["override_effort"] == e %>><%= e %></option><% end %>
+      </select>
+      <label class="wq-toggle"><input type="checkbox" name="lock" value="1" <%= "checked" if run["lock_model"] == "1" %>> lock</label>
+      <button class="wq-btn wq-btn-ghost">Save</button>
+    <% end %>
+  </details>
+  <% if context.phases.any? %>
+    <details class="wq-model">
+      <summary class="wq-hint">Cost by phase: $<%= format("%.2f", context.phases.sum { |p| p["cost_usd"].to_f }) %></summary>
+      <table class="wq-table">
+        <thead><tr><th>phase</th><th>model</th><th>effort</th><th>in/out tok</th><th>$</th><th>why</th></tr></thead>
+        <tbody>
+          <% context.phases.each do |p| %>
+            <tr><td><%= p["phase"] %></td><td class="wq-mono"><%= p["model"] %></td><td><%= p["effort"] %></td>
+              <td class="wq-mono"><%= p["input_tokens"] %>/<%= p["output_tokens"] %></td><td class="wq-mono"><%= format("%.3f", p["cost_usd"].to_f) %></td>
+              <td><%= p["reason"] %></td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </details>
+  <% end %>
+</div>

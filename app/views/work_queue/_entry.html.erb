@@ -12,7 +12,7 @@
     </details>
   <% elsif e.kind == "result" %>
   <% else %>
-    <div class="wq-note"><%= e.kind == "prompt" ? "Prompt" : (e.kind == "qa" ? "You" : "Agent") %></div>
+    <div class="wq-note"><%= { "prompt" => "Prompt", "qa" => "You", "phase" => "Phase", "error" => "Error" }.fetch(e.kind, "Agent") %></div>
     <div class="wq-body"><%= simple_format(h(e.body.to_s.truncate(4000))) %></div>
   <% end %>
 </li>

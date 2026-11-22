@@ -1,10 +1,14 @@
 <%= turbo_stream_from WorkQueue::Broadcaster.item_stream(item.key) %>
-<% if item.agent.present? %><%= turbo_stream_from WorkQueue::Broadcaster.log_stream(item.agent) %><% end %>
+<% if context.server_run? %>
+  <%= turbo_stream_from WorkQueue::Broadcaster.run_stream(item.key) %>
+<% elsif item.agent.present? %>
+  <%= turbo_stream_from WorkQueue::Broadcaster.log_stream(item.agent) %>
+<% end %>
 <div class="wq-detail-grid" data-key="<%= item.key %>">
   <section class="wq-main">
     <%= render "work_queue/log_header", item: item, context: context %>
     <div class="wq-log" data-work-queue-target="log" data-action="scroll->work-queue#logScrolled">
-      <% if context.transcript_path.nil? %>
+      <% if context.transcript_path.nil? && !context.server_run? %>
         <p class="wq-empty">No agent transcript yet<%= " (agent #{item.agent})" if item.agent %>. The log streams in once an agent starts.</p>
       <% end %>
       <ol id="wq_log_entries" class="wq-entries">

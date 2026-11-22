@@ -6,6 +6,7 @@
     <%= render "work_queue/badge", item: item %>
   </div>
   <%= render "work_queue/git", item: item, context: context, full: true %>
+  <%= render "work_queue/run_panel", item: item, context: context %>
   <% if item.summary.present? %><p class="wq-summary"><%= item.summary %></p><% end %>
   <div class="flex flex-wrap items-center gap-2 mt-2">
     <% if item.pending? %>

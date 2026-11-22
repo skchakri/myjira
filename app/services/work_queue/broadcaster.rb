@@ -38,18 +38,25 @@ module WorkQueue
       publish(type: "status", key: item.key, from: from, to: item.display_status, title: item.title)
     end
 
-    def log_entries(agent, entries)
+    def run_stream(key) = "work_queue:run:#{key}"
+
+    # Server-run items (WorkQueue::Supervisor) stream here instead of a transcript.
+    def run_entries(key, entries) = stream_entries(run_stream(key), entries)
+
+    def log_entries(agent, entries) = stream_entries(log_stream(agent), entries)
+
+    def stream_entries(stream, entries)
       return if entries.empty?
 
       entries.each do |e|
         if e.kind == "result"
           Turbo::StreamsChannel.broadcast_append_to(
-            log_stream(agent), target: "wq_out_#{e.tool_use_id}",
+            stream, target: "wq_out_#{e.tool_use_id}",
             partial: "work_queue/result", locals: { entry: e }
           )
         else
           Turbo::StreamsChannel.broadcast_append_to(
-            log_stream(agent), target: "wq_log_entries",
+            stream, target: "wq_log_entries",
             partial: "work_queue/entry", locals: { entry: e }
           )
         end

@@ -8,7 +8,8 @@ const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content
 
 export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
-                    "notifyBtn", "help", "question", "answer", "merge"]
+                    "notifyBtn", "help", "question", "answer", "merge",
+                    "composer", "composerText", "files", "fileList"]
   static values = { selected: String, groupUrl: String }
 
   connect() {
@@ -166,6 +167,28 @@ export default class extends Controller {
     rec.start()
   }
 
+  // ---- composer ------------------------------------------------------------
+  pickFiles() { this.filesTarget.click() }
+  dragOver(e) { e.preventDefault(); e.currentTarget.classList.add("wq-drop-over") }
+  dragLeave(e) { e.currentTarget.classList.remove("wq-drop-over") }
+
+  drop(e) {
+    e.preventDefault()
+    e.currentTarget.classList.remove("wq-drop-over")
+    const dt = new DataTransfer()
+    Array.from(this.filesTarget.files).forEach((f) => dt.items.add(f))
+    Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/")).forEach((f) => dt.items.add(f))
+    this.filesTarget.files = dt.files
+    this.fileListTarget.textContent = Array.from(dt.files).map((f) => f.name).join(", ")
+  }
+
+  composerSent(e) {
+    if (!e.detail.success) return
+    e.target.reset()
+    this.fileListTarget.textContent = ""
+    this.composerTarget.removeAttribute("open")
+  }
+
   closeMerge(event) { event.currentTarget.closest("details")?.removeAttribute("open") }
   toggleHelp() { this.helpTarget.classList.toggle("hidden") }
 
@@ -187,6 +210,8 @@ export default class extends Controller {
       case "v": this.questionTargets[0]?.querySelector(".wq-mic")?.click(); break
       case "/": e.preventDefault(); this.answerTargets[0]?.focus(); break
       case "?": this.toggleHelp(); break
+      case "n": this.composerTarget.setAttribute("open", ""); this.composerTextTarget.focus(); break
+      case "s": this.element.querySelector(".wq-log-h form[action$='/stop'] button")?.click(); break
       default:
         if (/^[1-4]$/.test(e.key)) this.questionTargets[0]?.querySelector(`[data-option="${e.key}"]`)?.click()
         else return
