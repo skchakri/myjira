@@ -14,8 +14,10 @@ module WorkQueue
     def self.path_for(item, root: self.root)
       return unless item.session.to_s.match?(/\A[\w-]+\z/)
 
-      if item.agent.to_s.match?(/\A[\w-]+\z/)
-        hit = Dir.glob(root.join("*", item.session, "subagents", "agent-#{item.agent}.jsonl")).first
+      # The mod sometimes records several agents ("a1, a2"); the newest is last.
+      agents = item.agent.to_s.split(/[,\s]+/).grep(/\A[\w-]+\z/).reverse
+      agents.each do |agent|
+        hit = Dir.glob(root.join("*", item.session, "subagents", "agent-#{agent}.jsonl")).first
         return hit if hit
       end
       nil
@@ -114,7 +116,7 @@ module WorkQueue
 
     def describe(name, input)
       case name
-      when "Bash" then [input["description"].presence || input["command"].to_s.lines.first.to_s.strip.truncate(120), input["command"]]
+      when "Bash" then [input["description"].presence || input["command"].to_s.lines.first.to_s.strip.sub(/\Acd \S+ && /, "").truncate(120), input["command"]]
       when "Edit" then ["Edit #{input['file_path']}", "- #{input['old_string']}\n+ #{input['new_string']}"]
       when "Write" then ["Write #{input['file_path']}", input["content"]]
       when "Read" then ["Read #{input['file_path']}", nil]

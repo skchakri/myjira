@@ -19,10 +19,6 @@ module WorkQueue
       )
       items.each do |item|
         Turbo::StreamsChannel.broadcast_replace_to(
-          item_stream(item.key), target: "wq_side",
-          partial: "work_queue/side", locals: { item: item }
-        )
-        Turbo::StreamsChannel.broadcast_replace_to(
           item_stream(item.key), target: "wq_log_header",
           partial: "work_queue/log_header", locals: { item: item }
         )
@@ -38,27 +34,46 @@ module WorkQueue
       publish(type: "status", key: item.key, from: from, to: item.display_status, title: item.title)
     end
 
-    def log_entries(agent, entries)
+    def run_stream(key) = "work_queue:run:#{key}"
+
+    # Server-run items (WorkQueue::Supervisor) stream here instead of a transcript.
+    def run_entries(key, entries)
+      slug, n = key.split(":", 2)
+      stream_entries(run_stream(key), entries, slug: slug, label: "##{n}")
+    end
+
+    # item (optional) labels each entry with its task and links #refs.
+    def log_entries(agent, entries, item: nil)
+      stream_entries(log_stream(agent), entries, slug: item&.slug, label: item && "##{item.n}")
+    end
+
+    def stream_entries(stream, entries, slug: nil, label: nil)
       return if entries.empty?
 
       entries.each do |e|
         if e.kind == "result"
           Turbo::StreamsChannel.broadcast_append_to(
-            log_stream(agent), target: "wq_out_#{e.tool_use_id}",
+            stream, target: "wq_out_#{e.tool_use_id}",
             partial: "work_queue/result", locals: { entry: e }
           )
         else
           Turbo::StreamsChannel.broadcast_append_to(
-            log_stream(agent), target: "wq_log_entries",
-            partial: "work_queue/entry", locals: { entry: e }
+            stream, target: "wq_log_entries",
+            partial: "work_queue/entry", locals: { entry: e, slug: slug, label: label }
           )
         end
       end
     end
 
-    def log_note(agent, text)
+    # A note (your answer, a merge result) into whichever log the item's page shows.
+    def item_note(item, text)
       entry = Transcript::Entry.new(kind: "qa", body: text, at: Time.current.iso8601)
-      log_entries(agent, [entry]) if agent.present?
+      if RunState.server_run?(item.key)
+        RunState.append_stream(item.key, { "note" => text, "kind" => "qa" })
+        run_entries(item.key, [entry])
+      elsif (agent = Transcript.agent_id(Transcript.path_for(item)))
+        log_entries(agent, [entry], item: item)
+      end
     end
 
     def publish(payload)

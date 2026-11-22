@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+# Headless runner for Work Queue items (claude -p per phase, max 4 at once).
+# Run on the host for Claude-in-Chrome relays (the container can't reach the
+# Chrome bridge socket in /tmp); works in the pyr-myjira container otherwise.
+require_relative "../config/environment"
+$stdout.sync = true
+Rails.logger = ActiveSupport::Logger.new($stdout)
+WorkQueue::Supervisor.new.start

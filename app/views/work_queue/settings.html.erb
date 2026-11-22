@@ -1,0 +1,26 @@
+<% content_for :title, "Work Queue settings · myjira" %>
+<div class="max-w-3xl">
+  <h1 class="text-xl font-semibold">Work Queue settings</h1>
+  <p class="text-sm mt-1" style="color: var(--color-ink-soft)">The routing table is the fallback and guardrail for the router (claude-haiku-5-5, low effort). A failed test leg or retry escalates to a stronger model. You can override the model per item, or lock it, from the item's log header.</p>
+  <%= form_with url: work_queue_settings_path, method: :patch, class: "mt-6 space-y-6" do %>
+    <table class="wq-table">
+      <thead><tr><th>Phase</th><th>Model</th><th>Effort</th></tr></thead>
+      <tbody>
+        <% WorkQueue::Router::PHASES.each do |ph| %>
+          <tr>
+            <td><%= ph %></td>
+            <td><select name="routing[<%= ph %>][model]" class="wq-input"><% WorkQueue::Router::MODELS.each do |m| %><option <%= "selected" if @routing.dig(ph, "model") == m %>><%= m %></option><% end %></select></td>
+            <td><select name="routing[<%= ph %>][effort]" class="wq-input"><% WorkQueue::Router::EFFORTS.each do |e| %><option <%= "selected" if @routing.dig(ph, "effort") == e %>><%= e %></option><% end %></select></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <div>
+      <label class="wq-label" for="slug">Always-allowed tools for project</label>
+      <select id="slug" name="slug" class="wq-input"><option value="">(none)</option><% @projects.each do |label, slug, _| %><option value="<%= slug %>"><%= label %></option><% end %></select>
+      <textarea name="always_allow" rows="4" class="wq-input mt-2 w-full" placeholder="One rule per line, e.g. Bash(bin/rails test:*)"></textarea>
+      <p class="wq-hint">Edits are auto-accepted (acceptEdits). Anything else the agent tries is denied and shown to you as Allow once / Always allow / Deny chips.</p>
+    </div>
+    <button class="wq-btn wq-btn-primary">Save</button> <%= link_to "Back to queue", work_queue_path, class: "wq-link" %>
+  <% end %>
+</div>

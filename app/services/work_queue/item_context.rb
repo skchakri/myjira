@@ -10,8 +10,12 @@ module WorkQueue
       @prs = prs
     end
 
+    def server_run? = @server_run.nil? ? (@server_run = RunState.server_run?(item.key)) : @server_run
+    def run = @run ||= RunState.get(item.key)
+    def phases = @phases ||= RunState.phases(item.key)
+
     def transcript_path = @transcript_path ||= Transcript.path_for(item)
-    def worktree = @worktree ||= Transcript.cwd_for(transcript_path)
+    def worktree = @worktree ||= run["worktree"].presence || Transcript.cwd_for(transcript_path)
     def pr_status = (@pr_status ||= [item.pr && item.open? ? @prs.status(item.pr) : nil]).first
     def git = (@git ||= [GitInfo.for(worktree, pr_base: pr_status&.base)]).first
     def dependencies = @dependencies ||= @store.dependencies(item)

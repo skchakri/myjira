@@ -52,7 +52,8 @@ module WorkQueue
 
         parser = (@parsers[path] ||= Transcript.new)
         entries, @offsets[path] = parser.parse_file(path, from: @offsets.fetch(path, 0))
-        Broadcaster.log_entries(agent, entries)
+        item = @store.all.find { |i| i.agent == agent } if entries.any?
+        Broadcaster.log_entries(agent, entries, item: item)
       end
     rescue StandardError => e
       @logger.error("[work-queue] log broadcast failed: #{e.class}: #{e.message}")

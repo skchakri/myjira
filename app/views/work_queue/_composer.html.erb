@@ -1,0 +1,26 @@
+<% choices = WorkQueue::Workspace.choices %>
+<details class="wq-composer" data-work-queue-target="composer">
+  <summary class="wq-btn wq-btn-primary w-full justify-center">New item <kbd>n</kbd></summary>
+  <%= form_with url: work_queue_items_path, data: { turbo_stream: true, action: "turbo:submit-end->work-queue#composerSent" },
+                multipart: true, class: "wq-composer-form" do %>
+    <label class="wq-label" for="wq_slug">Project</label>
+    <select id="wq_slug" name="slug" class="wq-input" required>
+      <% choices.each do |label, slug, repo| %>
+        <option value="<%= slug %>" title="<%= repo || slug %>"><%= label %><%= " (no repo_path)" unless repo %></option>
+      <% end %>
+    </select>
+    <label class="wq-label" for="wq_text">What should be done?</label>
+    <div class="wq-drop" data-action="dragover->work-queue#dragOver dragleave->work-queue#dragLeave drop->work-queue#drop">
+      <textarea id="wq_text" name="text" rows="4" class="wq-input" placeholder="First line becomes the title. Drop images here." data-work-queue-target="composerText"></textarea>
+      <input type="file" name="files[]" multiple accept="image/*" class="hidden" data-work-queue-target="files">
+      <p class="wq-hint" data-work-queue-target="fileList"></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mt-2">
+      <button type="button" class="wq-mic" aria-label="Dictate" data-action="work-queue#dictate">mic</button>
+      <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#pickFiles">Images</button>
+      <button type="submit" class="wq-btn wq-btn-ghost">Add</button>
+      <button type="submit" name="start" value="1" class="wq-btn wq-btn-primary">Add &amp; run</button>
+      <button type="submit" name="relay" value="1" class="wq-btn wq-btn-ghost" title="Run the myjira-relay controller flow (Claude-in-Chrome)">Start relay</button>
+    </div>
+  <% end %>
+</details>

@@ -17,17 +17,26 @@
         <input type="checkbox" data-work-queue-target="speakToggle" data-action="work-queue#toggleSpeak"> Announce
       </label>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#enableNotifications" data-work-queue-target="notifyBtn">Notify me</button>
+      <%= link_to "Routing", work_queue_settings_path, class: "wq-btn wq-btn-ghost" %>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#toggleHelp" aria-label="Keyboard shortcuts">?</button>
     </div>
   </header>
 
   <div class="wq-help hidden" data-work-queue-target="help">
     <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open · <kbd>x</kbd> select · <kbd>g</kbd> group · <kbd>r</kbd> run now ·
-    <kbd>1</kbd>-<kbd>4</kbd> pick option · <kbd>m</kbd> merge · <kbd>v</kbd> voice · <kbd>/</kbd> answer box · <kbd>Esc</kbd> close
+    <kbd>1</kbd>-<kbd>4</kbd> pick option · <kbd>m</kbd> merge · <kbd>v</kbd> voice · <kbd>/</kbd> answer box · <kbd>n</kbd> new item · <kbd>s</kbd> stop · <kbd>Esc</kbd> close
   </div>
 
   <div class="wq-grid">
     <aside class="wq-list" aria-label="Queue items">
+      <%= render "work_queue/composer" %>
+      <div class="wq-filter">
+        <input type="search" class="wq-input" placeholder="Search items…" aria-label="Search items" data-work-queue-target="search" data-action="input->work-queue#filter">
+        <select class="wq-input wq-input-sm" aria-label="Project filter" data-work-queue-target="projectFilter" data-action="change->work-queue#filter">
+          <option value="">All projects</option>
+          <% @projects.each_key do |slug| %><option value="<%= slug %>"><%= WorkQueue::Store.label(slug) %></option><% end %>
+        </select>
+      </div>
       <% if @projects.empty? %>
         <p class="wq-empty">No queue files in <code><%= WorkQueue::Store.dir %></code> yet.</p>
       <% end %>
@@ -49,5 +58,10 @@
   </div>
 
   <div id="wq_events" class="hidden" data-work-queue-target="events"></div>
+  <div class="wq-confirm hidden" data-work-queue-target="confirm" role="alertdialog" aria-live="assertive">
+    <span data-work-queue-target="confirmText"></span>
+    <button type="button" class="wq-btn wq-btn-primary" data-action="work-queue#confirmMerge">Merge</button>
+    <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#cancelMerge">Cancel</button>
+  </div>
   <div id="wq_toasts" class="wq-toasts" aria-live="polite"></div>
 </div>
