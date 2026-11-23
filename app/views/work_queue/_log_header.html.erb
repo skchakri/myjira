@@ -1,39 +1,90 @@
+<%# Top of the detail panel. Replaced live via the item stream (target wq_log_header). %>
 <% context ||= WorkQueue::ItemContext.new(item, store: WorkQueue::Store.new) %>
-<header id="wq_log_header" class="wq-log-h">
-  <div class="flex items-center gap-2 min-w-0">
-    <%= link_to "##{item.n}", work_queue_item_detail_path(item.key), class: "wq-n", data: { turbo_frame: "wq_detail" } %>
-    <h2 class="wq-log-title"><%= item.title %></h2>
-    <%= render "work_queue/badge", item: item %>
-    <span class="wq-hint"><%= WorkQueue::Store.label(item.slug) %></span>
-    <% if item.session.present? %><%= render "work_queue/listener", item: item %><% end %>
-    <span class="ml-auto"><%= wq_copy_menu(item, context) %></span>
+<% flow = context.flow %>
+<header id="wq_log_header" class="wq-log-h wq-flow">
+  <nav class="wq-crumbs" aria-label="Breadcrumb">
+    <span><%= WorkQueue::Store.label(item.slug) %></span>
+    <% context.ancestors.each do |a| %>
+      <span aria-hidden="true">›</span>
+      <%= link_to a.title.truncate(40), work_queue_item_detail_path(a.key), class: "wq-crumb-link", data: { turbo_frame: "wq_detail" } %>
+    <% end %>
+    <span aria-hidden="true">›</span><span aria-current="page">this task</span>
+  </nav>
+
+  <div class="wq-flow-head">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="wq-pill wq-pill-<%= flow.tone %>"><%= flow.label %></span>
+      <span class="wq-hint wq-mono"><%= flow.ref %></span>
+      <% if item.session.present? %><%= render "work_queue/listener", item: item %><% end %>
+      <span class="ml-auto"><%= wq_copy_menu(item, context) %></span>
+    </div>
+    <h2 class="wq-flow-title"><%= item.title %></h2>
   </div>
-  <%= render "work_queue/git", item: item, context: context, full: true %>
-  <div class="wq-links">
-    <% if item.pr.present? %><a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">PR <%= item.pr_number ? "##{item.pr_number}" : "" %></a><% end %>
-    <% siblings = WorkQueue::Store.new.items_for(item.slug) %>
-    <% if (parent = siblings.find { |i| i.n == item.parent }) %>
-      <span class="wq-hint">parent</span> <%= link_to "##{parent.n} #{parent.title.truncate(40)}", work_queue_item_detail_path(parent.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
+
+  <ol class="wq-path" aria-label="Step <%= flow.step + 1 %> of <%= WorkQueue::Flow::STEPS.size %>: <%= WorkQueue::Flow::STEPS[flow.step] %>">
+    <% WorkQueue::Flow::STEPS.zip(flow.path).each_with_index do |(name, state), i| %>
+      <%= tag.li class: ["wq-step", ("wq-step-#{state}" if state)], aria: { current: ("step" if i == flow.step) } do %><i aria-hidden="true"></i><%= name %><% end %>
     <% end %>
-    <% WorkQueue::RunState.related(item.key).filter_map { |k| WorkQueue::Store.new.find(k) }.each do |rel| %>
-      <span class="wq-hint">related</span> <%= link_to "##{rel.n} #{rel.title.truncate(40)}", work_queue_item_detail_path(rel.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
-    <% end %>
-    <% siblings.select { |i| i.parent == item.n }.each do |child| %>
-      <span class="wq-hint">follow-up</span> <%= link_to "##{child.n} #{child.title.truncate(40)}", work_queue_item_detail_path(child.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
-    <% end %>
+  </ol>
+
+  <%= render "work_queue/question_box", item: item %>
+
+  <section class="wq-box wq-now" aria-label="What's happening">
+    <span class="wq-eyebrow">What's happening</span>
+    <p class="wq-summary"><%= wq_linkify(flow.happening, item.slug) %></p>
+    <p class="text-[12.5px]"><strong>Your part:</strong> <%= flow.your_part %></p>
+    <div class="flex flex-wrap items-center gap-2">
+      <% if item.pending? %>
+        <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
+      <% end %>
+      <% if context.chain_merge? %>
+        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
+                   label: "Merge both (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
+      <% elsif context.card_merge? %>
+        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge PR", context: context %>
+      <% end %>
+      <% if item.pr.present? %><a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">Open PR <%= item.pr_number ? "##{item.pr_number}" : "" %></a><% end %>
+    </div>
+  </section>
+
+  <div class="wq-grid2">
+    <section class="wq-box" aria-labelledby="wq_rel_h">
+      <span id="wq_rel_h" class="wq-eyebrow">Related tasks</span>
+      <% rel = context.related %>
+      <% if rel.any? %>
+        <ul class="wq-related">
+          <% rel.each do |kind, r| %>
+            <% rf = WorkQueue::Flow.new(r) %>
+            <li>
+              <%= link_to work_queue_item_detail_path(r.key), class: "wq-rel", data: { turbo_frame: "wq_detail" } do %>
+                <span class="wq-dot wq-t-<%= rf.tone %>" aria-hidden="true"></span>
+                <span class="min-w-0"><span class="wq-rel-kind"><%= kind %></span><br><span class="wq-rel-t"><%= r.title %></span></span>
+                <span class="wq-hint"><%= rf.label %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="wq-hint">No related tasks.</p>
+      <% end %>
+    </section>
+    <section class="wq-box" aria-labelledby="wq_hist_h">
+      <span id="wq_hist_h" class="wq-eyebrow">History</span>
+      <% if item.log.any? %>
+        <ol class="wq-hist">
+          <% item.log.last(20).each do |l| %>
+            <li><span class="wq-time wq-mono"><%= Time.zone.at(l["at"].to_i / 1000).strftime("%b %-d %H:%M") %></span><span><%= wq_linkify(l["text"], item.slug) %></span></li>
+          <% end %>
+        </ol>
+      <% else %>
+        <p class="wq-hint">Nothing yet.</p>
+      <% end %>
+    </section>
   </div>
-  <%= render "work_queue/run_panel", item: item, context: context %>
-  <% if item.summary.present? %><p class="wq-summary"><%= wq_linkify(item.summary, item.slug) %></p><% end %>
-  <div class="flex flex-wrap items-center gap-2 mt-2">
-    <% if item.pending? %>
-      <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
-    <% end %>
-    <%= render "work_queue/questions", item: item %>
-    <% if context.chain_merge? %>
-      <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
-                 label: "Merge both (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
-    <% elsif context.card_merge? %>
-      <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge PR", context: context %>
-    <% end %>
-  </div>
+
+  <details class="wq-box wq-more">
+    <summary class="wq-eyebrow">Run controls, branch and model</summary>
+    <%= render "work_queue/git", item: item, context: context, full: true %>
+    <%= render "work_queue/run_panel", item: item, context: context %>
+  </details>
 </header>

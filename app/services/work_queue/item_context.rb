@@ -20,6 +20,31 @@ module WorkQueue
     def pr_status = (@pr_status ||= [item.pr && item.open? ? StatusCache.pr(item.pr) : nil]).first
     def git = (@git ||= [StatusCache.git(item.key)]).first
     def dependencies = @dependencies ||= @store.dependencies(item)
+    def flow = @flow ||= Flow.new(item, self)
+    def project_items = @project_items ||= @store.items_for(item.slug)
+
+    # Parent chain, root first (breadcrumb).
+    def ancestors
+      by_n = project_items.index_by(&:n)
+      chain = []
+      cur = by_n[item.parent]
+      while cur && chain.exclude?(cur) && cur.n != item.n
+        chain.unshift(cur)
+        cur = by_n[cur.parent]
+      end
+      chain
+    end
+
+    # [[kind, item]] for the Related tasks box: parent, follow-ups, siblings, linked.
+    def related
+      parent = project_items.find { |i| i.n == item.parent }
+      rows = []
+      rows << ["Came from", parent] if parent
+      project_items.select { |i| i.parent == item.n && i.n != item.n }.each { |c| rows << ["Follow-up", c] }
+      project_items.select { |i| parent && i.parent == parent.n && i.n != item.n }.each { |s| rows << ["Sibling", s] }
+      RunState.related(item.key).filter_map { |k| @store.find(k) }.each { |r| rows << ["Linked", r] }
+      rows.uniq { |_, i| i.key }
+    end
 
     # Merge PR shows on the card only when nothing linked is still open.
     def card_merge? = item.pr.present? && item.status == "review" && dependencies.empty?
