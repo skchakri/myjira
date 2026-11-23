@@ -29,6 +29,8 @@ export default class extends Controller {
     if ("Notification" in window && Notification.permission === "granted" && this.hasNotifyBtnTarget) this.notifyBtnTarget.classList.add("hidden")
     this.frameLoad = () => this.afterFrame()
     document.addEventListener("turbo:frame-load", this.frameLoad)
+    this.streamRender = (e) => this.keepDraftAcrossStream(e)
+    document.addEventListener("turbo:before-stream-render", this.streamRender)
     this.afterFrame()
     this.groupTools()
     try { const w = parseInt(localStorage.getItem("wq-list-w"), 10); if (w) this.setListWidth(w) } catch (_) {}
@@ -68,6 +70,7 @@ export default class extends Controller {
   disconnect() {
     document.removeEventListener("keydown", this.keyHandler)
     document.removeEventListener("turbo:frame-load", this.frameLoad)
+    document.removeEventListener("turbo:before-stream-render", this.streamRender)
     this.logObserver?.disconnect()
   }
 
@@ -369,6 +372,72 @@ export default class extends Controller {
     }
     // Keep the newest run ungrouped while it's still streaming; group once it's 3+.
     flush()
+  }
+
+  // ---- Question-box drafts: typed answers + picked chips survive live re-renders and task switches.
+  draftKey(box) { return `wq-draft:${box.dataset.itemKey}` }
+
+  readDraft(box) {
+    const form = box.querySelector("form")
+    const draft = {}
+    if (!form) return draft
+    form.querySelectorAll("textarea[name], input[type=radio][name]:checked").forEach((el) => {
+      if (el.type === "radio" || el.value) draft[el.name] = el.value
+    })
+    return draft
+  }
+
+  writeDraft(box, draft) {
+    box.querySelectorAll("textarea[name]").forEach((el) => { if (draft[el.name] != null) el.value = draft[el.name] })
+    box.querySelectorAll("input[type=radio][name]").forEach((el) => { if (draft[el.name] === el.value) el.checked = true })
+  }
+
+  saveDraft(e) {
+    const box = e.currentTarget
+    const draft = this.readDraft(box)
+    try {
+      if (Object.keys(draft).length) sessionStorage.setItem(this.draftKey(box), JSON.stringify(draft))
+      else sessionStorage.removeItem(this.draftKey(box))
+    } catch (_) {}
+  }
+
+  clearDraft(e) {
+    if (!e.detail?.success) return
+    try { sessionStorage.removeItem(this.draftKey(e.currentTarget)) } catch (_) {}
+  }
+
+  questionTargetConnected(box) {
+    let draft = null
+    try { draft = JSON.parse(sessionStorage.getItem(this.draftKey(box)) || "null") } catch (_) {}
+    if (draft) this.writeDraft(box, draft)
+    const f = this.pendingFocus
+    if (f && f.key === box.dataset.itemKey) {
+      const el = f.id && document.getElementById(f.id)
+      if (el && box.contains(el)) {
+        el.focus({ preventScroll: true })
+        try { if (f.start != null) el.setSelectionRange(f.start, f.end) } catch (_) {}
+      }
+      this.pendingFocus = null
+    }
+  }
+
+  // Before a stream swaps the header, snapshot the live form (in memory + sessionStorage) and the caret.
+  keepDraftAcrossStream(e) {
+    const target = e.target?.getAttribute?.("target")
+    const old = target && document.getElementById(target)
+    if (!old) return
+    const boxes = old.matches?.(".wq-qbox") ? [old] : [...old.querySelectorAll(".wq-qbox[data-item-key]")]
+    if (!boxes.length) return
+    boxes.forEach((box) => {
+      const draft = this.readDraft(box)
+      try { if (Object.keys(draft).length) sessionStorage.setItem(this.draftKey(box), JSON.stringify(draft)) } catch (_) {}
+    })
+    const a = document.activeElement
+    const box = a && boxes.find((b) => b.contains(a))
+    if (box) {
+      const sel = typeof a.selectionStart === "number" ? { start: a.selectionStart, end: a.selectionEnd } : {}
+      this.pendingFocus = { key: box.dataset.itemKey, id: a.id, ...sel }
+    }
   }
 
   logTargetConnected(log) {

@@ -71,6 +71,16 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     assert_operator header.index("wq-qbox"), :<, header.index("wq-now")
   end
 
+  test "question box has stable per-item ids so drafts survive live re-renders" do
+    2.times do
+      get work_queue_item_detail_path("home-me-app:7")
+      assert_select ".wq-qbox[data-work-queue-target=question][data-item-key='home-me-app:7']"
+      assert_select ".wq-qbox[data-action*='work-queue#saveDraft'][data-action*='work-queue#clearDraft']"
+      assert_select ".wq-qbox textarea#wq_custom_home-me-app-7_1[name='custom[1]']"
+      assert_select ".wq-qbox input#wq_answer_home-me-app-7_0_0[name='answers[0]'][value=red]"
+    end
+  end
+
   test "send answers posts several answers at once; free text wins" do
     post work_queue_item_answer_path("home-me-app:7"),
          params: { answers: { "0" => "red", "1" => "S" }, custom: { "0" => "", "1" => "XL please" } }, as: :turbo_stream
