@@ -129,6 +129,15 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
   end
 
+  test "add child item queues a follow-up under this item without approval" do
+    post work_queue_item_children_path("home-me-app:1"), params: { title: "Child bit", description: "details" }, as: :turbo_stream
+    assert_response :ok
+    item = WorkQueue::Store.new.find("home-me-app:2")
+    assert_equal [1, "queued", false, "details"], [item.parent, item.status, item.awaiting_approval, item.description]
+    job = JSON.parse(WorkQueue::RunState.redis.lpop(WorkQueue::RunState::JOBS))
+    assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
+  end
+
   test "run now approves a follow-up awaiting approval" do
     WorkQueue::QueueWriter.new(dir: @dir).add("home-me-app", title: "Follow-up", parent: 1)
     assert WorkQueue::Store.new.find("home-me-app:2").awaiting_approval

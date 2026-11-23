@@ -12,18 +12,19 @@ module WorkQueue
       ```wq-questions
       [{"q": "question", "options": ["recommended answer", "alternative"]}]
       ```
-      Otherwise finish the phase and end with a one-line summary. When you open a PR, print its URL.
+      Otherwise finish the phase and end with a one-line summary. Never open a PR: the queue bundles this
+      item with its parent and follow-ups and opens one PR for all of them.
     TXT
 
     PHASE_PROMPTS = {
       "plan" => "PHASE: plan. Read the codebase and write a short implementation plan for this work item. " \
                 "Do not edit files yet. Ask questions only if a decision is genuinely needed.",
-      "implement" => "PHASE: implement. Implement the plan in this worktree, run the relevant tests and lint, " \
-                     "commit (author = the repo's configured user, no co-author lines), push the branch and open a PR " \
-                     "with `gh pr create` (do not merge). Print the PR URL.",
+      "implement" => "PHASE: implement. Implement the plan in this worktree. Run only the tests for the files you " \
+                     "changed, plus lint on those files (the full suite runs once per bundle). Commit (author = the " \
+                     "repo's configured user, no co-author lines) and push this branch. Do NOT open a PR.",
       "review" => "PHASE: review. Review the diff of this branch against its base for correctness bugs and missed " \
                   "requirements. Fix small issues and push. End with a line `VERDICT: PASS` or `VERDICT: FAIL - <why>`.",
-      "trivial" => "Make this small change, run lint, commit, push and open a PR. Print the PR URL.",
+      "trivial" => "Make this small change, run lint on the files you changed, commit and push this branch. Do NOT open a PR.",
       "relay" => "Use the myjira-relay skill in controller mode (drive Claude-in-Chrome yourself, log to a myjira " \
                  "ticket, ask via the wq-questions block if blocked). Close the Chrome tabs you opened when done."
     }.freeze

@@ -48,6 +48,23 @@ class WorkQueueController < ApplicationController
     toast("Added ##{item['n']} to #{WorkQueue::Store.label(slug)}#{' and started' if params[:start] == '1'}", :ok)
   end
 
+  # "＋ Add child item" in the detail pane: a typed-in follow-up of this item,
+  # queued straight away (no approval) and bundled with its parent.
+  def add_child
+    title = params[:title].to_s.strip
+    return toast("Give the child item a title", :error) if title.blank?
+
+    item = writer.add(@item.slug, title: title, description: params[:description].to_s.strip.presence || title, parent: @item.n)
+    writer.update(@item.slug, item["n"], log: "Added as a child of ##{@item.n} from myjira") do |i|
+      i.delete("awaitingApproval")
+      i["status"] = "queued"
+    end
+    key = "#{@item.slug}:#{item['n']}"
+    WorkQueue::RunState.set(key, { "repo" => WorkQueue::Workspace.repo_for(@item.slug) }.compact)
+    start_server(key)
+    toast("Added ##{item['n']} under ##{@item.n}", :ok)
+  end
+
   def run
     approve_for_run
     return respond_with_dispatch(dispatcher.run_now, "Run now sent for ##{@item.n}") if dispatcher.listening?

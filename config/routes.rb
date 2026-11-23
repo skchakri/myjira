@@ -157,6 +157,7 @@ Rails.application.routes.draw do
     post :run, to: "work_queue#run"
     post :answer, to: "work_queue#answer"
     post :instruct, to: "work_queue#instruct"
+    post :children, to: "work_queue#add_child"
     post :merge_pr, to: "work_queue#merge_pr"
     post :merge_chain, to: "work_queue#merge_chain"
     post :stop, to: "work_queue#stop"
