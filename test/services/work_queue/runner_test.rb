@@ -100,6 +100,13 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     assert_empty WorkQueue::SessionRunner.questions_in("```wq-questions\nnot json```")
   end
 
+  test "max running defaults to 4 and ignores non-positive overrides" do
+    assert_equal 4, WorkQueue::Supervisor.max_running(nil)
+    assert_equal 4, WorkQueue::Supervisor.max_running("0")
+    assert_equal 4, WorkQueue::Supervisor.max_running("abc")
+    assert_equal 6, WorkQueue::Supervisor.max_running("6")
+  end
+
   test "permission answers map to allowed tools" do
     sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
     key = "home-me-x:1"

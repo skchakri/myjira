@@ -5,7 +5,16 @@ module WorkQueue
   # phases plan → implement → review run as resumes of one Claude session, each
   # with the model/effort the Router picks.
   class Supervisor
-    MAX_RUNNING = ENV.fetch("WORK_QUEUE_MAX_RUNNING", 12).to_i
+    # Matches the 4-running cap in the work-queue protocol and bin/work-queue-runner.
+    DEFAULT_MAX_RUNNING = 4
+
+    # A blank, non-numeric or non-positive override would stall the queue; use the default instead.
+    def self.max_running(value = ENV.fetch("WORK_QUEUE_MAX_RUNNING", nil))
+      n = value.to_i
+      n.positive? ? n : DEFAULT_MAX_RUNNING
+    end
+
+    MAX_RUNNING = max_running
     MAX_ATTEMPTS = 2
     NEXT_PHASE = { "plan" => "implement", "implement" => "review", "trivial" => nil, "review" => nil, "relay" => nil }.freeze
     PERMISSION_OPTIONS = ["Allow once", "Always allow in this project", "Deny"].freeze
