@@ -6,17 +6,19 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
   # Pretend git/gh: tracks which branches are merged into the bundle branch;
   # the test command is red while any branch in `bad` is merged.
   class FakeShell
-    attr_reader :calls, :merged
+    attr_reader :calls, :merged, :cwds
 
     def initialize(bad: [], conflict: [])
       @bad = bad
       @conflict = conflict
       @merged = []
       @calls = []
+      @cwds = []
     end
 
-    def call(_cwd, *cmd)
+    def call(cwd, *cmd)
       @calls << cmd
+      @cwds << cwd
       case cmd
       in ["git", "checkout", "-B", *] then @merged = []
       in ["git", "merge", "--no-ff", "--no-edit", ref]
@@ -161,5 +163,21 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
     assert_equal "Ready to bundle", f.label
     assert_includes f.tags, "bundle"
     assert_includes WorkQueue::Flow::FILTERS.map(&:first), "bundle"
+  end
+
+  test "a child in a different repo gets its own PR instead of joining the parent's bundle" do
+    root = add("Root thing")
+    kid = add("Other repo kid", parent: root)
+    @writer.update(SLUG, kid) { |i| i["repo"] = "/other" }
+    shell = FakeShell.new
+    bundler(shell).tick
+
+    creates = shell.calls.each_index.select { |x| shell.calls[x][0..2] == %w[gh pr create] }
+    assert_equal 2, creates.size
+    heads = creates.to_h { |x| [shell.cwds[x], shell.calls[x][shell.calls[x].index("--head") + 1]] }
+    assert_equal({ "/other-bundle-2" => "bundle/2-other-repo-kid", "/repo-bundle-1" => "bundle/1-root-thing" }, heads)
+    assert_equal({ "root" => kid, "branch" => "bundle/2-other-repo-kid", "pr" => "https://github.com/me/app/pull/42", "size" => 1 },
+                 items[kid].bundle)
+    assert_equal 1, items[root].bundle["size"]
   end
 end
