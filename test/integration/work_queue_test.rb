@@ -119,6 +119,18 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
   end
 
+  test "run now approves a follow-up awaiting approval" do
+    WorkQueue::QueueWriter.new(dir: @dir).add("home-me-app", title: "Follow-up", parent: 1)
+    assert WorkQueue::Store.new.find("home-me-app:2").awaiting_approval
+
+    post work_queue_item_run_path("home-me-app:2"), as: :turbo_stream
+    assert_response :ok
+    item = WorkQueue::Store.new.find("home-me-app:2")
+    assert_not item.awaiting_approval
+    assert_equal "queued", item.status
+    assert(item.log.any? { |l| l["text"].to_s.include?("Approved via Run now") })
+  end
+
   test "answer without a session writes the queue directly" do
     WorkQueue::QueueWriter.new(dir: @dir).ask("home-me-app", 1, [{ q: "Color?", options: %w[red] }])
     post work_queue_item_answer_path("home-me-app:1"), params: { index: 0, text: "red" }, as: :turbo_stream

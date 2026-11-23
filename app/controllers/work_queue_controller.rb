@@ -49,6 +49,7 @@ class WorkQueueController < ApplicationController
   end
 
   def run
+    approve_for_run
     return respond_with_dispatch(dispatcher.run_now, "Run now sent for ##{@item.n}") if dispatcher.listening?
 
     start_server(@item.key, relay: params[:relay] == "1")
@@ -186,6 +187,19 @@ class WorkQueueController < ApplicationController
     WorkQueue::Broadcaster.run_entries(@item.key, [qa_entry(note)])
     WorkQueue::RunState.append_stream(@item.key, { "note" => note, "kind" => "qa" })
     WorkQueue::RunState.enqueue("answer", @item.key, text: text, q: @item.questions[index]&.q) if WorkQueue::RunState.server_run?(@item.key)
+  end
+
+  # Clicking Run now IS the approval: clear the flag in the queue file so the
+  # card stops showing "Needs your approval" and the CLI queue tool accepts the
+  # running update (it refuses to start items still awaiting approval).
+  def approve_for_run
+    return unless @item.awaiting_approval
+
+    writer.update(@item.slug, @item.n, log: "Approved via Run now in myjira") do |i|
+      i.delete("awaitingApproval")
+      i["status"] = "queued" if i["status"] == "triage"
+    end
+    @item.awaiting_approval = false
   end
 
   def dispatcher = @dispatcher ||= WorkQueue::Dispatcher.new(@item)
