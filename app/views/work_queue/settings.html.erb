@@ -15,12 +15,35 @@
         <% end %>
       </tbody>
     </table>
-    <div>
-      <label class="wq-label" for="slug">Always-allowed tools for project</label>
-      <select id="slug" name="slug" class="wq-input"><option value="">(none)</option><% @projects.each do |label, slug, _| %><option value="<%= slug %>"><%= label %></option><% end %></select>
-      <textarea name="always_allow" rows="4" class="wq-input mt-2 w-full" placeholder="One rule per line, e.g. Bash(bin/rails test:*)"></textarea>
-      <p class="wq-hint">Edits are auto-accepted (acceptEdits). Anything else the agent tries is denied and shown to you as Allow once / Always allow / Deny chips.</p>
-    </div>
     <button class="wq-btn wq-btn-primary">Save</button> <%= link_to "Back to queue", work_queue_path, class: "wq-link" %>
   <% end %>
+
+  <section class="mt-10" aria-labelledby="wq-rules-h">
+    <h2 id="wq-rules-h" class="text-lg font-semibold">Always-allowed tools</h2>
+    <p class="wq-hint mt-1">Claude Code allowedTools rules the server runner passes for this project, e.g. <code>Bash(bin/rails test:*)</code>, <code>Bash(git push:*)</code>, <code>WebFetch</code>. Edits are auto-accepted (acceptEdits); anything else is denied and shown as Allow once / Always allow / Deny chips.</p>
+    <%= form_with url: work_queue_settings_path, method: :get, class: "mt-3 flex items-center gap-2", data: { controller: "auto-submit" } do %>
+      <label class="wq-label" for="rules-slug">Project</label>
+      <select id="rules-slug" name="slug" class="wq-input" data-action="change->auto-submit#submit">
+        <option value="">Pick a project…</option>
+        <% @projects.each do |label, slug, _| %><option value="<%= slug %>" <%= "selected" if slug == @slug %>><%= label %></option><% end %>
+      </select>
+      <noscript><button class="wq-btn wq-btn-ghost">Open</button></noscript>
+    <% end %>
+    <% if @slug %>
+      <%= form_with url: work_queue_settings_path, method: :patch, class: "mt-4" do %>
+        <%= hidden_field_tag :slug, @slug %>
+        <%= hidden_field_tag "rules[]", "", id: nil %>
+        <% if @rules.empty? %><p class="wq-hint">No rules yet for this project.</p><% end %>
+        <% @rules.each_with_index do |rule, i| %>
+          <div class="wq-rule-row">
+            <%= text_field_tag "rules[]", rule, id: "rule-#{i}", class: "wq-input wq-mono flex-1", "aria-label": "Rule #{i + 1}" %>
+            <label class="wq-toggle"><%= check_box_tag "delete_rules[]", rule, false, id: "del-#{i}" %> delete</label>
+          </div>
+        <% end %>
+        <label class="wq-label mt-4 block" for="new_rules">Add rules (one per line)</label>
+        <textarea id="new_rules" name="new_rules" rows="3" class="wq-input mt-1 w-full wq-mono" placeholder="Bash(bundle exec rspec:*)"></textarea>
+        <button class="wq-btn wq-btn-primary mt-2">Save rules</button>
+      <% end %>
+    <% end %>
+  </section>
 </div>

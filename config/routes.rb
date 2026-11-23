@@ -163,6 +163,7 @@ Rails.application.routes.draw do
     post :retry, to: "work_queue#retry_run"
     post :close_relay_tabs, to: "work_queue#close_relay_tabs"
     post :model, to: "work_queue#model"
+    get :detail, to: "work_queue#detail"
   end
 
   # Captured Claude CLI conversations (one thread per CLI session).

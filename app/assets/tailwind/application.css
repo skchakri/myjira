@@ -684,3 +684,27 @@ html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 .wq-list .wq-pop { position: static; }
 .wq-list .wq-card { position: relative; }
 .wq-list .wq-pop-card { left: 0; right: 0; width: auto; }
+
+/* Work Queue: detail loading, listener badge, suggested answers */
+.wq-detail[aria-busy="true"] .wq-log { opacity: .55; transition: opacity .15s; }
+.wq-listener .wq-live-dot { width: 6px; height: 6px; border-radius: 9999px; display: inline-block; }
+.wq-listener-on { color: var(--color-pass-ink); }
+.wq-listener-on .wq-live-dot { background: var(--color-pass-ink); }
+.wq-listener-off { color: var(--color-ink-faint); }
+.wq-listener-off .wq-live-dot { background: var(--color-ink-faint); }
+.wq-sugg-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; align-self: center; }
+.wq-sugg-pending { font-size: 11.5px; }
+.wq-rule-row { display: flex; gap: .5rem; align-items: center; margin-top: .375rem; }
+
+/* Collapsible global sidebar (sidebar_controller.js) */
+.sb-rail { display: none; }
+.sb-toggle { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: var(--color-ink-soft); }
+.sb-toggle:hover { background: color-mix(in srgb, var(--color-ink) 7%, transparent); color: var(--color-ink); }
+.sb-toggle:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 1px; }
+.sb-aside { transition: transform 200ms ease, box-shadow 200ms ease; background: var(--color-paper); }
+html.sb-collapsed .sb-rail { display: flex; flex-direction: column; align-items: center; gap: .5rem; width: 44px; flex-shrink: 0;
+  position: sticky; top: 0; height: 100vh; padding-top: 14px; border-right: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent); }
+html.sb-collapsed .sb-aside { position: fixed; left: 0; top: 0; z-index: 60; transform: translateX(-100%); }
+html.sb-collapsed .sb-aside.sb-peek { transform: translateX(0); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+.sb-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; }
+@media (prefers-reduced-motion: reduce) { .sb-aside { transition: none; } }

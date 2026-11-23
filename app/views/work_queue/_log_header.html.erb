@@ -1,10 +1,11 @@
 <% context ||= WorkQueue::ItemContext.new(item, store: WorkQueue::Store.new) %>
 <header id="wq_log_header" class="wq-log-h">
   <div class="flex items-center gap-2 min-w-0">
-    <%= link_to "##{item.n}", work_queue_path(item: item.key), class: "wq-n", data: { turbo_frame: "wq_detail" } %>
+    <%= link_to "##{item.n}", work_queue_item_detail_path(item.key), class: "wq-n", data: { turbo_frame: "wq_detail" } %>
     <h2 class="wq-log-title"><%= item.title %></h2>
     <%= render "work_queue/badge", item: item %>
     <span class="wq-hint"><%= WorkQueue::Store.label(item.slug) %></span>
+    <% if item.session.present? %><%= render "work_queue/listener", item: item %><% end %>
     <span class="ml-auto"><%= wq_copy_menu(item, context) %></span>
   </div>
   <%= render "work_queue/git", item: item, context: context, full: true %>
@@ -12,13 +13,13 @@
     <% if item.pr.present? %><a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">PR <%= item.pr_number ? "##{item.pr_number}" : "" %></a><% end %>
     <% siblings = WorkQueue::Store.new.items_for(item.slug) %>
     <% if (parent = siblings.find { |i| i.n == item.parent }) %>
-      <span class="wq-hint">parent</span> <%= link_to "##{parent.n} #{parent.title.truncate(40)}", work_queue_path(item: parent.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
+      <span class="wq-hint">parent</span> <%= link_to "##{parent.n} #{parent.title.truncate(40)}", work_queue_item_detail_path(parent.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
     <% end %>
     <% WorkQueue::RunState.related(item.key).filter_map { |k| WorkQueue::Store.new.find(k) }.each do |rel| %>
-      <span class="wq-hint">related</span> <%= link_to "##{rel.n} #{rel.title.truncate(40)}", work_queue_path(item: rel.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
+      <span class="wq-hint">related</span> <%= link_to "##{rel.n} #{rel.title.truncate(40)}", work_queue_item_detail_path(rel.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
     <% end %>
     <% siblings.select { |i| i.parent == item.n }.each do |child| %>
-      <span class="wq-hint">follow-up</span> <%= link_to "##{child.n} #{child.title.truncate(40)}", work_queue_path(item: child.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
+      <span class="wq-hint">follow-up</span> <%= link_to "##{child.n} #{child.title.truncate(40)}", work_queue_item_detail_path(child.key), class: "wq-link", data: { turbo_frame: "wq_detail" } %>
     <% end %>
   </div>
   <%= render "work_queue/run_panel", item: item, context: context %>

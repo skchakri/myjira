@@ -1,0 +1,15 @@
+<%# Suggested answers (WorkQueue::Suggestions) for a question that came without options. %>
+<% answers = local_assigns[:answers] %>
+<div class="wq-chips <%= WorkQueue::Suggestions.dom_class(item, question) %>">
+  <% if answers.present? %>
+    <span class="wq-hint wq-sugg-label" title="Suggested by <%= WorkQueue::Suggestions::MODEL %>">suggested</span>
+    <% answers.each_with_index do |opt, k| %>
+      <%= button_to work_queue_item_answer_path(item.key), params: { index: index, text: opt },
+            class: "wq-chip", form: { data: { turbo_stream: true } }, data: { option: k + 1 } do %>
+        <kbd><%= k + 1 %></kbd> <%= opt %>
+      <% end %>
+    <% end %>
+  <% elsif local_assigns[:pending] %>
+    <span class="wq-hint wq-sugg-pending" aria-live="polite">Suggesting answers…</span>
+  <% end %>
+</div>

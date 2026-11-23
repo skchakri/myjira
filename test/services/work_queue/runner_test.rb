@@ -100,8 +100,35 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     key = "home-me-x:1"
     WorkQueue::RunState.set(key, { "pending_permissions" => [{ tool_name: "Bash", tool_input: { command: "npm run build" } }].to_json })
     prompt = sup.send(:answer_prompt, key, { "text" => "Always allow in this project" })
-    assert_includes prompt, "Bash(npm run:*)"
-    assert_equal ["Bash(npm run:*)"], WorkQueue::RunState.project("home-me-x")["always_allow"]
+    assert_includes prompt, "Bash(npm run build:*)"
+    assert_equal ["Bash(npm run build:*)"], WorkQueue::RunState.project("home-me-x")["always_allow"]
     assert_equal "Answer to your question: blue", sup.send(:answer_prompt, key, { "text" => "blue" })
+  end
+
+  test "several permission answers resume the session once" do
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:2"
+    denials = [{ tool_name: "Bash", tool_input: { command: "git push" } }, { tool_name: "WebFetch", tool_input: { url: "https://x.test" } }]
+    WorkQueue::RunState.set(key, { "pending_permissions" => denials.to_json })
+    assert_nil sup.send(:answer_prompt, key, { "text" => "Allow once", "q" => "Permission: WebFetch https://x.test?" })
+    prompt = sup.send(:answer_prompt, key, { "text" => "Deny", "q" => "Permission: Bash git push?" })
+    assert_includes prompt, "Permission granted for WebFetch."
+    assert_includes prompt, "denied Bash(git push:*)"
+    assert_equal ["WebFetch"], JSON.parse(WorkQueue::RunState.get(key)["allow_once"])
+  end
+
+  test "permission rules use the subcommand and validate" do
+    assert_equal "Bash(bundle exec rspec:*)", WorkQueue::PermissionRules.for_command("cd /a && RAILS_ENV=test bundle exec rspec x")
+    assert_equal "Bash(ls:*)", WorkQueue::PermissionRules.for_command("ls -la")
+    assert_equal ["Bash(git push:*)", "WebFetch"], WorkQueue::PermissionRules.clean(["Bash(git push:*)", "WebFetch", "x y", ""])
+  end
+
+  test "suggestions are validated, cached and broadcast" do
+    item = WorkQueue::Store::Item.new(slug: "home-me-x", n: 3, title: "T", description: "d")
+    out = { structured_output: { answers: ["Yes", " Yes ", "No", ""] } }.to_json
+    answers = WorkQueue::Suggestions.generate(item, 0, "Ship it?", runner: ->(_) { [out, true] })
+    assert_equal %w[Yes No], answers
+    assert_equal %w[Yes No], WorkQueue::Suggestions.get("Ship it?")
+    assert_nil WorkQueue::Suggestions.validate(["only one"])
   end
 end

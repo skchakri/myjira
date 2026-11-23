@@ -24,6 +24,17 @@
       })();
     </script>
 
+    <%# Collapsible sidebar: apply the remembered state before first paint. %>
+    <% sb_page = request.path.split("/").reject(&:blank?).first.to_s.presence || "home" %>
+    <% sb_default = content_for(:sidebar_default).presence || "expanded" %>
+    <script>
+      (function () {
+        var state = <%== sb_default.to_json %>;
+        try { state = localStorage.getItem(<%== "myjira-sidebar:#{sb_page}".to_json %>) || state; } catch (e) {}
+        document.documentElement.classList.toggle("sb-collapsed", state === "collapsed");
+      })();
+    </script>
+
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -32,12 +43,19 @@
   </head>
 
   <body class="h-full">
-    <div class="flex min-h-screen" data-controller="client-filter web-push"
-         data-web-push-public-key-value="<%= ENV['VAPID_PUBLIC_KEY'] %>">
+    <div class="flex min-h-screen" data-controller="client-filter web-push sidebar"
+         data-web-push-public-key-value="<%= ENV['VAPID_PUBLIC_KEY'] %>"
+         data-sidebar-default-value="<%= sb_default %>" data-sidebar-page-value="<%= sb_page %>">
+      <!-- Slim rail shown while the sidebar is collapsed; its left edge opens the drawer. -->
+      <div class="sb-rail" data-action="mouseenter->sidebar#peek">
+        <span class="sb-edge" aria-hidden="true"></span>
+        <%= render "layouts/sidebar_toggle" %>
+      </div>
       <!-- ========== Sidebar ========== -->
-      <aside class="w-[260px] shrink-0 hair-r flex flex-col sticky top-0 h-screen">
+      <aside id="app-sidebar" class="sb-aside w-[260px] shrink-0 hair-r flex flex-col sticky top-0 h-screen"
+             data-sidebar-target="aside" data-action="mouseleave->sidebar#unpeek click->sidebar#pin">
         <!-- Brand -->
-        <div class="px-4 pt-5 pb-4">
+        <div class="px-4 pt-5 pb-4 flex items-start justify-between gap-2">
           <%= link_to root_path, class: "flex items-center gap-2.5 text-[color:var(--color-ink)]" do %>
             <svg class="h-7 w-7 shrink-0" viewBox="0 0 512 512" aria-hidden="true">
               <defs>
@@ -62,6 +80,7 @@
               <div class="eyebrow mt-[2px]">testing · gaps · plans</div>
             </div>
           <% end %>
+          <%= render "layouts/sidebar_toggle" %>
         </div>
 
         <!-- Global search — full-text across tasks, conversations & test results.

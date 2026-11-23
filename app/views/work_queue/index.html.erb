@@ -1,4 +1,5 @@
 <% content_for :title, "Work Queue · myjira" %>
+<% content_for :sidebar_default, "collapsed" %>
 <% content_for :full_bleed, "1" %>
 <%= turbo_stream_from WorkQueue::Broadcaster::LIST_STREAM %>
 <div class="wq" data-controller="work-queue"
@@ -45,9 +46,10 @@
       <% end %>
     </aside>
 
-    <%= turbo_frame_tag "wq_detail", class: "wq-detail", data: { turbo_action: "advance" } do %>
+    <%= turbo_frame_tag "wq_detail", class: "wq-detail", src: (work_queue_item_detail_path(@item.key) if @item),
+                                     data: { work_queue_target: "frame", action: "turbo:before-fetch-request->work-queue#frameLoading" } do %>
       <% if @item %>
-        <%= render "work_queue/detail", item: @item, context: @context, entries: @entries %>
+        <div class="wq-placeholder"><p class="text-[13px]">Loading #<%= @item.n %>…</p></div>
       <% else %>
         <div class="wq-placeholder">
           <p class="text-[13px]">Pick an item to see its live log.</p>

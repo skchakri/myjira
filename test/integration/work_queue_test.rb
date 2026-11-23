@@ -77,8 +77,8 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     WorkQueue::QueueWriter.new(dir: @dir).add("home-me-app", title: "Other")
     post work_queue_item_instruct_path("home-me-app:1"), params: { text: "[wq-ref home-me-app:2] #2 Other\nsync" }, as: :turbo_stream
     assert_includes WorkQueue::RunState.related("home-me-app:1"), "home-me-app:2"
-    get work_queue_path(item: "home-me-app:1")
-    assert_select ".wq-links a", text: /#2 Other/
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "turbo-frame#wq_detail .wq-links a", text: /#2 Other/
     assert_select ".wq-log-h .wq-copy-item", 2
   end
 
@@ -88,5 +88,43 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     table = WorkQueue::RunState.routing
     assert_equal "claude-sonnet-5-5", table["plan"]["model"]
     assert_equal "claude-sonnet-5-5", table["implement"]["model"]
+  end
+
+  test "index lists items and lazy-loads the selected detail; sidebar defaults to collapsed" do
+    calls = 0
+    git = WorkQueue::GitInfo.singleton_class
+    git.alias_method(:orig_compute, :compute)
+    git.define_method(:compute) { |*| calls += 1 }
+    get work_queue_path(item: "home-me-app:1")
+    git.alias_method(:compute, :orig_compute)
+    assert_equal 0, calls
+    assert_response :ok
+    assert_select "turbo-frame#wq_detail[src=?]", work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-detail-grid", 0
+    assert_select "[data-sidebar-default-value=collapsed]"
+  end
+
+  test "detail explains a missing log" do
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_response :ok
+    assert_select ".wq-log .wq-empty", text: /Not started yet|no transcript found/
+  end
+
+  test "questions without options show cached suggestion chips" do
+    WorkQueue::QueueWriter.new(dir: @dir).ask("home-me-app", 1, [{ q: "Which DB?" }])
+    WorkQueue::RunState.redis.set(WorkQueue::Suggestions.cache_key("Which DB?"), %w[Postgres MySQL].to_json)
+    get work_queue_path
+    assert_select ".wq-pop .wq-chip", text: /Postgres/
+    assert_select ".wq-pop .wq-free input[name=text]"
+  end
+
+  test "settings edit a project's always-allow rules" do
+    WorkQueue::RunState.save_project("home-me-app", "always_allow" => ["Bash(ls:*)", "WebFetch"])
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select "input[name='rules[]'][value='Bash(ls:*)']"
+    patch work_queue_settings_path, params: { slug: "home-me-app", rules: ["", "Bash(ls -la:*)", "WebFetch"],
+                                              delete_rules: ["WebFetch"], new_rules: "Bash(git push:*)\nbad rule ((" }
+    assert_redirected_to work_queue_settings_path(slug: "home-me-app")
+    assert_equal ["Bash(ls -la:*)", "Bash(git push:*)"], WorkQueue::RunState.project("home-me-app")["always_allow"]
   end
 end

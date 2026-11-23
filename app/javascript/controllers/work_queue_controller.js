@@ -10,7 +10,7 @@ export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
                     "notifyBtn", "help", "question", "answer", "merge",
                     "composer", "composerText", "files", "fileList", "project", "search", "projectFilter",
-                    "confirm", "confirmText", "instruct", "refChips"]
+                    "confirm", "confirmText", "instruct", "refChips", "frame"]
   static values = { selected: String, groupUrl: String }
 
   connect() {
@@ -35,10 +35,40 @@ export default class extends Controller {
   // ---- selection / navigation --------------------------------------------
   afterFrame() {
     const detail = this.element.querySelector(".wq-detail-grid")
-    this.selectedValue = detail?.dataset.key || ""
-    this.cardTargets.forEach((c) => c.classList.toggle("wq-card-active", c.dataset.key === this.selectedValue))
+    if (detail) this.highlight(detail.dataset.key)
+    if (detail && this.hasFrameTarget) this.frameTarget.removeAttribute("aria-busy")
+    if (detail) {
+      const url = new URL(window.location.href)
+      if (url.searchParams.get("item") !== detail.dataset.key) {
+        url.searchParams.set("item", detail.dataset.key)
+        history.replaceState(history.state, "", url)
+      }
+    }
     this.pinned = true
     this.scrollLog()
+  }
+
+  highlight(key) {
+    this.selectedValue = key || ""
+    this.cardTargets.forEach((c) => {
+      const on = c.dataset.key === this.selectedValue
+      c.classList.toggle("wq-card-active", on)
+      c.querySelector(".wq-card-link")?.setAttribute("aria-current", on ? "true" : "false")
+    })
+  }
+
+  // Card click: highlight at once and show a loading state; the frame fetches
+  // only this item's detail (the list is not re-rendered).
+  open(event) {
+    const card = event.currentTarget.closest("[data-key]")
+    if (card) this.highlight(card.dataset.key)
+  }
+
+  frameLoading() {
+    if (!this.hasFrameTarget) return
+    this.frameTarget.setAttribute("aria-busy", "true")
+    const log = this.frameTarget.querySelector(".wq-log")
+    if (log) log.classList.add("wq-loading")
   }
 
   cardTargetConnected(card) {

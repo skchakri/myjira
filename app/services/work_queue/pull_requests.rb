@@ -27,16 +27,19 @@ module WorkQueue
     def status(pr)
       return if pr.blank?
 
-      Rails.cache.fetch(["wq-pr", pr], expires_in: 30.seconds) do
-        out, ok = @runner.call("pr", "view", pr.to_s, "--json", FIELDS)
-        next unless ok
+      Rails.cache.fetch(["wq-pr", pr], expires_in: 30.seconds) { fetch(pr) }
+    end
 
-        j = JSON.parse(out)
-        Status.new(url: j["url"], number: j["number"], state: j["state"], base: j["baseRefName"],
-                   head: j["headRefName"], mergeable: j["mergeable"], merge_state: j["mergeStateStatus"])
-      rescue JSON::ParserError
-        nil
-      end
+    # Uncached gh call.
+    def fetch(pr)
+      out, ok = @runner.call("pr", "view", pr.to_s, "--json", FIELDS)
+      return unless ok
+
+      j = JSON.parse(out)
+      Status.new(url: j["url"], number: j["number"], state: j["state"], base: j["baseRefName"],
+                 head: j["headRefName"], mergeable: j["mergeable"], merge_state: j["mergeStateStatus"])
+    rescue JSON::ParserError
+      nil
     end
 
     # Merge one PR. target "base" = its own base; "main" = retarget to main first.

@@ -9,21 +9,27 @@ class WorkQueueController < ApplicationController
   ATTACH_TYPES = %r{\Aimage/(png|jpe?g|gif|webp)\z}
   MAX_ATTACH = 10
 
+  MAX_ENTRIES = 400
+
   before_action :load_item, except: %i[index group create settings update_settings]
 
+  # The list only. Git/PR status comes from WorkQueue::StatusCache (refreshed by
+  # the watcher); the selected item's detail loads separately into the frame.
   def index
     @store = WorkQueue::Store.new
     @projects = @store.projects
-    WorkQueue::PullRequests.new.prefetch(@projects.values.flatten.select(&:open?).map(&:pr))
     @item = @store.find(params[:item]) if params[:item].present?
-    return unless @item
+  end
 
-    @context = WorkQueue::ItemContext.new(@item, store: @store)
+  # One item's log header + live log, for the wq_detail frame.
+  def detail
+    @context = WorkQueue::ItemContext.new(@item, store: WorkQueue::Store.new)
     @entries = if @context.server_run?
-      replay(WorkQueue::RunState.stream(@item.key))
+      replay(WorkQueue::RunState.stream(@item.key).last(MAX_ENTRIES * 2))
     else
-      WorkQueue::Transcript.new.parse_file(@context.transcript_path).first
-    end
+      WorkQueue::Transcript.new.parse_tail(@context.transcript_path)
+    end.last(MAX_ENTRIES)
+    render layout: false
   end
 
   # Composer: new item into a project's queue (+ dropped images), optionally started.
@@ -66,6 +72,8 @@ class WorkQueueController < ApplicationController
   def settings
     @routing = WorkQueue::RunState.routing
     @projects = WorkQueue::Workspace.choices
+    @slug = params[:slug].presence if params[:slug].to_s.match?(/\A[A-Za-z0-9-]+\z/)
+    @rules = @slug ? WorkQueue::RunState.project(@slug)["always_allow"] : []
   end
 
   def update_settings
@@ -74,11 +82,17 @@ class WorkQueueController < ApplicationController
       [ph, WorkQueue::Router.valid?(m, e) ? { "model" => m, "effort" => e } : WorkQueue::Router::DEFAULTS[ph]]
     end
     WorkQueue::RunState.save_routing(table)
-    if params[:slug].present?
-      allow = params[:always_allow].to_s.split(/\n/).map(&:strip).compact_blank
-      WorkQueue::RunState.save_project(params[:slug], "always_allow" => allow)
+    slug = params[:slug].to_s
+    notice = "Saved"
+    if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:rules)
+      raw = Array(params[:rules]).map(&:to_s) + params[:new_rules].to_s.split("\n")
+      raw -= Array(params[:delete_rules]).map(&:to_s)
+      allow = WorkQueue::PermissionRules.clean(raw)
+      skipped = raw.map(&:strip).compact_blank.uniq.size - allow.size
+      WorkQueue::RunState.save_project(slug, "always_allow" => allow)
+      notice = "Saved #{allow.size} rule#{'s' unless allow.size == 1}#{"; skipped #{skipped} invalid" if skipped.positive?}"
     end
-    redirect_to work_queue_settings_path, notice: "Saved"
+    redirect_to work_queue_settings_path(slug: slug.presence), notice: notice
   end
 
   def answer
@@ -91,7 +105,7 @@ class WorkQueueController < ApplicationController
       writer.answer(@item.slug, @item.n, index, text)
       WorkQueue::Broadcaster.run_entries(@item.key, [qa_entry(note)])
       WorkQueue::RunState.append_stream(@item.key, { "note" => note, "kind" => "qa" })
-      WorkQueue::RunState.enqueue("answer", @item.key, text: text) if WorkQueue::RunState.server_run?(@item.key)
+      WorkQueue::RunState.enqueue("answer", @item.key, text: text, q: @item.questions[index]&.q) if WorkQueue::RunState.server_run?(@item.key)
       return toast(runner_note("Answered ##{@item.n}"), :ok)
     end
 

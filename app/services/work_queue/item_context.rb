@@ -16,8 +16,9 @@ module WorkQueue
 
     def transcript_path = @transcript_path ||= Transcript.path_for(item)
     def worktree = @worktree ||= run["worktree"].presence || Transcript.cwd_for(transcript_path)
-    def pr_status = (@pr_status ||= [item.pr && item.open? ? @prs.status(item.pr) : nil]).first
-    def git = (@git ||= [GitInfo.for(worktree, pr_base: pr_status&.base)]).first
+    # Both read the background-refreshed StatusCache; rendering never runs git/gh.
+    def pr_status = (@pr_status ||= [item.pr && item.open? ? StatusCache.pr(item.pr) : nil]).first
+    def git = (@git ||= [StatusCache.git(item.key)]).first
     def dependencies = @dependencies ||= @store.dependencies(item)
 
     # Merge PR shows on the card only when nothing linked is still open.

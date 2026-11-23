@@ -7,7 +7,7 @@
     <% if item.open? %>
       <input type="checkbox" class="wq-check" aria-label="Select #<%= item.n %>" data-action="work-queue#select" value="<%= item.key %>">
     <% end %>
-    <%= link_to work_queue_path(item: item.key), class: "wq-card-link", data: { turbo_frame: "wq_detail", work_queue_target: "link" } do %>
+    <%= link_to work_queue_item_detail_path(item.key), class: "wq-card-link", data: { turbo_frame: "wq_detail", work_queue_target: "link", action: "click->work-queue#open" } do %>
       <span class="wq-n">#<%= item.n %></span>
       <span class="wq-title"><%= item.title %></span>
     <% end %>

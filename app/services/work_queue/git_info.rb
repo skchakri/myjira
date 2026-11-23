@@ -23,6 +23,13 @@ module WorkQueue
       Rails.cache.fetch(["wq-git", worktree, pr_base, head(worktree)], expires_in: TTL) { new(worktree, pr_base).info }
     end
 
+    # Uncached: for the watcher's background refresh (StatusCache).
+    def self.compute(worktree, pr_base: nil)
+      return if worktree.blank? || !File.directory?(worktree)
+
+      new(worktree, pr_base).info
+    end
+
     def self.head(dir) = git(dir, "rev-parse", "HEAD").first
 
     def self.git(dir, *args)

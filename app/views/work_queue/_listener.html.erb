@@ -1,0 +1,6 @@
+<%# The owning CLI session's myjira-listen state; pushed live (WorkQueue::Broadcaster.listener). %>
+<% listening = local_assigns.key?(:listening) ? listening : WorkQueue::Dispatcher.new(item).listening? %>
+<span class="wq-chip-static wq-listener wq-listener-<%= item.session %> <%= listening ? 'wq-listener-on' : 'wq-listener-off' %>"
+      title="CLI session <%= item.session %>: <%= listening ? 'listening for myjira commands' : 'not listening; actions go to the server runner or a copy command' %>">
+  <span class="wq-live-dot" aria-hidden="true"></span> CLI <%= item.session.to_s.first(8) %> <%= listening ? "online" : "offline" %>
+</span>

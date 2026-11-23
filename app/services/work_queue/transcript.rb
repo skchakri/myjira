@@ -20,7 +20,23 @@ module WorkQueue
         hit = Dir.glob(root.join("*", item.session, "subagents", "agent-#{agent}.jsonl")).first
         return hit if hit
       end
-      nil
+      session_path(item, root: root)
+    end
+
+    # The CLI session's own transcript: items a CLI session runs itself (no
+    # subagent) log there.
+    def self.session_path(item, root: self.root)
+      return unless item.session.to_s.match?(/\A[\w-]+\z/)
+
+      Dir.glob(root.join("*", "#{item.session}.jsonl")).first
+    end
+
+    # Why an item has no log, in words, for the empty log pane.
+    def self.missing_reason(item)
+      return "Not started yet: no CLI session or server runner has picked this item up." if item.session.blank?
+
+      who = "Run by CLI session #{item.session.to_s.first(8)}#{" (agent #{item.agent})" if item.agent.present?}"
+      "#{who}; no transcript found under #{root}. It may run on another machine, or the session has not written yet."
     end
 
     # The agent's latest working directory (its worktree), from the transcript tail.
@@ -35,6 +51,10 @@ module WorkQueue
 
     # Agent id from a subagent transcript path (agent-<id>.jsonl).
     def self.agent_id(path) = File.basename(path.to_s)[/\Aagent-([\w-]+)\.jsonl\z/, 1]
+
+    # Live-stream id for a transcript: the agent id, or the session id for a
+    # session transcript (<session>.jsonl).
+    def self.stream_id(path) = agent_id(path) || File.basename(path.to_s)[/\A([\w-]+)\.jsonl\z/, 1]
 
     attr_reader :cwd
 
@@ -64,6 +84,20 @@ module WorkQueue
 
         chunk = data[0..complete]
         [parse(chunk), from + chunk.bytesize]
+      end
+    end
+
+    # Only the last `bytes` of a big transcript (the page shows the recent log).
+    def parse_tail(path, bytes: 600_000)
+      return [] unless path && File.exist?(path)
+
+      size = File.size(path)
+      return parse_file(path).first if size <= bytes
+
+      File.open(path) do |f|
+        f.seek(size - bytes)
+        f.gets # drop the partial first line
+        parse(f.read.to_s)
       end
     end
 

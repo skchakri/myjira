@@ -55,8 +55,14 @@ class Conversation < ApplicationRecord
   end
 
   # Stamped by the command inbox on every listener poll (cheap: no callbacks).
+  # Coming back online is pushed to the Work Queue page right away; going
+  # offline is noticed by the watcher's periodic check.
   def listener_seen!(at = Time.current)
+    was = listening?
     update_column(:listener_seen_at, at)
+    WorkQueue::Broadcaster.listener(session_id, true) if !was && session_id.present?
+  rescue Redis::BaseError
+    nil
   end
 
   # Substantive asks the human typed this session — plain user messages, ignoring

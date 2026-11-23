@@ -42,6 +42,7 @@ module WorkQueue
       when "continue" then resume_with(key, job["text"].to_s)
       when "retry" then queue_start(key, job.merge("attempts" => RunState.get(key)["attempts"].to_i + 1, "phase" => RunState.get(key)["phase"]))
       when "stop" then stop(key)
+      when "suggest" then suggest(key, job)
       end
     end
 
@@ -135,7 +136,7 @@ module WorkQueue
       end
 
       if result.denials.any?
-        RunState.set(key, { "pending_permissions" => result.denials.to_json })
+        RunState.set(key, { "pending_permissions" => result.denials.first(4).to_json })
         @writer.ask(item.slug, item.n, result.denials.first(4).map { |d| { q: "Permission: #{describe(d)}?", options: PERMISSION_OPTIONS } })
       elsif (qs = SessionRunner.questions_in(result.text)).any?
         @writer.ask(item.slug, item.n, qs)
@@ -168,26 +169,46 @@ module WorkQueue
     end
 
     # Answers to permission questions are mapped back to allowedTools; other
-    # answers go to the session as text.
+    # answers go to the session as text. Permission answers are batched: the
+    # session resumes once, after the last open permission question is answered.
     def answer_prompt(key, job)
       text = job["text"].to_s
-      perms = JSON.parse(RunState.get(key)["pending_permissions"].presence || "[]")
+      run = RunState.get(key)
+      perms = JSON.parse(run["pending_permissions"].presence || "[]")
       return "Answer to your question: #{text}" if perms.empty? || PERMISSION_OPTIONS.exclude?(text)
 
-      denial = perms.shift
-      RunState.set(key, { "pending_permissions" => perms.to_json })
-      rule = denial["tool_name"].to_s
-      rule = "Bash(#{denial.dig('tool_input', 'command').to_s.split.first(2).join(' ')}:*)" if rule == "Bash"
-      case text
-      when "Deny" then "The person denied #{rule}. Find another way or stop and explain."
+      denial = perms.find { |d| "Permission: #{describe(d)}?" == job["q"].to_s } || perms.first
+      perms.delete(denial)
+      notes = Array(JSON.parse(run["permission_notes"].presence || "[]")) << grant(key, denial, text)
+      if perms.any?
+        RunState.set(key, { "pending_permissions" => perms.to_json, "permission_notes" => notes.to_json })
+        return nil
+      end
+
+      RunState.del_fields(key, "pending_permissions", "permission_notes")
+      "#{notes.join("\n")}\nRetry the steps that were denied (skip the denied ones and find another way, or stop and explain)."
+    end
+
+    def grant(key, denial, text)
+      rule = PermissionRules.for_denial(denial)
+      return "The person denied #{rule}." if text == "Deny"
+
+      if text.start_with?("Always")
+        slug = key.split(":").first
+        RunState.save_project(slug, "always_allow" => (RunState.project(slug)["always_allow"] + [rule]).uniq)
       else
-        if text.start_with?("Always")
-          slug = key.split(":").first
-          RunState.save_project(slug, "always_allow" => (RunState.project(slug)["always_allow"] + [rule]).uniq)
-        else
-          RunState.set(key, { "allow_once" => [rule].to_json })
-        end
-        "Permission granted for #{rule}. Retry the step that was denied."
+        once = JSON.parse(RunState.get(key)["allow_once"].presence || "[]")
+        RunState.set(key, { "allow_once" => (once + [rule]).uniq.to_json })
+      end
+      "Permission granted for #{rule}."
+    end
+
+    def suggest(key, job)
+      item = @store.find(key) or return
+      Thread.new do
+        Rails.application.executor.wrap { Suggestions.generate(item, job["index"].to_i, job["q"].to_s) }
+      rescue StandardError => e
+        @logger.error("[work-queue-runner] suggest #{key}: #{e.class}: #{e.message}")
       end
     end
 

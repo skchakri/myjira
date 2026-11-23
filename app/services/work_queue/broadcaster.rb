@@ -26,6 +26,30 @@ module WorkQueue
       transitions.each { |item, from| event(item, from) }
     end
 
+    # Replace just these cards (status/git/PR change) instead of the whole project.
+    def cards_changed(items)
+      store = Store.new
+      items.each do |item|
+        Turbo::StreamsChannel.broadcast_replace_to(
+          LIST_STREAM, target: item.dom_id, partial: "work_queue/card",
+          locals: { item: item, context: item.open? ? ItemContext.new(item, store: store) : nil }
+        )
+        Turbo::StreamsChannel.broadcast_replace_to(
+          item_stream(item.key), target: "wq_log_header", partial: "work_queue/log_header", locals: { item: item }
+        )
+      end
+    end
+
+    # A CLI session's listener went online/offline: update every badge for it.
+    def listener(session, listening)
+      return unless session.to_s.match?(/\A[\w-]+\z/)
+
+      item = Store::Item.new(session: session)
+      Turbo::StreamsChannel.broadcast_action_to(LIST_STREAM, action: :replace, targets: ".wq-listener-#{session}",
+                                                partial: "work_queue/listener", locals: { item: item, listening: listening })
+      publish(type: "listener", session: session, listening: listening)
+    end
+
     def event(item, from)
       Turbo::StreamsChannel.broadcast_append_to(
         LIST_STREAM, target: "wq_events",
@@ -71,7 +95,7 @@ module WorkQueue
       if RunState.server_run?(item.key)
         RunState.append_stream(item.key, { "note" => text, "kind" => "qa" })
         run_entries(item.key, [entry])
-      elsif (agent = Transcript.agent_id(Transcript.path_for(item)))
+      elsif (agent = Transcript.stream_id(Transcript.path_for(item)))
         log_entries(agent, [entry], item: item)
       end
     end
