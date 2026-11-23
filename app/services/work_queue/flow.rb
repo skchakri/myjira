@@ -10,7 +10,7 @@ module WorkQueue
     STEPS = ["Asked", "Planned", "Building", "Review", "Testing together", "Live"].freeze
     FILTERS = [
       ["all", "All"], ["you", "Needs you"], ["answer", "Needs answer"], ["approve", "Needs approval"],
-      ["merge", "Ready to merge"], ["run", "In progress"], ["testing", "Testing / deploying"], ["bad", "Failed"],
+      ["bundle", "Ready to bundle"], ["merge", "Ready to merge"], ["run", "In progress"], ["testing", "Testing / deploying"], ["bad", "Failed"],
       ["wait", "Queued"], ["ok", "Live"], ["open", "Not live yet"], ["closed", "Merged / dropped"]
     ].freeze
 
@@ -20,6 +20,7 @@ module WorkQueue
       "merge" => "Look at the changes and merge the PR.",
       "review" => "Look at the changes; there is no PR to merge yet.",
       "bad" => "Check the log below, then retry or tell the agent what to do.",
+      "bundle" => "Nothing. It ships in one PR with its parent and follow-ups once they are all built.",
       "run" => "Nothing yet. It moves on by itself.",
       "notlive" => "Nothing. It goes live with the next deploy.",
       "wait" => "Nothing. It starts by itself.",
@@ -61,6 +62,7 @@ module WorkQueue
       parts = ["task #{item.n}"]
       parts << "PR ##{item.pr_number}" if item.pr_number
       parts << "branch #{item.branch}" if item.branch.present?
+      parts << "bundle of task #{item.bundle_info['root']}" if item.bundle_info["root"]
       parts.join(" · ")
     end
 
@@ -83,7 +85,7 @@ module WorkQueue
       when "triage" then ["wait", "Being sorted", 0, %w[wait], "wait"]
       when "queued" then ["wait", "Queued", 0, %w[wait], "wait"]
       when "running" then running_state
-      when "blocked" then ["bad", "Stuck: needs a look", 2, %w[bad you], "bad"]
+      when "blocked" then item.bundle_failed? ? ["bad", "Left out of bundle", 3, %w[bad you], "bad"] : ["bad", "Stuck: needs a look", 2, %w[bad you], "bad"]
       else review_state
       end
     end
@@ -109,6 +111,7 @@ module WorkQueue
     end
 
     def review_state
+      return ["wait", "Ready to bundle", 3, %w[bundle], "bundle"] if item.ready_to_bundle? && item.pr.blank?
       return ["you", "Ready for review", 3, %w[you], "review"] if item.pr.blank?
 
       pr = @context&.pr_status
@@ -116,7 +119,9 @@ module WorkQueue
       return ["bad", "Failed checks", 3, %w[bad you], "bad"] if failed_checks.any?
       return ["run", "Testing together", 4, %w[testing], "run"] if delivery&.state == "testing"
 
-      ["you", "Ready to merge", 3, %w[you merge], "merge"]
+      ["you", bundled_label || "Ready to merge", 3, %w[you merge], "merge"]
     end
+
+    def bundled_label = item.bundle_info["pr"] && item.pr_number ? "Bundled → PR ##{item.pr_number}" : nil
   end
 end

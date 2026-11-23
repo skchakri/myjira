@@ -5,13 +5,16 @@ module WorkQueue
   # phases plan → implement → review run as resumes of one Claude session, each
   # with the model/effort the Router picks.
   class Supervisor
-    MAX_RUNNING = ENV.fetch("WORK_QUEUE_MAX_RUNNING", 4).to_i
+    MAX_RUNNING = ENV.fetch("WORK_QUEUE_MAX_RUNNING", 12).to_i
     MAX_ATTEMPTS = 2
     NEXT_PHASE = { "plan" => "implement", "implement" => "review", "trivial" => nil, "review" => nil, "relay" => nil }.freeze
     PERMISSION_OPTIONS = ["Allow once", "Always allow in this project", "Deny"].freeze
 
-    def initialize(store: Store.new, writer: QueueWriter.new, router: Router.new, logger: Rails.logger)
+    BUNDLE_EVERY = 30.seconds
+
+    def initialize(store: Store.new, writer: QueueWriter.new, router: Router.new, logger: Rails.logger, bundler: nil)
       @store = store
+      @bundler = bundler || Bundler.new(store: store, writer: writer, logger: logger)
       @writer = writer
       @router = router
       @logger = logger
@@ -26,6 +29,7 @@ module WorkQueue
         handle(JSON.parse(raw)) if raw
         reap
         fill_slots
+        bundle_tick
         heartbeat
       rescue JSON::ParserError
         next
@@ -54,6 +58,20 @@ module WorkQueue
       @beat = Time.current
       RunState.redis.set("#{RunState::PREFIX}:runner", { host: Socket.gethostname, running: running_count, max: MAX_RUNNING,
                                                          chrome_bridge: Dir.glob("/tmp/claude-mcp-browser-bridge-*").any? }.to_json, ex: 10)
+    end
+
+    # Ships finished bundles (a root item + its follow-ups) as one PR, off the
+    # main loop so merges and test runs never hold up job handling.
+    def bundle_tick
+      return if @bundled_at && @bundled_at > BUNDLE_EVERY.ago
+      return if @bundle_thread&.alive?
+
+      @bundled_at = Time.current
+      @bundle_thread = Thread.new do
+        Rails.application.executor.wrap { @bundler.tick }
+      rescue StandardError => e
+        @logger.error("[work-queue-runner] bundler: #{e.class}: #{e.message}")
+      end
     end
 
     def running_count = @mutex.synchronize { @threads.count { |_, t| t.alive? } }
@@ -146,8 +164,13 @@ module WorkQueue
         RunState.set(key, { "phase" => nxt })
         run_phase(key, nil)
       else
-        @writer.update(item.slug, item.n, log: "Finished #{phase}") do |i|
+        bundle = RunState.get(key)["mode"] == "build" && item.pr.blank?
+        @writer.update(item.slug, item.n, log: bundle ? "Finished #{phase}; ready to bundle" : "Finished #{phase}") do |i|
           i["status"] = "review"
+          if bundle && i["branch"].present?
+            i["readyToBundle"] = true
+            i.delete("bundle") # a retried item that was left out of a bundle gets bundled again
+          end
           i["summary"] = result.text.to_s.gsub(/```.*?```/m, "").strip.last(400)
         end
       end
