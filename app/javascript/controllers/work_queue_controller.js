@@ -10,7 +10,7 @@ export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
                     "notifyBtn", "help", "question", "answer", "merge",
                     "composer", "composerText", "files", "fileList", "project", "search", "projectFilter",
-                    "confirm", "confirmText", "instruct", "refChips", "frame", "tab"]
+                    "confirm", "confirmText", "instruct", "refChips", "frame", "tab", "grid"]
   static values = { selected: String, groupUrl: String }
 
   // Target callbacks can fire before connect(), so set up shared state here.
@@ -31,6 +31,38 @@ export default class extends Controller {
     document.addEventListener("turbo:frame-load", this.frameLoad)
     this.afterFrame()
     this.groupTools()
+    try { const w = parseInt(localStorage.getItem("wq-list-w"), 10); if (w) this.setListWidth(w) } catch (_) {}
+  }
+
+  // Drag the divider between the task tree and the detail panel; width persists per browser.
+  setListWidth(px) {
+    if (!this.hasGridTarget) return
+    const max = Math.max(320, this.gridTarget.clientWidth - 360)
+    this.listWidth = Math.min(Math.max(px, 260), max)
+    this.gridTarget.style.setProperty("--wq-list-w", `${this.listWidth}px`)
+  }
+
+  startResize(e) {
+    e.preventDefault()
+    const handle = e.currentTarget
+    const left = this.gridTarget.getBoundingClientRect().left
+    handle.classList.add("is-drag")
+    document.body.style.userSelect = "none"
+    const move = (ev) => this.setListWidth(ev.clientX - left)
+    const up = () => {
+      handle.classList.remove("is-drag")
+      document.body.style.userSelect = ""
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+      try { localStorage.setItem("wq-list-w", String(this.listWidth)) } catch (_) {}
+    }
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+  }
+
+  resetResize() {
+    this.gridTarget.style.removeProperty("--wq-list-w")
+    try { localStorage.removeItem("wq-list-w") } catch (_) {}
   }
 
   disconnect() {

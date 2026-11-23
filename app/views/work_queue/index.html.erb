@@ -28,7 +28,9 @@
     <kbd>1</kbd>-<kbd>4</kbd> pick option · <kbd>m</kbd> merge · <kbd>v</kbd> voice · <kbd>/</kbd> answer box · <kbd>n</kbd> new item · <kbd>s</kbd> stop · <kbd>Esc</kbd> close
   </div>
 
-  <div class="wq-grid">
+  <div class="wq-grid" data-work-queue-target="grid">
+    <div class="wq-resizer" role="separator" aria-orientation="vertical" aria-label="Resize task list" title="Drag to resize · double-click to reset"
+         data-action="pointerdown->work-queue#startResize dblclick->work-queue#resetResize"></div>
     <nav class="wq-list" aria-label="Projects and tasks">
       <%= render "work_queue/composer" %>
       <div class="wq-filter">
