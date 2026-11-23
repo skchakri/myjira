@@ -13,6 +13,8 @@ module Api
     # Every index poll stamps the conversation's listener_seen_at, which is how
     # myjira knows the session is listening (Conversation#listening?).
     class SessionCommandsController < BaseController
+      include LongPoll
+
       MAX_WAIT = 30
 
       def index
@@ -24,14 +26,7 @@ module Api
         since = parse_time(params[:since])
         scope = -> { command_scope(convo, since) }
 
-        if wait.positive?
-          deadline = Time.current + wait
-          loop do
-            break if scope.call.exists?
-            break if Time.current >= deadline
-            sleep 1.0
-          end
-        end
+        long_poll(wait) { scope.call.exists? } if wait.positive?
 
         cmds = scope.call.order(:created_at).to_a
         render json: {

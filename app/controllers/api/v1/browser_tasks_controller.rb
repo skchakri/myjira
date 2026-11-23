@@ -8,6 +8,8 @@ module Api
     #   POST /api/v1/browser_tasks/:id/messages       — either side posts a turn
     #   GET  /api/v1/inbox?for=browser|cli            — actionable tickets across projects
     class BrowserTasksController < BaseController
+      include LongPoll
+
       MAX_WAIT = 30
 
       def index
@@ -43,13 +45,7 @@ module Api
         initial_status = @task.status
 
         if wait.positive?
-          deadline = Time.current + wait
-          loop do
-            break if new_messages(@task, since).exists?
-            break if @task.reload.status != initial_status
-            break if Time.current >= deadline
-            sleep 1.0
-          end
+          long_poll(wait) { new_messages(@task, since).exists? || @task.reload.status != initial_status }
         end
 
         render json: detailed(@task, since)
