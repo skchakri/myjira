@@ -4,14 +4,21 @@ module WorkQueue
   # PR status + merges via the gh CLI (squash). Merging is the one action the
   # web view performs itself; queue status updates still go through the session.
   class PullRequests
-    Status = Struct.new(:url, :number, :state, :base, :head, :mergeable, :merge_state, keyword_init: true) do
+    Status = Struct.new(:url, :number, :state, :base, :head, :mergeable, :merge_state,
+                        :head_sha, :merge_sha, :failed_checks, keyword_init: true) do
       def conflicts? = mergeable == "CONFLICTING"
+      def merged? = state == "MERGED"
+      def failed_checks? = Array(failed_checks).any?
+      # "owner/name" from the PR URL.
+      def repo = url.to_s[%r{github\.com/([^/]+/[^/]+)/pull/}, 1]
       def behind? = merge_state == "BEHIND"
       def open? = state == "OPEN"
     end
     Result = Struct.new(:ok, :steps, keyword_init: true)
 
-    FIELDS = "number,state,baseRefName,headRefName,mergeable,mergeStateStatus,url".freeze
+    FIELDS = "number,state,baseRefName,headRefName,mergeable,mergeStateStatus,url,headRefOid,mergeCommit,statusCheckRollup".freeze
+    # Check-run conclusions / status-context states that count as red.
+    FAILED = %w[FAILURE TIMED_OUT CANCELLED ERROR STARTUP_FAILURE].freeze
 
     def self.gh? = system("command -v gh >/dev/null 2>&1")
 
@@ -37,10 +44,21 @@ module WorkQueue
 
       j = JSON.parse(out)
       Status.new(url: j["url"], number: j["number"], state: j["state"], base: j["baseRefName"],
-                 head: j["headRefName"], mergeable: j["mergeable"], merge_state: j["mergeStateStatus"])
+                 head: j["headRefName"], mergeable: j["mergeable"], merge_state: j["mergeStateStatus"],
+                 head_sha: j["headRefOid"], merge_sha: j.dig("mergeCommit", "oid"), failed_checks: failed_checks(j))
     rescue JSON::ParserError
       nil
     end
+
+    # Names of checks that concluded failure / timed_out / cancelled (latest run per name).
+    def self.failed_checks(json)
+      Array(json["statusCheckRollup"]).filter_map do |c|
+        verdict = (c["conclusion"].presence || c["state"]).to_s.upcase
+        (c["name"].presence || c["context"]) if FAILED.include?(verdict)
+      end.uniq
+    end
+
+    def failed_checks(json) = self.class.failed_checks(json)
 
     # Merge one PR. target "base" = its own base; "main" = retarget to main first.
     def merge(pr, target: "base", main: "main")

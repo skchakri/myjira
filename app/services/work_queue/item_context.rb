@@ -18,6 +18,7 @@ module WorkQueue
     def worktree = @worktree ||= run["worktree"].presence || Transcript.cwd_for(transcript_path)
     # Both read the background-refreshed StatusCache; rendering never runs git/gh.
     def pr_status = (@pr_status ||= [item.pr && item.open? ? StatusCache.pr(item.pr) : nil]).first
+    def delivery = (@delivery ||= [item.pr ? StatusCache.delivery(item.pr) : nil]).first
     def git = (@git ||= [StatusCache.git(item.key)]).first
     def dependencies = @dependencies ||= @store.dependencies(item)
     def flow = @flow ||= Flow.new(item, self)
