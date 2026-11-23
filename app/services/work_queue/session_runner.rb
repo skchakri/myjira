@@ -29,6 +29,11 @@ module WorkQueue
                  "ticket, ask via the wq-questions block if blocked). Close the Chrome tabs you opened when done."
     }.freeze
 
+    # Bundled items must commit and push their own branch; never main.
+    GIT_ALLOWED = ["add", "commit", "push", "status", "diff", "log"].map { |c| "Bash(git #{c}:*)" }.freeze
+    GIT_DENIED = ["Bash(git push origin main:*)", "Bash(git push origin HEAD:main:*)", "Bash(git push -f:*)",
+                  "Bash(git push --force:*)"].freeze
+
     Result = Struct.new(:session_id, :text, :error, :cost, :usage, :denials, :exit_ok, keyword_init: true)
 
     attr_reader :pid
@@ -49,7 +54,8 @@ module WorkQueue
       cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose", "--model", @choice.model,
              "--effort", @choice.effort, "--permission-mode", "acceptEdits", "--permission-prompts", "none",
              "--append-system-prompt", QUESTION_PROTOCOL]
-      cmd += ["--allowedTools", *@allowed] if @allowed.any?
+      cmd += ["--allowedTools", *GIT_ALLOWED, *@allowed]
+      cmd += ["--disallowedTools", *GIT_DENIED]
       cmd += ["--resume", @resume] if @resume.present?
       cmd
     end
