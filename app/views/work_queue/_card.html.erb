@@ -2,8 +2,9 @@
 <% active = local_assigns[:selected] == item.key %>
 <% flow = local_assigns[:flow] || context&.flow || WorkQueue::Flow.new(item, context) %>
 <% follow_up = local_assigns.key?(:depth) ? depth.to_i.positive? : item.parent.present? %>
+<% kids = local_assigns[:kids] || context&.children || [] %>
 <% qs = item.open_questions.size %>
-<article id="<%= item.dom_id %>" class="wq-card wq-node <%= 'wq-card-active' if active %>"
+<article id="<%= item.dom_id %>" class="wq-card wq-node <%= 'wq-card-active' if active %> <%= follow_up ? 'wq-node-child' : 'wq-node-root' %>"
          data-work-queue-target="card" data-key="<%= item.key %>" data-slug="<%= item.slug %>" data-n="<%= item.n %>"
          data-status="<%= item.display_status %>" data-title="<%= item.title %>" data-tags="<%= flow.tags.join(' ') %>" data-tone="<%= flow.tone %>"
          <% if item.open? %>draggable="true" data-action="dragstart->work-queue#cardDragStart dragover->work-queue#cardDragOver dragleave->work-queue#cardDragLeave drop->work-queue#cardDrop dragend->work-queue#cardDragEnd"<% end %>>
@@ -14,13 +15,15 @@
               data: { turbo_frame: "wq_detail", work_queue_target: "link", action: "click->work-queue#open" } do %>
     <span class="wq-dot wq-t-<%= flow.tone %>" aria-hidden="true"></span>
     <span class="wq-node-body">
-      <span class="wq-node-t"><% if follow_up %><span class="wq-leaf-tag">follow-up · </span><% end %><span class="wq-title"><%= item.title %></span></span>
+      <span class="wq-node-t"><span class="wq-title" title="#<%= item.n %> <%= item.title %>"><span class="wq-n-tag">#<%= item.n %></span> <%= item.title %></span></span>
       <span class="wq-node-s"><%= flow.label %></span>
+      <% if kids.any? %><span class="wq-kid-sum" title="Follow-ups of this task"><%= wq_kid_summary(kids) %></span><% end %>
     </span>
     <% if qs.positive? %><span class="wq-node-q" title="<%= pluralize(qs, 'open question') %>"><%= qs %> ?</span><% end %>
   <% end %>
   <% if item.pending? %>
-    <%= button_to work_queue_item_run_path(item.key), class: "wq-icon-btn", title: "Run now (r)", "aria-label": "Run task #{item.n} now",
+    <% run_label = item.awaiting_approval ? "Approve & queue" : "Run now" %>
+    <%= button_to work_queue_item_run_path(item.key), class: "wq-icon-btn", title: "#{run_label} (r)", "aria-label": "#{run_label}: task #{item.n}",
                   form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>
       <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
     <% end %>

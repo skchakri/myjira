@@ -10,8 +10,9 @@ module WorkQueue
     REFRESH_EVERY = ENV.fetch("WORK_QUEUE_REFRESH_SECONDS", 20).to_i
     TRANSCRIPT = /(?:agent-[\w-]+|\A[0-9a-f-]{36})\.jsonl\z/
 
-    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger)
+    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new)
       @store = store
+      @child_starter = child_starter
       @queues = queues.to_s
       @projects = projects.to_s
       @logger = logger
@@ -85,6 +86,9 @@ module WorkQueue
       paths.uniq.each do |path|
         slug = Store.slug_for(path)
         items = @store.items_for(slug)
+        # Follow-ups start by themselves; the write re-triggers this with the cleared flag.
+        next if @child_starter.call(items).any?
+
         @sessions = nil
         transitions = items.filter_map do |i|
           from = @statuses[i.key]

@@ -30,6 +30,18 @@ module WorkQueue
       (pr.merged? && deploy_state(repo, pr)) || batch_state(repo, pr)
     end
 
+    # Deploy button: dispatches the repo's own "Deploy…" GitHub Actions workflow on
+    # main (the same workflow this class tracks). Never deploys anything else.
+    # => [ok, message]
+    def deploy(pr, ref: "main")
+      return [false, "PR is not merged yet"] unless pr&.merged?
+
+      workflow = deploy_workflow(pr.repo) or return [false, "#{pr.repo} has no active Deploy workflow"]
+      out, ok = @runner.call("workflow", "run", workflow["id"].to_s, "--ref", ref, "-R", pr.repo)
+      Rails.cache.delete(["wq-deploy-runs", pr.repo, workflow["id"]])
+      [ok, ok ? "Started #{workflow['name']} on #{ref}" : "gh workflow run failed: #{out.to_s.strip.truncate(160)}"]
+    end
+
     private
 
     def batch_state(repo, pr)

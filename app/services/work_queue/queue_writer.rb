@@ -27,10 +27,8 @@ module WorkQueue
                  "description" => description.to_s, "status" => "triage", "questions" => [],
                  "log" => [{ "at" => now, "text" => "Added from myjira" }], "createdAt" => now, "updatedAt" => now }
         item["session"] = session if session
-        if parent
-          item["parent"] = parent.to_i
-          item["awaitingApproval"] = true
-        end
+        # Follow-ups never wait for approval: they start by themselves and ship in the parent's PR.
+        item["parent"] = parent.to_i if parent
         items << item
       end
       item

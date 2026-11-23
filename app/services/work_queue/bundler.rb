@@ -11,6 +11,10 @@ module WorkQueue
   # project's full suite + lint once, bisects out the members that break it,
   # pushes, opens one PR and links every shipped member to it (item["pr"]), so
   # the per-item CI/deploy tracking (StatusCache, Delivery) keeps working.
+  #
+  # A follow-up that finishes while its bundle's PR is still open is merged onto
+  # that same bundle branch, so it lands in the parent's PR. Only when the
+  # parent's PR is already merged/closed does it get a new bundle (and PR).
   class Bundler
     WAIT = %w[triage queued running blocked].freeze
     IGNORE = %w[dropped merged].freeze
@@ -44,13 +48,26 @@ module WorkQueue
       end
     end
 
+    # "Ready for PR" in the detail pane: ship the members of this item's bundle
+    # that are ready now, without waiting for the rest.
+    def ship_now(key)
+      item = @store.find(key) or return
+      items = @store.items_for(item.slug)
+      root = root_of(item, items.index_by(&:n))
+      members = tree(root, items).select { |i| member?(i) && i.ready_to_bundle? }
+      return @logger.info("[work-queue] #{key}: nothing ready to bundle") if members.empty?
+
+      ship(item.slug, root, members, branch_for(root, items))
+    end
+
     def ship(slug, root, items, branch)
       repo = @repo_for.call(slug) or return @logger.warn("[work-queue] bundle #{slug}:#{root.n} waiting: no repo_path")
       path = "#{repo}-bundle-#{root.n}"
       members = items.map { |i| Member.new(i, i.branch) }
-      log(slug, items, "Bundling #{items.size} item(s) into #{branch}")
+      onto = open_bundle(root, @store.items_for(slug)) == branch ? branch : nil
+      log(slug, items, onto ? "Adding #{items.size} item(s) to the open bundle #{branch}" : "Bundling #{items.size} item(s) into #{branch}")
 
-      base = setup(repo, path)
+      base = setup(repo, path, onto: onto)
       merged, failed = merge_all(path, branch, base, members)
       cmds = @commands.call(path)
       bad = cmds.any? ? isolate(path, branch, base, merged, cmds) : []
@@ -64,7 +81,7 @@ module WorkQueue
         end
       end
       failed.each { |m, why| fail_member(slug, root, m, why) }
-      publish(slug, root, path, branch, good, failed) if good.any?
+      publish(slug, root, path, branch, good, failed, append: onto.present?) if good.any?
     ensure
       cleanup(repo, path) if repo && path
     end
@@ -80,8 +97,17 @@ module WorkQueue
       i.ready_to_bundle? || i.branch.present? || WAIT.include?(i.status)
     end
 
+    # Branch of this root's bundle whose PR is still open (its members are in review), if any.
+    def open_bundle(root, items)
+      tree(root, items).find { |i| i.bundle_info["pr"].present? && i.status == "review" }&.bundle_info&.dig("branch")
+    end
+
+    # The open bundle's branch when there is one (the follow-up joins the parent's PR); otherwise
     # bundle/<root>-<slug>, with a -2, -3… suffix when an earlier bundle of this root already used it.
     def branch_for(root, items)
+      open = open_bundle(root, items)
+      return open if open
+
       name = "bundle/#{root.n}-#{root.title.parameterize.first(40)}"
       used = tree(root, items).filter_map { |i| i.bundle_info["branch"] }.uniq
       used.empty? ? name : "#{name}-#{used.size + 1}"
@@ -100,9 +126,11 @@ module WorkQueue
       [root] + kids.flat_map { |k| tree(k, items) }
     end
 
-    def setup(repo, path)
+    # Starts from the open bundle branch when appending to it, else from main.
+    def setup(repo, path, onto: nil)
       git(repo, "fetch", "origin", "--prune")
-      base = %w[origin/main main origin/master master].find { |b| git(repo, "rev-parse", "--verify", "-q", b).last } || "HEAD"
+      candidates = [("origin/#{onto}" if onto), "origin/main", "main", "origin/master", "master"].compact
+      base = candidates.find { |b| git(repo, "rev-parse", "--verify", "-q", b).last } || "HEAD"
       cleanup(repo, path)
       git(repo, "worktree", "add", "--detach", path, base)
       base
@@ -178,8 +206,9 @@ module WorkQueue
       cmds
     end
 
-    def publish(slug, root, path, branch, good, failed)
-      _, pushed = git(path, "push", "--force", "-u", "origin", branch)
+    def publish(slug, root, path, branch, good, failed, append: false)
+      # Appending only adds commits on top of the open PR's branch, so no force-push.
+      _, pushed = append ? git(path, "push", "-u", "origin", branch) : git(path, "push", "--force", "-u", "origin", branch)
       return good.each { |m| fail_member(slug, root, m, "Could not push #{branch}") } unless pushed
 
       out, ok = @shell.call(path, "gh", "pr", "create", "--base", "main", "--head", branch,

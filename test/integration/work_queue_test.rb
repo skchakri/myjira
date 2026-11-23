@@ -27,9 +27,9 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     assert_select "#wq_project_home-me-app .wq-pb-you", text: "3 need you"
     assert_select "#wq_project_home-me-app .wq-pb-n", text: "5"
     assert_select "#wq_project_home-me-app > .wq-tree > ul > li > .wq-card", 4 # 7, 8, 11, 12 are roots
-    assert_select "li:has(> #wq_item_home-me-app_7) > ul > li > .wq-card", 2 do |kids|
-      assert_includes kids.text, "follow-up"
-    end
+    assert_select "li:has(> #wq_item_home-me-app_7) > ul#wq_kids_home-me-app_7 > li > .wq-card.wq-node-child", 2
+    assert_select "li.wq-li-parent:has(> #wq_item_home-me-app_7) > button.wq-twisty[aria-expanded=true][aria-controls=wq_kids_home-me-app_7]"
+    assert_select "#wq_item_home-me-app_7.wq-node-root .wq-kid-sum", text: /2 follow-ups: 1 need you, 1 waiting|2 follow-ups: 2 need you/
     assert_select "#wq_item_home-me-app_7 .wq-node-q", text: "2 ?"
     assert_select "#wq_item_home-me-app_7 .wq-card-link[aria-current=true]"
     assert_select "form[action=?]", work_queue_item_run_path("home-me-app:8")
@@ -56,9 +56,17 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     get work_queue_item_detail_path("home-me-app:9")
     assert_select ".wq-crumbs a", text: "Build thing"
     assert_select ".wq-pill-you", text: "Ready to merge"
-    assert_select ".wq-step[aria-current=step]", text: "Review"
-    assert_select ".wq-related .wq-rel-kind", text: "Came from"
+    assert_select ".wq-now .wq-step[aria-current=step]", text: "Merged"
+    assert_select ".wq-now .wq-step-done", 4 # plan, build, test, PR
+    assert_select ".wq-related .wq-rel-kind", text: "Parent task"
     assert_select ".wq-related .wq-rel-kind", text: "Sibling"
+    assert_select ".wq-actions a.wq-btn[href='https://github.com/o/r/pull/12']", text: "Open PR #12"
+    assert_select ".wq-actions button[disabled][title=?]", "Waiting on #7", text: "Merge"
+    assert_select ".wq-actions button[disabled]", text: "Deploy"
+    assert_empty css_select("[onclick], [data-turbo-confirm]")
+
+    get work_queue_item_detail_path("home-me-app:10")
+    assert_select ".wq-actions form[action=?] button", work_queue_item_run_path("home-me-app:10"), text: "Approve & queue"
 
     get work_queue_item_detail_path("home-me-app:7")
     assert_select ".wq-qbox h3", text: "2 questions for you"
@@ -66,7 +74,10 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     assert_select ".wq-qbox .wq-chip-rec", text: /red \(suggested\)/
     assert_select ".wq-qbox textarea[name='custom[1]']"
     assert_select ".wq-qbox button[type=submit]", text: "Send answers"
-    assert_select ".wq-related .wq-rel-kind", text: "Follow-up", count: 2
+    assert_select ".wq-now .wq-kid-steps li", 2 do |kids|
+      assert_includes kids.text, "#9 Follow on"
+      assert_includes kids.text, "Ready to merge"
+    end
     header = css_select("#wq_log_header").first.to_html
     assert_operator header.index("wq-qbox"), :<, header.index("wq-now")
   end
@@ -138,8 +149,36 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
   end
 
+  test "ready for PR asks the runner to bundle now" do
+    WorkQueue::QueueWriter.new(dir: @dir).update("home-me-app", 1) do |i|
+      i["status"] = "review"
+      i["branch"] = "wq/1"
+      i["readyToBundle"] = true
+    end
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-actions form[action=?] button", work_queue_item_ship_path("home-me-app:1"), text: "Ready for PR"
+    post work_queue_item_ship_path("home-me-app:1"), as: :turbo_stream
+    job = JSON.parse(WorkQueue::RunState.redis.lpop(WorkQueue::RunState::JOBS))
+    assert_equal %w[bundle home-me-app:1], [job["action"], job["key"]]
+  end
+
+  test "deploy refuses an unmerged PR" do
+    WorkQueue::QueueWriter.new(dir: @dir).update("home-me-app", 1) { |i| i["pr"] = "https://github.com/o/r/pull/3" }
+    WorkQueue::PullRequests.stub(:new, Struct.new(:x) { def fetch(_) = nil }.new) do
+      post work_queue_item_deploy_path("home-me-app:1"), as: :turbo_stream
+    end
+    assert_includes response.body, "not merged"
+  end
+
+  test "new follow-ups are not gated on approval" do
+    WorkQueue::QueueWriter.new(dir: @dir).add("home-me-app", title: "Child", parent: 1)
+    assert_not WorkQueue::Store.new.find("home-me-app:2").awaiting_approval
+  end
+
   test "run now approves a follow-up awaiting approval" do
-    WorkQueue::QueueWriter.new(dir: @dir).add("home-me-app", title: "Follow-up", parent: 1)
+    w = WorkQueue::QueueWriter.new(dir: @dir)
+    w.add("home-me-app", title: "Follow-up", parent: 1)
+    w.update("home-me-app", 2) { |i| i["awaitingApproval"] = true }
     assert WorkQueue::Store.new.find("home-me-app:2").awaiting_approval
 
     post work_queue_item_run_path("home-me-app:2"), as: :turbo_stream

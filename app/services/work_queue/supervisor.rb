@@ -47,6 +47,16 @@ module WorkQueue
       when "retry" then queue_start(key, job.merge("attempts" => RunState.get(key)["attempts"].to_i + 1, "phase" => RunState.get(key)["phase"]))
       when "stop" then stop(key)
       when "suggest" then suggest(key, job)
+      when "bundle" then bundle_now(key)
+      end
+    end
+
+    # "Ready for PR": ship this item's bundle now with whatever members are ready.
+    def bundle_now(key)
+      Thread.new do
+        Rails.application.executor.wrap { @bundler.ship_now(key) }
+      rescue StandardError => e
+        @logger.error("[work-queue-runner] bundle #{key}: #{e.class}: #{e.message}")
       end
     end
 

@@ -172,6 +172,22 @@ class WorkQueueController < ApplicationController
     finish_merge(result, [@item.pr])
   end
 
+  # "Ready for PR": the runner bundles this item's tree now (members that are ready)
+  # into its root's single PR, or adds them to that PR when it is already open.
+  def ship
+    return toast("##{@item.n} has nothing ready for a PR yet", :error) unless @item.ready_to_bundle? && @item.pr.blank?
+
+    runner_action("bundle", "Bundling ##{@item.n} into its parent's PR")
+  end
+
+  # "Deploy": dispatch the repo's own Deploy workflow on main after the in-page confirm.
+  def deploy
+    pr = WorkQueue::PullRequests.new.fetch(@item.pr) if @item.pr.present?
+    ok, message = WorkQueue::Delivery.new.deploy(pr)
+    WorkQueue::Broadcaster.item_note(@item, "Deploy: #{message}")
+    toast(message, ok ? :ok : :error)
+  end
+
   def merge_chain
     store = WorkQueue::Store.new
     chain = WorkQueue::ItemContext.new(@item, store: store).chain

@@ -36,12 +36,14 @@ module WorkQueue
       chain
     end
 
-    # [[kind, item]] for the Related tasks box: parent, follow-ups, siblings, linked.
+    # Direct follow-ups (child steps), oldest first; shown under "What's happening".
+    def children = project_items.select { |i| i.parent == item.n && i.n != item.n }.sort_by(&:n)
+
+    # [[kind, item]] for the Related tasks box: parent, siblings, linked (children are listed under "What's happening").
     def related
       parent = project_items.find { |i| i.n == item.parent }
       rows = []
-      rows << ["Came from", parent] if parent
-      project_items.select { |i| i.parent == item.n && i.n != item.n }.each { |c| rows << ["Follow-up", c] }
+      rows << ["Parent task", parent] if parent
       project_items.select { |i| parent && i.parent == parent.n && i.n != item.n }.each { |s| rows << ["Sibling", s] }
       RunState.related(item.key).filter_map { |k| @store.find(k) }.each { |r| rows << ["Linked", r] }
       rows.uniq { |_, i| i.key }

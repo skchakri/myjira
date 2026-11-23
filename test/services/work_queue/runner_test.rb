@@ -16,7 +16,7 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     b = @writer.add("home-me-x", title: "Follow", parent: a["n"])
     data = JSON.parse(File.read(File.join(@dir, "home-me-x.json")))
     assert_equal [1, 2], data["items"].map { |i| i["n"] }
-    assert_equal true, data["items"][1]["awaitingApproval"]
+    assert_nil data["items"][1]["awaitingApproval"], "follow-ups are never gated on approval"
     assert_equal %w[n title description status questions log createdAt updatedAt], data["items"][0].keys
     assert_equal 2, b["n"]
   end
