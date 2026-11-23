@@ -18,6 +18,25 @@ export default class extends Controller {
     this.flowFilter = "all"
     this.selection = new Set()
     try { this.collapsed = new Set(JSON.parse(localStorage.getItem("wq-collapsed") || "[]")) } catch (_) { this.collapsed = new Set() }
+    try { this.collapsedNodes = new Set(JSON.parse(localStorage.getItem("wq-collapsed-nodes") || "[]")) } catch (_) { this.collapsedNodes = new Set() }
+  }
+
+  // Collapse / expand one parent's follow-ups in the tree; remembered per browser.
+  toggleNode(e) {
+    const li = e.currentTarget.closest("li.wq-li")
+    const key = li?.dataset.key
+    if (!key) return
+    this.collapsedNodes.has(key) ? this.collapsedNodes.delete(key) : this.collapsedNodes.add(key)
+    try { localStorage.setItem("wq-collapsed-nodes", JSON.stringify([...this.collapsedNodes])) } catch (_) {}
+    this.applyNode(li)
+  }
+
+  applyNode(li, force) {
+    const btn = li.querySelector(":scope > .wq-twisty")
+    if (!btn) return
+    const closed = force === false ? false : this.collapsedNodes.has(li.dataset.key)
+    btn.setAttribute("aria-expanded", closed ? "false" : "true")
+    li.querySelector(":scope > ul.wq-kids")?.classList.toggle("hidden", closed)
   }
 
   connect() {
@@ -194,6 +213,7 @@ export default class extends Controller {
       })
       p.classList.toggle("hidden", !inProject || shown === 0)
       this.applyCollapsed(p, (q || f !== "all") && shown ? false : null)
+      p.querySelectorAll("li.wq-li-parent").forEach((li) => this.applyNode(li, q || f !== "all" ? false : null))
     })
     this.updateCounts()
   }

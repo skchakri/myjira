@@ -29,7 +29,7 @@ module WorkQueue
       deliver(
         "#{text}, in parallel with whatever is running (Run now from the myjira Work Queue; this overrides the " \
         "max-running limit for this one item). Spawn its background worktree Agent per the queue protocol, then " \
-        "op \"update\" n #{@item.n} with status \"running\", agent and branch.",
+        "op \"update\" n #{@item.n} with status \"running\", agent and branch.#{follow_up_note}",
         copy: "/item#{@item.n} go — start now"
       )
     end
@@ -63,6 +63,13 @@ module WorkQueue
     end
 
     private
+
+    def follow_up_note
+      return "" if @item.parent.blank?
+
+      " It is a follow-up of ##{@item.parent}: no approval needed, it may run in parallel. Commit and push its own " \
+        "branch only and do NOT open a PR; myjira merges it into ##{@item.parent}'s bundle and its single PR."
+    end
 
     def deliver(body, copy:)
       unless listening?

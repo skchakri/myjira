@@ -31,6 +31,15 @@ module WorkQueueHelper
     lines.join("\n")
   end
 
+  KID_GROUPS = { "run" => "running", "you" => "need you", "bad" => "failed", "wait" => "waiting", "ok" => "done" }.freeze
+
+  # "3 follow-ups: 1 running, 2 done" for a parent row.
+  def wq_kid_summary(kids)
+    counts = kids.map { |k| (f = WorkQueue::Flow.new(k)).closed? ? "ok" : f.tone }.tally
+    parts = KID_GROUPS.filter_map { |tone, word| "#{counts[tone]} #{word}" if counts[tone] }
+    "#{pluralize(kids.size, 'follow-up')}: #{parts.join(', ')}"
+  end
+
   def wq_copy_menu(item, context)
     render "work_queue/copy_menu", item: item, context: context
   end

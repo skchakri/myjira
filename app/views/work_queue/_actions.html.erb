@@ -1,0 +1,55 @@
+<%# Labelled next-step buttons for the detail pane, by state. Merge and Deploy confirm in-page (details panel). %>
+<% pr = context.pr_status %>
+<% delivery = context.delivery %>
+<% deployable = item.status == "done" && delivery&.state.in?(%w[not_live deploy_failed]) %>
+<div class="wq-actions" role="group" aria-label="Next steps">
+  <% if item.awaiting_approval && item.open? %>
+    <%= button_to "Approve & queue", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
+  <% elsif item.pending? %>
+    <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
+  <% end %>
+
+  <% if item.ready_to_bundle? && item.pr.blank? %>
+    <%= button_to "Ready for PR", work_queue_item_ship_path(item.key), class: "wq-btn wq-btn-primary",
+                  title: "Bundle this task (and any ready follow-ups) into its parent's single PR now",
+                  form: { data: { turbo_stream: true } } %>
+  <% elsif item.pr.present? %>
+    <a class="wq-btn" href="<%= item.pr %>" target="_blank" rel="noopener">Open PR<%= " ##{item.pr_number}" if item.pr_number %></a>
+  <% elsif item.open? %>
+    <button type="button" class="wq-btn" disabled title="Available once the task is built and tested">Ready for PR</button>
+  <% end %>
+
+  <% if context.chain_merge? %>
+    <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
+               label: "Merge (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
+  <% elsif context.card_merge? %>
+    <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge", context: context %>
+  <% elsif item.open? %>
+    <% why = if item.pr.blank? then "No PR yet"
+             elsif context.dependencies.any? then "Waiting on #{context.dependencies.map { |d| "##{d.n}" }.join(', ')}"
+             elsif pr && !pr.open? then "PR is #{pr.state.downcase}"
+             else "Not ready to merge"
+             end %>
+    <button type="button" class="wq-btn" disabled title="<%= why %>">Merge</button>
+  <% end %>
+
+  <% if deployable %>
+    <details class="wq-merge" data-work-queue-target="merge">
+      <summary class="wq-btn wq-btn-merge">Deploy</summary>
+      <%= form_with url: work_queue_item_deploy_path(item.key), data: { turbo_stream: true }, class: "wq-merge-panel" do %>
+        <p class="text-[12px] font-medium">Run the repo's Deploy workflow on <code>main</code>?</p>
+        <p class="wq-hint"><%= delivery.detail %> This deploys to production and cannot be undone from here.</p>
+        <div class="flex gap-2 mt-2">
+          <button type="submit" class="wq-btn wq-btn-primary">Confirm deploy</button>
+          <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#closeMerge">Cancel</button>
+        </div>
+      <% end %>
+    </details>
+  <% else %>
+    <% why = if item.status != "done" then "Available after the PR is merged"
+             elsif delivery.nil? then "No Deploy workflow found for this repo (or it is already live), so there is nothing to run from here"
+             else delivery.detail
+             end %>
+    <button type="button" class="wq-btn" disabled title="<%= why %>">Deploy</button>
+  <% end %>
+</div>

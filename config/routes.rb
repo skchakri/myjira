@@ -160,6 +160,8 @@ Rails.application.routes.draw do
     post :children, to: "work_queue#add_child"
     post :merge_pr, to: "work_queue#merge_pr"
     post :merge_chain, to: "work_queue#merge_chain"
+    post :ship, to: "work_queue#ship"
+    post :deploy, to: "work_queue#deploy"
     post :stop, to: "work_queue#stop"
     post :retry, to: "work_queue#retry_run"
     post :close_relay_tabs, to: "work_queue#close_relay_tabs"

@@ -58,6 +58,31 @@ module WorkQueue
       end
     end
 
+    # The work phases shown in "What's happening": plan → build → test → PR → merged → live.
+    PHASES = ["Plan", "Build", "Test", "PR", "Merged", "Live"].freeze
+    RUN_PHASE = { "plan" => 0, "implement" => 1, "trivial" => 1, "review" => 2 }.freeze
+
+    # Index of the phase the item is on now.
+    def phase
+      @phase ||= case item.status
+      when "done" then delivery&.state.in?(%w[testing deploying not_live deploy_failed]) ? 5 : 6
+      when "merged", "dropped" then 0
+      when "review" then item.pr.present? ? 4 : 3
+      when "running", "blocked" then RUN_PHASE.fetch(@context&.run&.dig("phase").to_s, item.status == "blocked" ? 1 : 0)
+      else 0
+      end
+    end
+
+    # [[name, "done" | "now-<tone>" | nil]] per phase.
+    def phases
+      PHASES.each_with_index.map do |name, i|
+        state = if i < phase then "done"
+        elsif i == phase && item.status != "dropped" then "now-#{tone}"
+        end
+        [name, state]
+      end
+    end
+
     def ref
       parts = ["task #{item.n}"]
       parts << "PR ##{item.pr_number}" if item.pr_number

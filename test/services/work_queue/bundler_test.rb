@@ -118,15 +118,41 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
     assert_equal "https://github.com/me/app/pull/42", items[kid].pr
   end
 
-  test "a child added after the bundle shipped starts a new bundle under the same root" do
+  test "a child finishing while the parent's PR is open joins that same bundle branch and PR" do
     root = add("Root thing")
     bundler(FakeShell.new).tick
+    kid = add("Late child", parent: root)
+    shell = FakeShell.new
+    bundler(shell).tick
+    assert_includes shell.calls, ["git", "worktree", "add", "--detach", "/repo-bundle-1", "origin/bundle/1-root-thing"]
+    assert_includes shell.calls, ["git", "push", "-u", "origin", "bundle/1-root-thing"]
+    assert_not(shell.calls.any? { |c| c.include?("--force") && c[1] == "push" })
+    assert_equal "https://github.com/me/app/pull/42", items[kid].pr
+    assert_equal "bundle/1-root-thing", items[kid].bundle_info["branch"]
+  end
+
+  test "a child added after the parent's PR merged gets its own bundle" do
+    root = add("Root thing")
+    bundler(FakeShell.new).tick
+    @writer.set_status(SLUG, root, "done")
     add("Late child", parent: root)
     shell = FakeShell.new
     bundler(shell).tick
     pr = shell.calls.find { |c| c[0..2] == %w[gh pr create] }
     assert_equal "bundle/1-root-thing-2", pr[pr.index("--head") + 1]
     assert_not_includes pr[pr.index("--body") + 1], "#1 Root thing"
+  end
+
+  test "ship_now bundles the ready members without waiting for the rest" do
+    root = add("Root")
+    add("Busy", parent: root, status: "running", ready: false)
+    shell = FakeShell.new
+    bundler(shell).tick
+    assert_empty shell.calls
+
+    bundler(shell).ship_now("#{SLUG}:#{root}")
+    assert_equal "https://github.com/me/app/pull/42", items[root].pr
+    assert_nil items[2].pr
   end
 
   test "ready items get a Ready to bundle chip" do

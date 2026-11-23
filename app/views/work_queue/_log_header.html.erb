@@ -21,16 +21,16 @@
     <h2 class="wq-flow-title"><%= item.title %></h2>
   </div>
 
-  <ol class="wq-path" aria-label="Step <%= flow.step + 1 %> of <%= WorkQueue::Flow::STEPS.size %>: <%= WorkQueue::Flow::STEPS[flow.step] %>">
-    <% WorkQueue::Flow::STEPS.zip(flow.path).each_with_index do |(name, state), i| %>
-      <%= tag.li class: ["wq-step", ("wq-step-#{state}" if state)], aria: { current: ("step" if i == flow.step) } do %><i aria-hidden="true"></i><%= name %><% end %>
-    <% end %>
-  </ol>
-
   <%= render "work_queue/question_box", item: item %>
 
   <section class="wq-box wq-now" aria-label="What's happening">
     <span class="wq-eyebrow">What's happening</span>
+    <% now = WorkQueue::Flow::PHASES[flow.phase] %>
+    <ol class="wq-path" aria-label="<%= now ? "Now: #{now}" : 'All phases done' %>">
+      <% flow.phases.each_with_index do |(name, state), i| %>
+        <%= tag.li class: ["wq-step", ("wq-step-#{state}" if state)], aria: { current: ("step" if i == flow.phase) } do %><i aria-hidden="true"></i><%= name %><% end %>
+      <% end %>
+    </ol>
     <% if flow.failed_checks.any? %>
       <p class="text-[12.5px]"><strong>Failed checks:</strong> <%= flow.failed_checks.join(", ") %></p>
     <% end %>
@@ -39,18 +39,25 @@
     <% end %>
     <p class="wq-summary"><%= wq_linkify(flow.happening, item.slug) %></p>
     <p class="text-[12.5px]"><strong>Your part:</strong> <%= flow.your_part %></p>
-    <div class="flex flex-wrap items-center gap-2">
-      <% if item.pending? %>
-        <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
-      <% end %>
-      <% if context.chain_merge? %>
-        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
-                   label: "Merge both (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
-      <% elsif context.card_merge? %>
-        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge PR", context: context %>
-      <% end %>
-      <% if item.pr.present? %><a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">Open PR <%= item.pr_number ? "##{item.pr_number}" : "" %></a><% end %>
-    </div>
+    <% kids = context.children %>
+    <% if kids.any? %>
+      <div class="wq-kid-steps">
+        <span class="wq-eyebrow">Child steps (run in parallel, ship in this task's PR)</span>
+        <ul class="wq-related">
+          <% kids.each do |k| %>
+            <% kf = WorkQueue::Flow.new(k) %>
+            <li id="wq_kid_<%= k.slug %>_<%= k.n %>">
+              <%= link_to work_queue_item_detail_path(k.key), class: "wq-rel", data: { turbo_frame: "wq_detail" } do %>
+                <span class="wq-dot wq-t-<%= kf.tone %>" aria-hidden="true"></span>
+                <span class="min-w-0 wq-rel-t">#<%= k.n %> <%= k.title %></span>
+                <span class="wq-hint"><%= kf.label %></span>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <%= render "work_queue/actions", item: item, context: context %>
   </section>
 
   <div class="wq-grid2">
