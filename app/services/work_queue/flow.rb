@@ -2,9 +2,10 @@ module WorkQueue
   # Plain-words view of an item for the Flow layout: a tone (dot colour), a
   # label, a step on the six-step path, and the filter tags it belongs to.
   #
-  # Some filters have no real data source yet and map to the nearest status:
-  #   testing  = running in the router's "review" phase (no CI / "test together" feed)
-  #   ok/Live  = status done (PR merged; no deploy check)
+  # Data sources: the PR (checks, conflicts) and Delivery (batch CI and deploy
+  # runs from GitHub Actions), both read from StatusCache. Without them:
+  #   testing  = running in the router's "review" phase
+  #   ok/Live  = status done (repo has no deploy workflow, or nothing cached yet)
   class Flow
     STEPS = ["Asked", "Planned", "Building", "Review", "Testing together", "Live"].freeze
     FILTERS = [
@@ -20,6 +21,7 @@ module WorkQueue
       "review" => "Look at the changes; there is no PR to merge yet.",
       "bad" => "Check the log below, then retry or tell the agent what to do.",
       "run" => "Nothing yet. It moves on by itself.",
+      "notlive" => "Nothing. It goes live with the next deploy.",
       "wait" => "Nothing. It starts by itself.",
       "ok" => "Nothing.",
       "closed" => "Nothing."
@@ -37,6 +39,14 @@ module WorkQueue
     def closed? = tags.include?("closed")
     def your_part = YOUR_PART.fetch(@part)
     def happening = item.summary.presence || item.log.last&.dig("text").presence || "Nothing recorded yet."
+
+    # Failed checks / deploy problem and the CI or deploy step it is on, for "What's happening".
+    def failed_checks
+      pr = item.open? ? @context&.pr_status : nil
+      (Array(pr&.failed_checks) + Array(delivery&.failed)).uniq
+    end
+
+    def delivery_note = delivery&.detail
 
     # Per step: "done", "now-<tone>" or nil (not reached).
     def path
@@ -60,7 +70,7 @@ module WorkQueue
       case item.status
       when "merged" then ["wait", item.merged_into ? "Folded into task #{item.merged_into}" : "Folded into another task", 0, %w[closed], "closed"]
       when "dropped" then ["wait", "Dropped", 0, %w[closed], "closed"]
-      when "done" then ["ok", "Live", 5, %w[ok], "ok"]
+      when "done" then done_state
       else open_state
       end
     end
@@ -78,6 +88,18 @@ module WorkQueue
       end
     end
 
+    def delivery = @context.respond_to?(:delivery) ? @context.delivery : nil
+
+    def done_state
+      case delivery&.state
+      when "testing" then ["run", "Testing together", 4, %w[testing], "run"]
+      when "deploying" then ["run", "Deploying", 5, %w[testing open], "run"]
+      when "not_live" then ["wait", "Merged, not live yet", 5, %w[open], "notlive"]
+      when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open], "bad"]
+      else ["ok", "Live", 5, %w[ok], "ok"]
+      end
+    end
+
     def running_state
       case @context&.run&.dig("phase")
       when "plan" then ["run", "Planning", 1, %w[run], "run"]
@@ -91,6 +113,8 @@ module WorkQueue
 
       pr = @context&.pr_status
       return ["bad", "PR has conflicts", 3, %w[bad you], "bad"] if pr&.conflicts?
+      return ["bad", "Failed checks", 3, %w[bad you], "bad"] if failed_checks.any?
+      return ["run", "Testing together", 4, %w[testing], "run"] if delivery&.state == "testing"
 
       ["you", "Ready to merge", 3, %w[you merge], "merge"]
     end

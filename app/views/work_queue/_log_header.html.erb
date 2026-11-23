@@ -31,6 +31,12 @@
 
   <section class="wq-box wq-now" aria-label="What's happening">
     <span class="wq-eyebrow">What's happening</span>
+    <% if flow.failed_checks.any? %>
+      <p class="text-[12.5px]"><strong>Failed checks:</strong> <%= flow.failed_checks.join(", ") %></p>
+    <% end %>
+    <% if flow.delivery_note %>
+      <p class="text-[12.5px]"><%= flow.delivery_note %></p>
+    <% end %>
     <p class="wq-summary"><%= wq_linkify(flow.happening, item.slug) %></p>
     <p class="text-[12.5px]"><strong>Your part:</strong> <%= flow.your_part %></p>
     <div class="flex flex-wrap items-center gap-2">

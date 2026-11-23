@@ -51,9 +51,12 @@ module WorkQueue
       end
     end
 
-    # Git/PR status for open items (PRs in parallel; gh is ~0.5-1 s per call).
+    # Git/PR status for open items, plus deploy status for recently done items
+    # that aren't live yet (PRs in parallel; gh is ~0.5-1 s per call).
     def refresh_status
-      items = @store.all.select(&:open?)
+      all = @store.all
+      items = all.select(&:open?)
+      items += all.select { |i| StatusCache.delivering?(i) }
       changed = Queue.new
       items.each_slice(8) do |batch|
         batch.map do |item|
@@ -64,7 +67,7 @@ module WorkQueue
       end
       list = Array.new(changed.size) { changed.pop }
       Broadcaster.cards_changed(list) if list.any?
-      refresh_listeners(items)
+      refresh_listeners(items.select(&:open?))
     rescue StandardError => e
       @logger.error("[work-queue] status refresh failed: #{e.class}: #{e.message}")
     end
