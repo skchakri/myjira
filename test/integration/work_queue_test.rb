@@ -4,8 +4,12 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
   setup do
     @dir = Dir.mktmpdir("wq")
     File.write(File.join(@dir, "home-me-app.json"), {
-      items: [{ n: 7, title: "Build thing", status: "blocked", questions: [{ q: "Color?", options: %w[red blue] }], log: [] },
-              { n: 8, title: "Next", status: "queued", questions: [], log: [] }]
+      items: [{ n: 7, title: "Build thing", status: "blocked", questions: [{ q: "Color?", options: %w[red blue] }, { q: "Size?", options: %w[S M] }], log: [] },
+              { n: 8, title: "Next", status: "queued", questions: [], log: [] },
+              { n: 9, title: "Follow on", status: "review", parent: 7, pr: "https://github.com/o/r/pull/12", questions: [], log: [] },
+              { n: 10, title: "Sibling", status: "queued", parent: 7, awaitingApproval: true, questions: [], log: [] },
+              { n: 11, title: "Shipped", status: "done", questions: [], log: [] },
+              { n: 12, title: "Folded", status: "merged", mergedInto: 7, questions: [], log: [] }]
     }.to_json)
     @old = ENV["WORK_QUEUE_DIR"]
     ENV["WORK_QUEUE_DIR"] = @dir
@@ -16,13 +20,62 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     FileUtils.rm_rf(@dir)
   end
 
-  test "renders grouped items, badges and option chips" do
+  test "renders a project tree with follow-ups nested under their parent" do
     get work_queue_path(item: "home-me-app:7")
     assert_response :ok
-    assert_select "#wq_project_home-me-app .wq-card", 2
-    assert_select ".wq-s-waiting"
-    assert_select ".wq-pop .wq-chip", text: /red/
+    assert_select "#wq_project_home-me-app button.wq-proj[aria-expanded=true]", text: /app/
+    assert_select "#wq_project_home-me-app .wq-pb-you", text: "3 need you"
+    assert_select "#wq_project_home-me-app .wq-pb-n", text: "5"
+    assert_select "#wq_project_home-me-app > .wq-tree > ul > li > .wq-card", 4 # 7, 8, 11, 12 are roots
+    assert_select "li:has(> #wq_item_home-me-app_7) > ul > li > .wq-card", 2 do |kids|
+      assert_includes kids.text, "follow-up"
+    end
+    assert_select "#wq_item_home-me-app_7 .wq-node-q", text: "2 ?"
+    assert_select "#wq_item_home-me-app_7 .wq-card-link[aria-current=true]"
     assert_select "form[action=?]", work_queue_item_run_path("home-me-app:8")
+  end
+
+  test "filter chips and node tags map statuses to plain words" do
+    get work_queue_path
+    WorkQueue::Flow::FILTERS.each { |key, _| assert_select ".wq-tab[data-f=?]", key }
+    assert_select ".wq-tab[data-f=all][aria-pressed=true]"
+    tags = ->(n) { css_select("#wq_item_home-me-app_#{n}").first["data-tags"].split }
+    assert_equal %w[all open you answer], tags.(7)
+    assert_equal %w[all open wait], tags.(8)
+    assert_includes tags.(9), "merge"
+    assert_includes tags.(10), "approve"
+    assert_equal %w[ok], tags.(11)
+    assert_equal %w[closed], tags.(12)
+    assert_select "#wq_item_home-me-app_7 .wq-node-s", text: "Needs your answer"
+    assert_select "#wq_item_home-me-app_9 .wq-node-s", text: "Ready to merge"
+    assert_select "#wq_item_home-me-app_10 .wq-node-s", text: "Needs your approval"
+    assert_select "#wq_item_home-me-app_11 .wq-node-s", text: "Live"
+  end
+
+  test "detail shows breadcrumb, path, questions first and related tasks" do
+    get work_queue_item_detail_path("home-me-app:9")
+    assert_select ".wq-crumbs a", text: "Build thing"
+    assert_select ".wq-pill-you", text: "Ready to merge"
+    assert_select ".wq-step[aria-current=step]", text: "Review"
+    assert_select ".wq-related .wq-rel-kind", text: "Came from"
+    assert_select ".wq-related .wq-rel-kind", text: "Sibling"
+
+    get work_queue_item_detail_path("home-me-app:7")
+    assert_select ".wq-qbox h3", text: "2 questions for you"
+    assert_select ".wq-qbox input[type=radio][name='answers[0]'][value=red]"
+    assert_select ".wq-qbox .wq-chip-rec", text: /red \(suggested\)/
+    assert_select ".wq-qbox textarea[name='custom[1]']"
+    assert_select ".wq-qbox button[type=submit]", text: "Send answers"
+    assert_select ".wq-related .wq-rel-kind", text: "Follow-up", count: 2
+    header = css_select("#wq_log_header").first.to_html
+    assert_operator header.index("wq-qbox"), :<, header.index("wq-now")
+  end
+
+  test "send answers posts several answers at once; free text wins" do
+    post work_queue_item_answer_path("home-me-app:7"),
+         params: { answers: { "0" => "red", "1" => "S" }, custom: { "0" => "", "1" => "XL please" } }, as: :turbo_stream
+    assert_response :ok
+    assert_equal ["red", "XL please"], WorkQueue::Store.new.find("home-me-app:7").questions.map(&:a)
   end
 
   test "answer without a live session is written by the server" do
@@ -78,7 +131,7 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     post work_queue_item_instruct_path("home-me-app:1"), params: { text: "[wq-ref home-me-app:2] #2 Other\nsync" }, as: :turbo_stream
     assert_includes WorkQueue::RunState.related("home-me-app:1"), "home-me-app:2"
     get work_queue_item_detail_path("home-me-app:1")
-    assert_select "turbo-frame#wq_detail .wq-links a", text: /#2 Other/
+    assert_select "turbo-frame#wq_detail .wq-related .wq-rel", text: /Other/
     assert_select ".wq-log-h .wq-copy-item", 2
   end
 
@@ -113,9 +166,10 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
   test "questions without options show cached suggestion chips" do
     WorkQueue::QueueWriter.new(dir: @dir).ask("home-me-app", 1, [{ q: "Which DB?" }])
     WorkQueue::RunState.redis.set(WorkQueue::Suggestions.cache_key("Which DB?"), %w[Postgres MySQL].to_json)
-    get work_queue_path
-    assert_select ".wq-pop .wq-chip", text: /Postgres/
-    assert_select ".wq-pop .wq-free input[name=text]"
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-qbox .wq-chip", text: /Postgres/
+    assert_select ".wq-qbox input[type=radio][name='answers[0]'][value=Postgres]"
+    assert_select ".wq-qbox .wq-free textarea[name='custom[0]']"
   end
 
   test "settings edit a project's always-allow rules" do

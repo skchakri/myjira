@@ -10,8 +10,15 @@ export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
                     "notifyBtn", "help", "question", "answer", "merge",
                     "composer", "composerText", "files", "fileList", "project", "search", "projectFilter",
-                    "confirm", "confirmText", "instruct", "refChips", "frame"]
+                    "confirm", "confirmText", "instruct", "refChips", "frame", "tab"]
   static values = { selected: String, groupUrl: String }
+
+  // Target callbacks can fire before connect(), so set up shared state here.
+  initialize() {
+    this.flowFilter = "all"
+    this.selection = new Set()
+    try { this.collapsed = new Set(JSON.parse(localStorage.getItem("wq-collapsed") || "[]")) } catch (_) { this.collapsed = new Set() }
+  }
 
   connect() {
     this.pinned = true
@@ -73,8 +80,10 @@ export default class extends Controller {
 
   cardTargetConnected(card) {
     card.classList.toggle("wq-card-active", card.dataset.key === this.selectedValue)
+    card.querySelector(".wq-card-link")?.setAttribute("aria-current", card.dataset.key === this.selectedValue ? "true" : "false")
     const box = card.querySelector(".wq-check")
     if (box && this.selection?.has(box.value)) box.checked = true
+    this.scheduleCounts()
   }
 
   visibleCards() { return this.cardTargets.filter((c) => c.offsetParent !== null) }
@@ -117,24 +126,76 @@ export default class extends Controller {
     if (res.ok && window.Turbo) window.Turbo.renderStreamMessage(html)
   }
 
-  // ---- filter ---------------------------------------------------------------
+  // ---- filter + project tree ----------------------------------------------------
+  // Chips filter by the server-computed data-tags on each node (WorkQueue::Flow);
+  // a parent stays visible while any of its follow-ups matches.
+  pickFilter(e) {
+    this.flowFilter = e.currentTarget.dataset.f
+    this.tabTargets.forEach((t) => t.setAttribute("aria-pressed", t === e.currentTarget ? "true" : "false"))
+    this.filter()
+  }
+
+  matches(card, q, f) {
+    const tags = (card.dataset.tags || "").split(" ")
+    if (!tags.includes(f)) return false
+    return !q || `#${card.dataset.n} ${card.dataset.title}`.toLowerCase().includes(q)
+  }
+
   filter() {
-    const q = this.searchTarget.value.trim().toLowerCase()
-    const slug = this.projectFilterTarget.value
+    const q = this.hasSearchTarget ? this.searchTarget.value.trim().toLowerCase() : ""
+    const slug = this.hasProjectFilterTarget ? this.projectFilterTarget.value : ""
+    const f = this.flowFilter || "all"
     this.projectTargets.forEach((p) => {
       const inProject = !slug || p.dataset.slug === slug
+      const lis = [...p.querySelectorAll("li.wq-li")].reverse() // children before parents
       let shown = 0
-      p.querySelectorAll(".wq-card").forEach((c) => {
-        const hit = inProject && (!q || `#${c.dataset.n} ${c.dataset.title}`.toLowerCase().includes(q))
-        c.classList.toggle("hidden", !hit)
+      lis.forEach((li) => {
+        const card = li.querySelector(":scope > .wq-card")
+        const kid = [...li.querySelectorAll(":scope > ul > li.wq-li")].some((c) => !c.classList.contains("hidden"))
+        const hit = inProject && card && this.matches(card, q, f)
+        li.classList.toggle("hidden", !(hit || kid))
+        card?.classList.toggle("wq-node-context", !hit && kid)
         if (hit) shown++
       })
-      p.classList.toggle("hidden", !inProject || (q && shown === 0))
-      if (q && shown) p.open = true
+      p.classList.toggle("hidden", !inProject || shown === 0)
+      this.applyCollapsed(p, (q || f !== "all") && shown ? false : null)
+    })
+    this.updateCounts()
+  }
+
+  updateCounts() {
+    if (!this.hasTabTarget) return
+    const cards = this.cardTargets
+    this.tabTargets.forEach((t) => {
+      const n = cards.filter((c) => (c.dataset.tags || "").split(" ").includes(t.dataset.f)).length
+      const span = t.querySelector("[data-count]")
+      if (span) span.textContent = n
     })
   }
 
-  projectTargetConnected() { if (this.hasSearchTarget && (this.searchTarget.value || this.projectFilterTarget.value)) this.filter() }
+  toggleProject(e) {
+    const p = e.currentTarget.closest("[data-work-queue-target~='project']")
+    const slug = p.dataset.slug
+    this.collapsed.has(slug) ? this.collapsed.delete(slug) : this.collapsed.add(slug)
+    try { localStorage.setItem("wq-collapsed", JSON.stringify([...this.collapsed])) } catch (_) {}
+    this.applyCollapsed(p)
+  }
+
+  // force: false = open regardless (a filter/search hit), null/undefined = remembered state.
+  applyCollapsed(p, force) {
+    const closed = force === false ? false : this.collapsed.has(p.dataset.slug)
+    p.querySelector(".wq-proj")?.setAttribute("aria-expanded", closed ? "false" : "true")
+    p.querySelector(".wq-tree")?.classList.toggle("hidden", closed)
+  }
+
+  projectTargetConnected(p) {
+    this.applyCollapsed(p)
+    this.highlight(this.selectedValue)
+    this.filter()
+  }
+
+  cardTargetDisconnected() { this.scheduleCounts() }
+  scheduleCounts() { cancelAnimationFrame(this.countsFrame); this.countsFrame = requestAnimationFrame(() => this.filter()) }
 
   // ---- drag a card onto another to merge -------------------------------------
   cardDragStart(e) {
@@ -353,7 +414,7 @@ export default class extends Controller {
   dictate(event) {
     const Rec = window.SpeechRecognition || window.webkitSpeechRecognition
     const form = event.currentTarget.closest("form")
-    const input = form?.querySelector("input[type=text]")
+    const input = event.currentTarget.parentElement?.querySelector("textarea, input[type=text]") || form?.querySelector("textarea, input[type=text]")
     if (!Rec || !input) { input?.focus(); return }
     const rec = new Rec()
     rec.lang = navigator.language || "en-US"
@@ -363,7 +424,7 @@ export default class extends Controller {
     rec.onresult = (e) => { input.value = Array.from(e.results).map((r) => r[0].transcript).join(" ") }
     rec.onend = () => {
       btn.classList.remove("wq-mic-on")
-      if (input.value.trim()) form.requestSubmit()
+      if (input.value.trim() && input.tagName !== "TEXTAREA") form.requestSubmit()
     }
     rec.start()
   }

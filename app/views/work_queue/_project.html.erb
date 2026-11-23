@@ -1,27 +1,31 @@
+<%# One project in the Flow tree: collapsible header with badges, then tasks with follow-ups nested under their parent. %>
 <% selected = local_assigns[:selected] %>
 <% store = WorkQueue::Store.new %>
-<% open, closed = items.partition(&:open?) %>
+<% contexts = items.to_h { |i| [i.key, i.open? ? WorkQueue::ItemContext.new(i, store: store) : nil] } %>
+<% flows = items.to_h { |i| [i.key, contexts[i.key]&.flow || WorkQueue::Flow.new(i)] } %>
+<% ns = items.to_set(&:n) %>
 <% order = WorkQueue::Store::DISPLAY_ORDER %>
-<% counts = open.group_by(&:display_status).transform_values(&:size) %>
-<details id="wq_project_<%= slug %>" class="wq-project" data-slug="<%= slug %>" data-work-queue-target="project" open>
-  <summary class="wq-project-h">
+<% sorted = items.sort_by { |i| [i.open? ? 0 : 1, order.index(i.display_status) || 9, -i.n] } %>
+<% children = sorted.group_by { |i| i.parent && i.parent != i.n && ns.include?(i.parent) ? i.parent : nil } %>
+<% live = flows.values.reject(&:closed?) %>
+<% need = live.count { |f| f.tags.include?("you") } %>
+<% failed = live.count { |f| f.tone == "bad" } %>
+<section id="wq_project_<%= slug %>" class="wq-project" data-slug="<%= slug %>" data-work-queue-target="project">
+  <button type="button" class="wq-proj" aria-expanded="true" aria-controls="wq_tree_<%= slug %>" data-action="work-queue#toggleProject">
+    <svg class="wq-car" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+    <svg class="wq-folder" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
     <span class="truncate"><%= WorkQueue::Store.label(slug) %></span>
-    <span class="wq-counts">
-      <% order.each do |s| %>
-        <% next unless counts[s] %><span class="wq-count-pill wq-s-<%= s %>" title="<%= s %>"><%= counts[s] %></span>
-      <% end %>
-      <span class="wq-count"><%= open.size %> open</span>
+    <span class="wq-proj-cnt">
+      <% if need.positive? %><span class="wq-pbadge wq-pb-you"><%= need %> need you</span><% end %>
+      <% if failed.positive? %><span class="wq-pbadge wq-pb-bad"><%= failed %> failed</span><% end %>
+      <span class="wq-pbadge wq-pb-n" title="Tasks not merged or dropped"><%= live.size %></span>
     </span>
-  </summary>
-  <% open.sort_by { |i| [order.index(i.display_status) || 9, -i.n] }.each do |item| %>
-    <%= render "work_queue/card", item: item, context: WorkQueue::ItemContext.new(item, store: store), selected: selected %>
-  <% end %>
-  <% if closed.any? %>
-    <details class="wq-closed">
-      <summary><%= closed.size %> done / merged / dropped</summary>
-      <% closed.sort_by { |i| -i.n }.first(30).each do |item| %>
-        <%= render "work_queue/card", item: item, context: nil, selected: selected %>
-      <% end %>
-    </details>
-  <% end %>
-</details>
+  </button>
+  <div id="wq_tree_<%= slug %>" class="wq-tree">
+    <%= render "work_queue/tree", nodes: children[nil] || [], children: children, contexts: contexts, flows: flows,
+                                  selected: selected, depth: 0, seen: (seen = Set.new) %>
+    <%# Parent cycles never reach a root; show those items flat so nothing disappears. %>
+    <%= render "work_queue/tree", nodes: sorted.reject { |i| seen.include?(i.n) }, children: {}, contexts: contexts, flows: flows,
+                                  selected: selected, depth: 0, seen: seen %>
+  </div>
+</section>

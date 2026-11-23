@@ -95,23 +95,23 @@ class WorkQueueController < ApplicationController
     redirect_to work_queue_settings_path(slug: slug.presence), notice: notice
   end
 
+  # One answer (index + text, from a chip or old clients) or several at once from
+  # the question box: answers[i] = picked option, custom[i] = free text (wins).
   def answer
-    index = params[:index].to_i
-    text = params[:text].to_s.strip
-    return toast("Pick an option or type an answer", :error) if text.blank?
+    pairs = answer_pairs
+    return toast("Pick an option or type an answer", :error) if pairs.empty?
 
-    note = "Q: #{@item.questions[index]&.q}\nA: #{text}"
     unless dispatcher.listening?
-      writer.answer(@item.slug, @item.n, index, text)
-      WorkQueue::Broadcaster.run_entries(@item.key, [qa_entry(note)])
-      WorkQueue::RunState.append_stream(@item.key, { "note" => note, "kind" => "qa" })
-      WorkQueue::RunState.enqueue("answer", @item.key, text: text, q: @item.questions[index]&.q) if WorkQueue::RunState.server_run?(@item.key)
-      return toast(runner_note("Answered ##{@item.n}"), :ok)
+      pairs.each { |index, text| answer_on_server(index, text) }
+      return toast(runner_note("Answered task #{@item.n}"), :ok)
     end
 
-    result = dispatcher.answer(index, text)
-    WorkQueue::Broadcaster.item_note(@item, note) if result.sent
-    respond_with_dispatch(result, "Answer sent to ##{@item.n}")
+    results = pairs.map do |index, text|
+      result = dispatcher.answer(index, text)
+      WorkQueue::Broadcaster.item_note(@item, "Q: #{@item.questions[index]&.q}\nA: #{text}") if result.sent
+      result
+    end
+    respond_with_dispatch(results.find { |r| !r.sent } || results.last, "#{'Answer'.pluralize(pairs.size)} sent to task #{@item.n}")
   end
 
   def instruct
@@ -166,6 +166,26 @@ class WorkQueueController < ApplicationController
   def load_item
     @item = WorkQueue::Store.new.find(params[:id])
     head :not_found unless @item
+  end
+
+  def answer_pairs
+    return [[params[:index].to_i, params[:text].to_s.strip]].reject { |_, t| t.blank? } unless params.key?(:answers) || params.key?(:custom)
+
+    picked = params.permit(answers: {})[:answers].to_h
+    custom = params.permit(custom: {})[:custom].to_h
+    (picked.keys | custom.keys).filter_map do |k|
+      index = Integer(k, exception: false)
+      text = custom[k].to_s.strip.presence || picked[k].to_s.strip
+      [index, text] if index && text.present? && @item.questions[index]
+    end.sort_by(&:first)
+  end
+
+  def answer_on_server(index, text)
+    note = "Q: #{@item.questions[index]&.q}\nA: #{text}"
+    writer.answer(@item.slug, @item.n, index, text)
+    WorkQueue::Broadcaster.run_entries(@item.key, [qa_entry(note)])
+    WorkQueue::RunState.append_stream(@item.key, { "note" => note, "kind" => "qa" })
+    WorkQueue::RunState.enqueue("answer", @item.key, text: text, q: @item.questions[index]&.q) if WorkQueue::RunState.server_run?(@item.key)
   end
 
   def dispatcher = @dispatcher ||= WorkQueue::Dispatcher.new(@item)

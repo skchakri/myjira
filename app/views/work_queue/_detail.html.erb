@@ -6,14 +6,12 @@
 <% end %>
 <section class="wq-main wq-detail-grid" data-key="<%= item.key %>" data-slug="<%= item.slug %>">
   <%= render "work_queue/log_header", item: item, context: context %>
+  <h3 class="wq-eyebrow wq-log-label">Live log</h3>
   <div class="wq-log" data-work-queue-target="log" data-action="scroll->work-queue#logScrolled">
     <% if context.transcript_path.nil? && !context.server_run? %>
       <p class="wq-empty" role="status"><%= WorkQueue::Transcript.missing_reason(item) %></p>
     <% end %>
     <ol id="wq_log_entries" class="wq-entries">
-      <% item.log.each do |l| %>
-        <li class="wq-entry wq-k-queue"><span class="wq-time"><%= Time.zone.at(l["at"].to_i / 1000).strftime("%H:%M") %></span> <%= wq_linkify(l["text"], item.slug) %></li>
-      <% end %>
       <% label = "##{item.n}" %>
       <% entries.each do |e| %>
         <%= render "work_queue/entry", entry: e, results: entries, slug: item.slug, label: label %>
@@ -22,9 +20,9 @@
     <button type="button" class="wq-jump hidden" data-work-queue-target="jump" data-action="work-queue#jumpToEnd">Jump to latest</button>
   </div>
   <%= form_with url: work_queue_item_instruct_path(item.key), data: { turbo_stream: true, action: "turbo:submit-end->work-queue#resetForm" }, class: "wq-instruct" do %>
-    <span class="wq-n">#<%= item.n %></span>
+    <span class="wq-n">task <%= item.n %></span>
     <span class="wq-ref-chips" data-work-queue-target="refChips"></span>
-    <%= text_area_tag :text, nil, rows: 1, placeholder: "Instruct or chat with this item's session… (Enter to send)", class: "wq-input wq-instruct-input", "aria-label": "Instruction", data: { work_queue_target: "instruct", action: "input->work-queue#scanRefs keydown->work-queue#instructKey" } %>
+    <%= text_area_tag :text, nil, rows: 1, placeholder: "Tell the agent on this task what to do… (Enter to send)", class: "wq-input wq-instruct-input", "aria-label": "Instruction", data: { work_queue_target: "instruct", action: "input->work-queue#scanRefs keydown->work-queue#instructKey" } %>
     <button type="button" class="wq-mic" aria-label="Speak instruction" data-action="work-queue#dictate">mic</button>
     <button class="wq-btn wq-btn-primary">Send</button>
   <% end %>

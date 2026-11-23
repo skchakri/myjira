@@ -1,0 +1,13 @@
+<% if nodes.any? %>
+  <ul class="wq-kids">
+    <% nodes.each do |item| %>
+      <% next if seen.include?(item.n) %>
+      <% seen << item.n %>
+      <li class="wq-li">
+        <%= render "work_queue/card", item: item, context: contexts[item.key], flow: flows[item.key], selected: selected, depth: depth %>
+        <%= render "work_queue/tree", nodes: children[item.n] || [], children: children, contexts: contexts, flows: flows,
+                                      selected: selected, depth: depth + 1, seen: seen %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

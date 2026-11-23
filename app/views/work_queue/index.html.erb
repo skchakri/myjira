@@ -29,14 +29,24 @@
   </div>
 
   <div class="wq-grid">
-    <aside class="wq-list" aria-label="Queue items">
+    <nav class="wq-list" aria-label="Projects and tasks">
       <%= render "work_queue/composer" %>
       <div class="wq-filter">
-        <input type="search" class="wq-input" placeholder="Search items…" aria-label="Search items" data-work-queue-target="search" data-action="input->work-queue#filter">
+        <input type="search" class="wq-input" placeholder="Search tasks…" aria-label="Search tasks" data-work-queue-target="search" data-action="input->work-queue#filter">
         <select class="wq-input wq-input-sm" aria-label="Project filter" data-work-queue-target="projectFilter" data-action="change->work-queue#filter">
           <option value="">All projects</option>
           <% @projects.each_key do |slug| %><option value="<%= slug %>"><%= WorkQueue::Store.label(slug) %></option><% end %>
         </select>
+      </div>
+      <div class="wq-chipbar" role="group" aria-label="Show">
+        <% WorkQueue::Flow::FILTERS.each do |key, label| %>
+          <button type="button" class="wq-tab" aria-pressed="<%= key == 'all' %>" data-f="<%= key %>"
+                  data-work-queue-target="tab" data-action="work-queue#pickFilter"><%= label %> <span class="wq-tab-n" data-count></span></button>
+        <% end %>
+      </div>
+      <div class="wq-legend" aria-hidden="true">
+        <span><i class="wq-dot wq-t-you"></i>needs you</span><span><i class="wq-dot wq-t-run"></i>in progress</span>
+        <span><i class="wq-dot wq-t-bad"></i>failed</span><span><i class="wq-dot wq-t-ok"></i>live</span><span><i class="wq-dot wq-t-wait"></i>queued</span>
       </div>
       <% if @projects.empty? %>
         <p class="wq-empty">No queue files in <code><%= WorkQueue::Store.dir %></code> yet.</p>
@@ -44,15 +54,15 @@
       <% @projects.each do |slug, items| %>
         <%= render "work_queue/project", slug: slug, items: items, selected: @item&.key %>
       <% end %>
-    </aside>
+    </nav>
 
     <%= turbo_frame_tag "wq_detail", class: "wq-detail", src: (work_queue_item_detail_path(@item.key) if @item),
                                      data: { work_queue_target: "frame", action: "turbo:before-fetch-request->work-queue#frameLoading" } do %>
       <% if @item %>
-        <div class="wq-placeholder"><p class="text-[13px]">Loading #<%= @item.n %>…</p></div>
+        <div class="wq-placeholder"><p class="text-[13px]">Loading task <%= @item.n %>…</p></div>
       <% else %>
         <div class="wq-placeholder">
-          <p class="text-[13px]">Pick an item to see its live log.</p>
+          <p class="text-[13px]">Pick a task to see what is happening and what it needs from you.</p>
           <p class="text-[12px] mt-1 opacity-70">Press <kbd>j</kbd> / <kbd>k</kbd> then <kbd>Enter</kbd>.</p>
         </div>
       <% end %>

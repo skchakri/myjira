@@ -1,37 +1,28 @@
+<%# One tree node. Replaced in place by WorkQueue::Broadcaster.cards_changed (its follow-ups live in the parent <li>). %>
 <% active = local_assigns[:selected] == item.key %>
-<article id="<%= item.dom_id %>" class="wq-card <%= 'wq-card-active' if active %>"
+<% flow = local_assigns[:flow] || context&.flow || WorkQueue::Flow.new(item, context) %>
+<% follow_up = local_assigns.key?(:depth) ? depth.to_i.positive? : item.parent.present? %>
+<% qs = item.open_questions.size %>
+<article id="<%= item.dom_id %>" class="wq-card wq-node <%= 'wq-card-active' if active %>"
          data-work-queue-target="card" data-key="<%= item.key %>" data-slug="<%= item.slug %>" data-n="<%= item.n %>"
-         data-status="<%= item.display_status %>" data-title="<%= item.title %>"
+         data-status="<%= item.display_status %>" data-title="<%= item.title %>" data-tags="<%= flow.tags.join(' ') %>" data-tone="<%= flow.tone %>"
          <% if item.open? %>draggable="true" data-action="dragstart->work-queue#cardDragStart dragover->work-queue#cardDragOver dragleave->work-queue#cardDragLeave drop->work-queue#cardDrop dragend->work-queue#cardDragEnd"<% end %>>
-  <div class="flex items-start gap-2">
-    <% if item.open? %>
-      <input type="checkbox" class="wq-check" aria-label="Select #<%= item.n %>" data-action="work-queue#select" value="<%= item.key %>">
-    <% end %>
-    <%= link_to work_queue_item_detail_path(item.key), class: "wq-card-link", data: { turbo_frame: "wq_detail", work_queue_target: "link", action: "click->work-queue#open" } do %>
-      <span class="wq-n">#<%= item.n %></span>
-      <span class="wq-title"><%= item.title %></span>
-    <% end %>
-    <% if item.pending? %>
-      <%= button_to work_queue_item_run_path(item.key), class: "wq-icon-btn", title: "Run now (r)", "aria-label": "Run ##{item.n} now",
-                    form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
-      <% end %>
-    <% end %>
-    <%= render "work_queue/badge", item: item %>
-    <%= wq_copy_menu(item, context) %>
-  </div>
   <% if item.open? %>
-    <%= render "work_queue/git", item: item, context: context %>
-    <% if context&.card_merge? || item.pr.present? || item.open_questions.any? %>
-      <div class="wq-card-actions">
-        <%= render "work_queue/questions", item: item %>
-        <% if context&.card_merge? %>
-          <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge PR", context: context %>
-        <% end %>
-        <% if item.pr.present? %>
-          <a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">PR <%= item.pr_number ? "##{item.pr_number}" : "" %></a>
-        <% end %>
-      </div>
+    <input type="checkbox" class="wq-check" aria-label="Select task <%= item.n %> to group" data-action="work-queue#select" value="<%= item.key %>">
+  <% end %>
+  <%= link_to work_queue_item_detail_path(item.key), class: "wq-card-link", "aria-current": active ? "true" : "false",
+              data: { turbo_frame: "wq_detail", work_queue_target: "link", action: "click->work-queue#open" } do %>
+    <span class="wq-dot wq-t-<%= flow.tone %>" aria-hidden="true"></span>
+    <span class="wq-node-body">
+      <span class="wq-node-t"><% if follow_up %><span class="wq-leaf-tag">follow-up · </span><% end %><span class="wq-title"><%= item.title %></span></span>
+      <span class="wq-node-s"><%= flow.label %></span>
+    </span>
+    <% if qs.positive? %><span class="wq-node-q" title="<%= pluralize(qs, 'open question') %>"><%= qs %> ?</span><% end %>
+  <% end %>
+  <% if item.pending? %>
+    <%= button_to work_queue_item_run_path(item.key), class: "wq-icon-btn", title: "Run now (r)", "aria-label": "Run task #{item.n} now",
+                  form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>
+      <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
     <% end %>
   <% end %>
 </article>
