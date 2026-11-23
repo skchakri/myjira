@@ -78,6 +78,9 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     cmd = r.command
     assert_equal %w[claude -p], cmd.first(2)
     %w[--model claude-sonnet-5-5 --effort medium --permission-mode acceptEdits --resume sess-1 --allowedTools].each { |f| assert_includes cmd, f }
+    assert_includes cmd, "Bash(git push:*)"
+    assert_includes cmd, "Bash(bin/rails test:*)"
+    assert_equal "Bash(git push origin main:*)", cmd[cmd.index("--disallowedTools") + 1]
 
     result = WorkQueue::SessionRunner::Result.new(denials: [])
     r.handle({ type: "system", subtype: "init", session_id: "S" }.to_json, result)

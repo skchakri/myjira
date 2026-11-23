@@ -92,6 +92,7 @@ module WorkQueue
       file = path(slug)
       FileUtils.mkdir_p(@dir)
       File.open("#{file}.lock", File::RDWR | File::CREAT, 0o644) do |lock|
+        match_owner(lock.path)
         lock.flock(File::LOCK_EX)
         data = file.exist? ? JSON.parse(File.read(file)) : { "items" => [] }
         items = data.is_a?(Hash) ? (data["items"] ||= []) : data
