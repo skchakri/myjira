@@ -8,7 +8,7 @@ const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content
 
 export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
-                    "notifyBtn", "help", "question", "answer", "merge",
+                    "notifyBtn", "help", "question", "suggestions", "answer", "merge",
                     "composer", "composerText", "files", "fileList", "project", "search", "projectFilter",
                     "confirm", "confirmText", "instruct", "refChips", "frame", "tab", "grid"]
   static values = { selected: String, groupUrl: String }
@@ -406,7 +406,15 @@ export default class extends Controller {
     try { sessionStorage.removeItem(this.draftKey(e.currentTarget)) } catch (_) {}
   }
 
-  questionTargetConnected(box) {
+  questionTargetConnected(box) { this.restoreBox(box) }
+
+  // A suggestions block can be replaced on its own (its own stream target): re-apply the draft + focus.
+  suggestionsTargetConnected(el) {
+    const box = el.closest(".wq-qbox[data-item-key]")
+    if (box) this.restoreBox(box)
+  }
+
+  restoreBox(box) {
     let draft = null
     try { draft = JSON.parse(sessionStorage.getItem(this.draftKey(box)) || "null") } catch (_) {}
     if (draft) this.writeDraft(box, draft)
@@ -424,9 +432,15 @@ export default class extends Controller {
   // Before a stream swaps the header, snapshot the live form (in memory + sessionStorage) and the caret.
   keepDraftAcrossStream(e) {
     const target = e.target?.getAttribute?.("target")
-    const old = target && document.getElementById(target)
-    if (!old) return
-    const boxes = old.matches?.(".wq-qbox") ? [old] : [...old.querySelectorAll(".wq-qbox[data-item-key]")]
+    const selector = e.target?.getAttribute?.("targets")
+    let olds = []
+    if (target) olds = [document.getElementById(target)].filter(Boolean)
+    else if (selector) { try { olds = [...document.querySelectorAll(selector)] } catch (_) {} }
+    if (!olds.length) return
+    const boxes = [...new Set(olds.flatMap((old) => {
+      const up = old.closest?.(".wq-qbox[data-item-key]")
+      return up ? [up] : [...old.querySelectorAll(".wq-qbox[data-item-key]")]
+    }))]
     if (!boxes.length) return
     boxes.forEach((box) => {
       const draft = this.readDraft(box)

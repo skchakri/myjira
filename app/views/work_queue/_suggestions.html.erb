@@ -1,12 +1,14 @@
 <%# Suggested answers (WorkQueue::Suggestions) for a question that came without options.
     Rendered inside the question box form; replaced live when suggestions arrive. %>
 <% answers = local_assigns[:answers] %>
-<div class="wq-chips <%= WorkQueue::Suggestions.dom_class(item, question) %>">
+<%# Chip ids are stable (item + question index + digest of the answer text) so focus and picks
+    survive both a full question-box re-render and a replace of just this block. %>
+<div class="wq-chips <%= WorkQueue::Suggestions.dom_class(item, question) %>" data-work-queue-target="suggestions" data-item-key="<%= item.key %>">
   <% if answers.present? %>
     <span class="wq-hint wq-sugg-label" title="Suggested by <%= WorkQueue::Suggestions::MODEL %>">suggested</span>
     <% answers.each_with_index do |opt, k| %>
       <label class="wq-chip <%= 'wq-chip-rec' if k.zero? %>">
-        <input type="radio" class="wq-chip-input" name="answers[<%= index %>]" value="<%= opt %>" data-option="<%= k + 1 %>">
+        <input type="radio" class="wq-chip-input" id="<%= WorkQueue::Suggestions.chip_id(item, index, opt) %>" name="answers[<%= index %>]" value="<%= opt %>" data-option="<%= k + 1 %>">
         <kbd><%= k + 1 %></kbd> <span><%= opt %></span>
       </label>
     <% end %>

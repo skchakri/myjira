@@ -18,6 +18,7 @@ module WorkQueue
     def digest(question) = Digest::SHA256.hexdigest(question.to_s)[0, 16]
     def cache_key(question) = "#{RunState::PREFIX}:sugg:#{digest(question)}"
     def dom_class(item, question) = "wq-sugg-#{item.slug}-#{item.n}-#{digest(question)}"
+    def chip_id(item, index, answer) = "wq_sugg_#{item.key.parameterize}_#{index}_#{digest(answer)[0, 10]}"
 
     def get(question)
       raw = redis.get(cache_key(question))

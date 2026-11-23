@@ -203,6 +203,20 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_select ".wq-qbox .wq-free textarea[name='custom[0]']"
   end
 
+  test "suggestion chips have stable ids across re-renders" do
+    WorkQueue::QueueWriter.new(dir: @dir).ask("home-me-app", 1, [{ q: "Which DB?" }])
+    WorkQueue::RunState.redis.set(WorkQueue::Suggestions.cache_key("Which DB?"), %w[Postgres MySQL].to_json)
+    ids = 2.times.map do
+      get work_queue_item_detail_path("home-me-app:1")
+      assert_select ".wq-qbox .wq-chips[data-work-queue-target=suggestions][data-item-key='home-me-app:1']"
+      css_select(".wq-qbox .wq-chips input.wq-chip-input").map { |el| el["id"] }
+    end
+    assert_equal 2, ids.first.size
+    assert ids.first.all? { |id| id.start_with?("wq_sugg_home-me-app-1_0_") }
+    assert_equal ids.first.uniq, ids.first
+    assert_equal ids.first, ids.last
+  end
+
   test "settings edit a project's always-allow rules" do
     WorkQueue::RunState.save_project("home-me-app", "always_allow" => ["Bash(ls:*)", "WebFetch"])
     get work_queue_settings_path(slug: "home-me-app")
