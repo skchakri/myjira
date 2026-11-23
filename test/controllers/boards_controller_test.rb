@@ -90,4 +90,14 @@ class BoardsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, moved.position
     assert_equal 2, dest_existing.reload.position
   end
+
+  test "answer_questions stores answers only for this item's question ids" do
+    task = item("Needs input", "pending")
+    task.ask_questions!(questions: [ "Which db?", "Which port?" ])
+    post board_item_answer_questions_path(@project, task),
+         params: { answers: { q1: "postgres", q2: "5432", evil: "x" } }
+    assert_redirected_to [ @project, task ]
+    answers = task.reload.pending_questions.to_h { |q| [ q["id"], q["a"] ] }
+    assert_equal({ "q1" => "postgres", "q2" => "5432" }, answers)
+  end
 end

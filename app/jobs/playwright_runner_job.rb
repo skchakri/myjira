@@ -7,9 +7,12 @@ require "open3"
 class PlaywrightRunnerJob < ApplicationJob
   queue_as :default
 
+  RUN_ID_FORMAT = /\A[0-9a-f-]{1,64}\z/i
+  BASE_URL_FORMAT = %r{\Ahttps?://[^\s"'`$;|&<>]+\z}
+
   def perform(run_id, myjira_base_url)
     script_dir = Rails.root.join("script/playwright_runner")
-    cmd = [ "node", "index.js", "--run-id=#{run_id}", "--myjira=#{myjira_base_url}", "--headless" ]
+    cmd = self.class.command(run_id, myjira_base_url)
 
     Rails.logger.info("[playwright_runner] spawn #{cmd.join(' ')} (cwd=#{script_dir})")
 
@@ -25,5 +28,16 @@ class PlaywrightRunnerJob < ApplicationJob
   rescue => e
     Rails.logger.error("[playwright_runner] #{e.class}: #{e.message}")
     raise
+  end
+
+  # argv for the runner. Spawned without a shell (array form), and both values
+  # are validated first so nothing odd ever reaches node's argument parser.
+  def self.command(run_id, myjira_base_url)
+    run_id = run_id.to_s
+    myjira_base_url = myjira_base_url.to_s
+    raise ArgumentError, "invalid run id: #{run_id.inspect}" unless run_id.match?(RUN_ID_FORMAT)
+    raise ArgumentError, "invalid myjira url: #{myjira_base_url.inspect}" unless myjira_base_url.match?(BASE_URL_FORMAT)
+
+    [ "node", "index.js", "--run-id=#{run_id}", "--myjira=#{myjira_base_url}", "--headless" ]
   end
 end

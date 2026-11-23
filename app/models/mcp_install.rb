@@ -19,7 +19,7 @@ class McpInstall < ApplicationRecord
   # Remote (http/sse) servers are URL-only under the stateless 2026-07-28 spec —
   # the daemon hands the URL straight to `claude mcp add --transport`. Require a
   # real http(s) endpoint so a malformed/relative URL can't reach the host CLI.
-  REMOTE_URL_FORMAT = %r{\Ahttps?://}
+  REMOTE_URL_FORMAT = %r{\Ahttps?://\S+\z}
 
   belongs_to :project, optional: true
 

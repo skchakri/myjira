@@ -49,4 +49,10 @@ class McpServerTest < ActiveSupport::TestCase
     assert_equal "npx -y pkg", server(transport: "stdio", command: "npx", args: ["-y", "pkg"]).endpoint_label
     assert_equal "https://x/mcp", server(transport: "http", url: "https://x/mcp").endpoint_label
   end
+
+  test "a url with trailing junk after a newline is rejected" do
+    srv = server(transport: "http", url: "https://ok.example/mcp\njavascript:alert(1)")
+    assert_not srv.valid?
+    assert_not_empty srv.errors[:url]
+  end
 end

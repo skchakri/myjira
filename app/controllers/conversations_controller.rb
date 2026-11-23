@@ -88,11 +88,26 @@ class ConversationsController < ApplicationController
   # viewer page; HTML/PDF and friends stream inline.
   INLINE_TEXT_EXTENSIONS = %w[.md .markdown .mdx .txt .rst .adoc .csv .tsv].freeze
 
+  # Second fence on top of the transcript allowlist: a served document must
+  # also resolve (symlinks included) under one of these fixed roots.
+  # Override with MYJIRA_DOCUMENT_ROOTS (colon-separated).
+  DOCUMENT_ROOTS = ENV.fetch("MYJIRA_DOCUMENT_ROOTS", "/home/kalyan:/tmp").split(":").reject(&:blank?).freeze
+
+  def self.allowed_document_path(path)
+    return nil if path.blank?
+
+    expanded = File.expand_path(path.to_s)
+    resolved = File.exist?(expanded) ? File.realpath(expanded) : expanded
+    root = DOCUMENT_ROOTS.find { |r| resolved.start_with?(File.join(File.expand_path(r), "")) }
+    root && resolved
+  end
+
   def document
     @conversation = Conversation.find(params[:id])
     # Match against the conversation's own records so the served path comes
     # from the DB, never straight from the request.
-    @path = @conversation.document_paths.find { |p| p == params[:path].to_s }
+    recorded = @conversation.document_paths.find { |p| p == params[:path].to_s }
+    @path = self.class.allowed_document_path(recorded)
     return redirect_to conversation_path(@conversation), alert: "That document isn't part of this session." unless @path
 
     @missing = !File.file?(@path)

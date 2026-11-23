@@ -1,0 +1,51 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "File Access",
+      "warning_code": 16,
+      "fingerprint": "9d691d516eed9dfd97c1a7d1edff0b5761a924152d93296dfebaa8e994b09aba",
+      "check_name": "SendFile",
+      "message": "Model attribute used in file name",
+      "file": "app/controllers/conversations_controller.rb",
+      "line": 120,
+      "link": "https://brakemanscanner.org/docs/warning_types/file_access/",
+      "code": "send_file(self.class.allowed_document_path(Conversation.find(params[:id]).document_paths.find do\n (p == params[:path].to_s)\n end), :disposition => \"inline\")",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "ConversationsController",
+        "method": "document"
+      },
+      "user_input": "Conversation.find(params[:id]).document_paths",
+      "confidence": "Weak",
+      "cwe_id": [
+        22
+      ],
+      "note": "Verified false positive: the path comes only from this conversation's recorded Write-tool document paths (exact match on the request value), and ConversationsController.allowed_document_path then resolves it with realpath and requires it to sit under a fixed root (MYJIRA_DOCUMENT_ROOTS, default /home/kalyan:/tmp). Covered by test/controllers/conversations_controller_test.rb."
+    },
+    {
+      "warning_type": "File Access",
+      "warning_code": 16,
+      "fingerprint": "fcba9e4b451c02b523a6a73a4ec3e11df7d632344ac07c3f9422b799c8c85207",
+      "check_name": "FileAccess",
+      "message": "Model attribute used in file name",
+      "file": "app/controllers/conversations_controller.rb",
+      "line": 116,
+      "link": "https://brakemanscanner.org/docs/warning_types/file_access/",
+      "code": "File.read(self.class.allowed_document_path(Conversation.find(params[:id]).document_paths.find do\n (p == params[:path].to_s)\n end))",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "ConversationsController",
+        "method": "document"
+      },
+      "user_input": "Conversation.find(params[:id]).document_paths",
+      "confidence": "Weak",
+      "cwe_id": [
+        22
+      ],
+      "note": "Verified false positive: the path comes only from this conversation's recorded Write-tool document paths (exact match on the request value), and ConversationsController.allowed_document_path then resolves it with realpath and requires it to sit under a fixed root (MYJIRA_DOCUMENT_ROOTS, default /home/kalyan:/tmp). Covered by test/controllers/conversations_controller_test.rb."
+    }
+  ],
+  "brakeman_version": "8.1.1"
+}

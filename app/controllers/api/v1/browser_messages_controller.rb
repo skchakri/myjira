@@ -29,7 +29,10 @@ module Api
 
       def message_params
         raw = params[:message] || params
-        permitted = raw.permit(:role, :kind, :body, payload: {})
+        permitted = raw.permit(:kind, :body, payload: {})
+        # role is restricted to the known speakers rather than mass-assigned.
+        role = raw[:role].to_s
+        permitted[:role] = role if BrowserMessage::ROLES.include?(role)
         permitted[:kind] = "message" if permitted[:kind].blank?
         permitted
       end

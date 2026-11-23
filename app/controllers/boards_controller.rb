@@ -233,9 +233,10 @@ class BoardsController < ApplicationController
   # Human answered the planner's questions. Store them and resume the planning
   # session, passing the answers so it can finalize the plan.
   def answer_questions
-    # answers is keyed by question id (q1, q2, …) — dynamic keys, so permit! the
-    # whole sub-hash (no-auth app; record_answers! coerces values to strings).
-    @task.record_answers!(params.fetch(:answers, {}).permit!.to_h)
+    # answers is keyed by question id (q1, q2, …); permit exactly the ids this
+    # task is asking about (record_answers! coerces values to strings).
+    question_ids = Array(@task.pending_questions).filter_map { |q| q["id"].presence }
+    @task.record_answers!(params.fetch(:answers, {}).permit(*question_ids).to_h)
     answered = @task.pending_questions.map { |q| "Q: #{q['q']}\nA: #{q['a']}" }.join("\n\n")
     resume_planner!("The user answered your questions:\n\n#{answered}\n\n" \
                     "Finalize the implementation plan and PATCH it back " \

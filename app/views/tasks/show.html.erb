@@ -19,8 +19,8 @@
         <% @task.labels.each do |l| %><span class="pill pill-quiet font-mono !py-0 !px-1.5 !text-[10px]"><%= l %></span><% end %>
       <% end %>
       <% if @task.external_ref.present? %>
-        <% if @task.external_url.present? %>
-          <%= link_to "#{@task.external_ref} ↗", @task.external_url, target: "_blank", rel: "noopener", title: "View in Jira", class: "text-xs font-mono text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] underline decoration-dotted" %>
+        <% if safe_external_url(@task.external_url) %>
+          <%= link_to "#{@task.external_ref} ↗", safe_external_url(@task.external_url), target: "_blank", rel: "noopener", title: "View in Jira", class: "text-xs font-mono text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)] underline decoration-dotted" %>
         <% else %>
           <span class="text-xs font-mono text-[color:var(--color-ink-soft)]"><%= @task.external_ref %></span>
         <% end %>

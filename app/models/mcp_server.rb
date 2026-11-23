@@ -11,7 +11,7 @@ class McpServer < ApplicationRecord
   # Mirror of McpInstall::REMOTE_URL_FORMAT — a synced remote server must carry a
   # real http(s) endpoint. Applied only when a url is present so stdio rows (no
   # url) and partially-synced rows aren't rejected.
-  REMOTE_URL_FORMAT = %r{\Ahttps?://}
+  REMOTE_URL_FORMAT = %r{\Ahttps?://\S+\z}
 
   belongs_to :project, optional: true
 

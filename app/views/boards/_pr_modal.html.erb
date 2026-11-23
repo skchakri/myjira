@@ -9,8 +9,8 @@
           <div id="board-modal-heading" class="text-sm font-medium truncate"><%= task.title %></div>
         </div>
         <div class="flex items-center gap-3 shrink-0">
-          <% if task.pr_url.present? %>
-            <%= link_to "Open on GitHub ↗", task.pr_url, target: "_blank", rel: "noopener", class: "pill pill-accent" %>
+          <% if safe_external_url(task.pr_url) %>
+            <%= link_to "Open on GitHub ↗", safe_external_url(task.pr_url), target: "_blank", rel: "noopener", class: "pill pill-accent" %>
           <% end %>
           <button data-action="modal#close" class="text-lg leading-none px-1" aria-label="Close">✕</button>
         </div>
