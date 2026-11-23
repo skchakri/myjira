@@ -12,7 +12,7 @@ module WorkQueue
 
     Item = Struct.new(:slug, :n, :title, :description, :status, :questions, :log, :created_at,
                       :updated_at, :session, :agent, :branch, :pr, :summary, :parent,
-                      :awaiting_approval, :merged_into, :ready_to_bundle, :bundle, keyword_init: true) do
+                      :awaiting_approval, :merged_into, :ready_to_bundle, :bundle, :repo, keyword_init: true) do
       def key = "#{slug}:#{n}"
       def dom_id = "wq_item_#{slug}_#{n}"
       def open? = OPEN.include?(status)
@@ -99,7 +99,8 @@ module WorkQueue
         created_at: ms(h["createdAt"]), updated_at: ms(h["updatedAt"]),
         session: h["session"], agent: h["agent"], branch: h["branch"], pr: h["pr"].presence,
         summary: h["summary"], parent: h["parent"]&.to_i, awaiting_approval: h["awaitingApproval"] == true,
-        merged_into: h["mergedInto"], ready_to_bundle: h["readyToBundle"] == true, bundle: h["bundle"]
+        merged_into: h["mergedInto"], ready_to_bundle: h["readyToBundle"] == true, bundle: h["bundle"],
+        repo: h["repo"].presence
       )
     end
 

@@ -5,7 +5,7 @@ module WorkQueue
   # phases plan → implement → review run as resumes of one Claude session, each
   # with the model/effort the Router picks.
   class Supervisor
-    MAX_RUNNING = ENV.fetch("WORK_QUEUE_MAX_RUNNING", 12).to_i
+    MAX_RUNNING = ENV.fetch("WORK_QUEUE_MAX_RUNNING", 4).to_i
     MAX_ATTEMPTS = 2
     NEXT_PHASE = { "plan" => "implement", "implement" => "review", "trivial" => nil, "review" => nil, "relay" => nil }.freeze
     PERMISSION_OPTIONS = ["Allow once", "Always allow in this project", "Deny"].freeze

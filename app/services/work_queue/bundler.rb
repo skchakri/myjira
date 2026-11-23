@@ -60,11 +60,25 @@ module WorkQueue
       ship(item.slug, root, members, branch_for(root, items))
     end
 
+    # Members whose repo differs from the root's can't share its PR: each ships
+    # as its own one-item bundle (and PR) in its own repo.
     def ship(slug, root, items, branch)
-      repo = @repo_for.call(slug) or return @logger.warn("[work-queue] bundle #{slug}:#{root.n} waiting: no repo_path")
+      root_repo = repo_of(root)
+      own, foreign = items.partition { |i| repo_of(i) == root_repo }
+      foreign.each { |i| ship_in(repo_of(i), slug, i, [i], solo_branch(i), onto: nil) }
+      return if own.empty?
+
+      onto = open_bundle(root, @store.items_for(slug)) == branch ? branch : nil
+      ship_in(root_repo, slug, root, own, branch, onto: onto)
+    end
+
+    private
+
+    def ship_in(repo, slug, root, items, branch, onto:)
+      return @logger.warn("[work-queue] bundle #{slug}:#{root.n} waiting: no repo_path") unless repo
+
       path = "#{repo}-bundle-#{root.n}"
       members = items.map { |i| Member.new(i, i.branch) }
-      onto = open_bundle(root, @store.items_for(slug)) == branch ? branch : nil
       log(slug, items, onto ? "Adding #{items.size} item(s) to the open bundle #{branch}" : "Bundling #{items.size} item(s) into #{branch}")
 
       base = setup(repo, path, onto: onto)
@@ -86,7 +100,10 @@ module WorkQueue
       cleanup(repo, path) if repo && path
     end
 
-    private
+    # An item's own repo (set when it lives in a different repo than its project), else the project's.
+    def repo_of(item) = item.repo.presence || @repo_for.call(item.slug)
+
+    def solo_branch(item) = "bundle/#{item.n}-#{item.title.parameterize.first(40)}"
 
     def candidate?(i) = i.ready_to_bundle? && i.bundle_info.blank?
 
