@@ -12,6 +12,10 @@ module WorkQueue
       ```wq-questions
       [{"q": "question", "options": ["recommended answer", "alternative"]}]
       ```
+      Your working directory is this item's own worktree. Change files only with Edit/Write (never echo or
+      redirects). Run git as single plain commands from the working directory, one per call, with no `-C`,
+      `cd`, `&&` or pipes: `git add <files>`, `git commit -m "..."`, `git push -u origin HEAD`. Never push
+      to main and never force-push.
       Otherwise finish the phase and end with a one-line summary. Never open a PR: the queue bundles this
       item with its parent and follow-ups and opens one PR for all of them.
     TXT
