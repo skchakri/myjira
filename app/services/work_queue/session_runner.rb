@@ -12,6 +12,7 @@ module WorkQueue
       ```wq-questions
       [{"q": "question", "options": ["recommended answer", "alternative"]}]
       ```
+      Explore the code with the Read, Glob and Grep tools rather than shell pipelines. Scratch files go in /tmp.
       Your working directory is this item's own worktree. Change files only with Edit/Write (never echo or
       redirects). Run git as single plain commands from the working directory, one per call, with no `-C`,
       `cd`, `&&` or pipes: `git add <files>`, `git commit -m "..."`, `git push -u origin HEAD`. Never push
@@ -35,6 +36,13 @@ module WorkQueue
 
     # Bundled items must commit and push their own branch; never main.
     GIT_ALLOWED = ["add", "commit", "push", "status", "diff", "log"].map { |c| "Bash(git #{c}:*)" }.freeze
+    # Read-only shell commands, scratch writes under /tmp, and filing plans as myjira docs,
+    # so planning never stalls on a prompt nobody can answer.
+    RELAY = "#{Dir.home}/.claude/skills/myjira-relay/bin/relay".freeze
+    READ_ALLOWED = (%w[ls cat head tail wc grep rg pwd sort uniq diff file stat which].map { |c| "Bash(#{c}:*)" } +
+                    ["Bash(git show:*)", "Bash(git branch:*)", "Bash(git rev-parse:*)", "Read", "Glob", "Grep",
+                     "Write(//tmp/**)", "Edit(//tmp/**)", "Bash(#{RELAY} doc:*)",
+                     "Bash(~/.claude/skills/myjira-relay/bin/relay doc:*)"]).freeze
     GIT_DENIED = ["Bash(git push origin main:*)", "Bash(git push origin HEAD:main:*)", "Bash(git push -f:*)",
                   "Bash(git push --force:*)"].freeze
 
@@ -58,7 +66,7 @@ module WorkQueue
       cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose", "--model", @choice.model,
              "--effort", @choice.effort, "--permission-mode", "acceptEdits", "--permission-prompts", "none",
              "--append-system-prompt", QUESTION_PROTOCOL]
-      cmd += ["--allowedTools", *GIT_ALLOWED, *@allowed]
+      cmd += ["--allowedTools", *GIT_ALLOWED, *READ_ALLOWED, *@allowed]
       cmd += ["--disallowedTools", *GIT_DENIED]
       cmd += ["--resume", @resume] if @resume.present?
       cmd
