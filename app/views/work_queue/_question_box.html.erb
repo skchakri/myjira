@@ -2,7 +2,8 @@
     answers[i] = picked option, custom[i] = free text (wins when filled). %>
 <% open = item.questions.each_with_index.reject { |q, _| q.a } %>
 <% if open.any? %>
-  <section class="wq-qbox" aria-labelledby="wq_qbox_h" data-work-queue-target="question">
+  <section class="wq-qbox" aria-labelledby="wq_qbox_h" data-work-queue-target="question" data-item-key="<%= item.key %>"
+           data-action="input->work-queue#saveDraft change->work-queue#saveDraft turbo:submit-end->work-queue#clearDraft">
     <h3 id="wq_qbox_h" class="wq-qbox-h"><%= open.size == 1 ? "1 question for you" : "#{open.size} questions for you" %></h3>
     <%= form_with url: work_queue_item_answer_path(item.key), data: { turbo_stream: true }, class: "wq-qbox-form" do %>
       <% open.each do |q, idx| %>
@@ -12,7 +13,7 @@
             <div class="wq-chips">
               <% q.options.first(4).each_with_index do |opt, k| %>
                 <label class="wq-chip <%= 'wq-chip-rec' if k.zero? %>">
-                  <input type="radio" class="wq-chip-input" name="answers[<%= idx %>]" value="<%= opt %>" data-option="<%= k + 1 %>">
+                  <input type="radio" class="wq-chip-input" id="wq_answer_<%= item.key.parameterize %>_<%= idx %>_<%= k %>" name="answers[<%= idx %>]" value="<%= opt %>" data-option="<%= k + 1 %>">
                   <kbd><%= k + 1 %></kbd> <span><%= opt %><%= " (suggested)" if k.zero? %></span>
                 </label>
               <% end %>
@@ -23,7 +24,7 @@
                                                  pending: answers.nil? && WorkQueue::RunState.runner.present? %>
           <% end %>
           <div class="wq-free">
-            <%= text_area_tag "custom[#{idx}]", nil, rows: 2, placeholder: "Or write your own answer…", class: "wq-input",
+            <%= text_area_tag "custom[#{idx}]", nil, id: "wq_custom_#{item.key.parameterize}_#{idx}", rows: 2, placeholder: "Or write your own answer…", class: "wq-input",
                               "aria-label": "Or write your own answer", data: { work_queue_target: "answer" } %>
             <button type="button" class="wq-mic" aria-label="Answer by voice" data-action="work-queue#dictate">mic</button>
           </div>
