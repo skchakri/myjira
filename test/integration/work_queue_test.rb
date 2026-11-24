@@ -29,10 +29,52 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     assert_select "#wq_project_home-me-app > .wq-tree > ul > li > .wq-card", 4 # 7, 8, 11, 12 are roots
     assert_select "li:has(> #wq_item_home-me-app_7) > ul#wq_kids_home-me-app_7 > li > .wq-card.wq-node-child", 2
     assert_select "li.wq-li-parent:has(> #wq_item_home-me-app_7) > button.wq-twisty[aria-expanded=true][aria-controls=wq_kids_home-me-app_7]"
-    assert_select "#wq_item_home-me-app_7.wq-node-root .wq-kid-sum", text: /2 follow-ups: 1 need you, 1 waiting|2 follow-ups: 2 need you/
+    assert_select "#wq_item_home-me-app_7.wq-node-root .wq-kid-sum", text: "0 of 2 child steps done · 2 need you"
     assert_select "#wq_item_home-me-app_7 .wq-node-q", text: "2 ?"
     assert_select "#wq_item_home-me-app_7 .wq-card-link[aria-current=true]"
     assert_select "form[action=?]", work_queue_item_run_path("home-me-app:8")
+  end
+
+  test "cards show a progress bar; parents roll up their child steps" do
+    get work_queue_path
+    bar = ->(n) { css_select("#wq_item_home-me-app_#{n} .wq-prog-bar[role=progressbar]").first }
+    assert_equal "28", bar.(7)["aria-valuenow"] # (17 own + 67 + 0) / 3
+    assert_equal "Task 7 with its child steps", bar.(7)["aria-label"]
+    assert_select "#wq_item_home-me-app_7 .wq-prog-n", text: "28%"
+    assert_equal "67", bar.(9)["aria-valuenow"]
+    assert_equal "0", bar.(8)["aria-valuenow"]
+    assert_select "#wq_item_home-me-app_11 .wq-prog-ok .wq-prog-n", text: "100%"
+    assert_select "#wq_item_home-me-app_8 .wq-kid-sum", 0
+    assert_select "#wq_item_home-me-app_12 .wq-prog", 0 # folded: no progress
+  end
+
+  test "a finished parent with open child steps says so, sorts with open work and links what needs you" do
+    File.write(File.join(@dir, "home-me-app.json"), {
+      items: [{ n: 1, title: "Old done", status: "done", questions: [], log: [] },
+              { n: 2, title: "Parent shipped", status: "done", questions: [], log: [] },
+              { n: 3, title: "Kid building", status: "running", parent: 2, questions: [], log: [{ at: 1, text: "→ running" }] },
+              { n: 4, title: "Kid asks", status: "blocked", parent: 2, questions: [{ q: "Which?" }], log: [] },
+              { n: 5, title: "Newer done", status: "done", questions: [], log: [] }]
+    }.to_json)
+    get work_queue_path
+    assert_select "#wq_item_home-me-app_2 .wq-node-l", text: "Live · 2 child steps still in progress"
+    assert_select "#wq_item_home-me-app_2 .wq-prog-run .wq-prog-n", text: "47%" # (100 + 25 + 17) / 3
+    roots = css_select("#wq_project_home-me-app > .wq-tree > ul > li > .wq-card").map { |c| c["data-n"] }
+    assert_equal %w[2 5 1], roots
+
+    get work_queue_item_detail_path("home-me-app:2")
+    assert_select ".wq-flow-head .wq-pill-run", text: "2 child steps still in progress"
+    assert_select ".wq-overall .wq-prog-lg .wq-prog-n", text: "47%"
+    assert_select ".wq-overall .wq-hint", text: /This task 100% · child steps 0 of 2 done/
+    assert_select ".wq-kid-note", text: /2 child steps below are not/
+    assert_select ".wq-your-part", text: /1 child step needs you/
+    assert_select ".wq-your-part a.wq-ref[href=?]", work_queue_item_detail_path("home-me-app:4"), text: "#4 Needs your answer"
+    assert_select "#wq_kid_home-me-app_3 .wq-prog-bar[aria-valuenow='25']"
+    assert_select "#wq_kid_home-me-app_3 .wq-rel-l", text: "Building"
+
+    get work_queue_item_detail_path("home-me-app:3")
+    assert_select ".wq-now .wq-summary", text: "Building now."
+    assert_select ".wq-overall .wq-hint", text: /phase 2 of 6/
   end
 
   test "filter chips and node tags map statuses to plain words" do

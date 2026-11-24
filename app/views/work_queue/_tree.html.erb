@@ -8,14 +8,14 @@
       <li class="wq-li <%= 'wq-li-parent' if kids.any? %>" data-key="<%= item.key %>">
         <% if kids.any? %>
           <button type="button" class="wq-twisty" aria-expanded="true" aria-controls="<%= kids_id %>"
-                  aria-label="Show or hide the <%= pluralize(kids.size, 'follow-up') %> of task <%= item.n %>"
+                  aria-label="Show or hide the <%= pluralize(kids.size, 'child step') %> of task <%= item.n %>"
                   data-action="work-queue#toggleNode">
             <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.6" fill="none"/></svg>
           </button>
         <% end %>
-        <%= render "work_queue/card", item: item, context: contexts[item.key], flow: flows[item.key], selected: selected, depth: depth, kids: kids %>
+        <%= render "work_queue/card", item: item, context: contexts[item.key], flow: flows[item.key], selected: selected, depth: depth, progress: progress %>
         <%= render "work_queue/tree", nodes: kids, children: children, contexts: contexts, flows: flows,
-                                      selected: selected, depth: depth + 1, seen: seen, list_id: kids_id %>
+                                      selected: selected, depth: depth + 1, seen: seen, list_id: kids_id, progress: progress %>
       </li>
     <% end %>
   </ul>

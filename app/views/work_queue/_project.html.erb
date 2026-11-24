@@ -1,11 +1,13 @@
 <%# One project in the Flow tree: collapsible header with badges, then tasks with follow-ups nested under their parent. %>
 <% selected = local_assigns[:selected] %>
 <% store = WorkQueue::Store.new %>
-<% contexts = items.to_h { |i| [i.key, i.open? ? WorkQueue::ItemContext.new(i, store: store) : nil] } %>
+<% contexts = items.to_h { |i| [i.key, WorkQueue::ItemContext.wanted?(i) ? WorkQueue::ItemContext.new(i, store: store) : nil] } %>
 <% flows = items.to_h { |i| [i.key, contexts[i.key]&.flow || WorkQueue::Flow.new(i)] } %>
 <% ns = items.to_set(&:n) %>
 <% order = WorkQueue::Store::DISPLAY_ORDER %>
-<% sorted = items.sort_by { |i| [i.open? ? 0 : 1, order.index(i.display_status) || 9, -i.n] } %>
+<% progress = WorkQueue::Progress.new(items, flows: flows, store: store) %>
+<%# A finished task whose child steps are still open stays up with the open work. %>
+<% sorted = items.sort_by { |i| [i.open? || progress.for(i).active ? 0 : 1, order.index(i.display_status) || 9, -i.n] } %>
 <% children = sorted.group_by { |i| i.parent && i.parent != i.n && ns.include?(i.parent) ? i.parent : nil } %>
 <% live = flows.values.reject(&:closed?) %>
 <% need = live.count { |f| f.tags.include?("you") } %>
@@ -23,9 +25,9 @@
   </button>
   <div id="wq_tree_<%= slug %>" class="wq-tree">
     <%= render "work_queue/tree", nodes: children[nil] || [], children: children, contexts: contexts, flows: flows,
-                                  selected: selected, depth: 0, seen: (seen = Set.new) %>
+                                  selected: selected, depth: 0, seen: (seen = Set.new), progress: progress %>
     <%# Parent cycles never reach a root; show those items flat so nothing disappears. %>
     <%= render "work_queue/tree", nodes: sorted.reject { |i| seen.include?(i.n) }, children: {}, contexts: contexts, flows: flows,
-                                  selected: selected, depth: 0, seen: seen %>
+                                  selected: selected, depth: 0, seen: seen, progress: progress %>
   </div>
 </section>

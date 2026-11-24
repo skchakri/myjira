@@ -225,6 +225,8 @@ export default class extends Controller {
       const n = cards.filter((c) => (c.dataset.tags || "").split(" ").includes(t.dataset.f)).length
       const span = t.querySelector("[data-count]")
       if (span) span.textContent = n
+      // Empty filters only add rows; keep "All" and the one in use.
+      t.classList.toggle("hidden", n === 0 && t.dataset.f !== "all" && t.getAttribute("aria-pressed") !== "true")
     })
   }
 
@@ -383,7 +385,9 @@ export default class extends Controller {
         const last = inner.lastElementChild
         const next = el.nextElementSibling
         if (next?.dataset.tool && next.dataset.tool === last?.dataset.tool) { inner.append(next) }
-        el.querySelector("summary").textContent = `${inner.children.length} ${last?.dataset.tool === "Bash" ? "commands" : `${last?.dataset.tool} calls`}`
+        const label = `${inner.children.length} ${last?.dataset.tool === "Bash" ? "commands" : `${last?.dataset.tool} calls`}`
+        const summary = el.querySelector("summary")
+        if (summary.textContent !== label) summary.textContent = label
         continue
       }
       if (el.dataset.tool && (!run.length || run[0].dataset.tool === el.dataset.tool)) { run.push(el); continue }
@@ -480,6 +484,8 @@ export default class extends Controller {
       if (this.grouping) return
       this.grouping = true
       this.groupTools()
+      // Drop the records our own regrouping just queued, or the observer re-fires forever.
+      this.logObserver.takeRecords()
       this.grouping = false
       if (this.pinned) this.scrollLog(); else this.jumpTarget?.classList.remove("hidden")
     })

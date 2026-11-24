@@ -1,6 +1,8 @@
 <%# Top of the detail panel. Replaced live via the item stream (target wq_log_header). %>
 <% context ||= WorkQueue::ItemContext.new(item, store: WorkQueue::Store.new) %>
 <% flow = context.flow %>
+<% progress = context.progress %>
+<% roll = context.roll %>
 <header id="wq_log_header" class="wq-log-h wq-flow">
   <nav class="wq-crumbs" aria-label="Breadcrumb">
     <span><%= WorkQueue::Store.label(item.slug) %></span>
@@ -14,6 +16,9 @@
   <div class="wq-flow-head">
     <div class="flex flex-wrap items-center gap-2">
       <span class="wq-pill wq-pill-<%= flow.tone %>"><%= flow.label %></span>
+      <% if roll.left.positive? && (flow.finished? || flow.closed?) %>
+        <span class="wq-pill wq-pill-run"><%= pluralize(roll.left, "child step") %> still in progress</span>
+      <% end %>
       <span class="wq-hint wq-mono"><%= flow.ref %></span>
       <% if item.session.present? %><%= render "work_queue/listener", item: item %><% end %>
       <span class="ml-auto"><%= wq_copy_menu(item, context) %></span>
@@ -25,6 +30,19 @@
 
   <section class="wq-box wq-now" aria-label="What's happening">
     <span class="wq-eyebrow">What's happening</span>
+    <% if roll.percent %>
+      <div class="wq-overall">
+        <%= wq_progress(roll.percent, tone: wq_progress_tone(flow, roll), css: "wq-prog-lg",
+                        label: roll.parent? ? "This task with its child steps" : "This task") %>
+        <span class="wq-hint">
+          <% if roll.parent? %>
+            <%= "This task #{roll.own}% · " if roll.own %>child steps <%= roll.done %> of <%= roll.total %> done
+          <% else %>
+            <%= roll.complete? ? "all six phases done" : "phase #{[flow.phase + 1, 6].min} of 6" %>
+          <% end %>
+        </span>
+      </div>
+    <% end %>
     <% now = WorkQueue::Flow::PHASES[flow.phase] %>
     <ol class="wq-path" aria-label="<%= now ? "Now: #{now}" : 'All phases done' %>">
       <% flow.phases.each_with_index do |(name, state), i| %>
@@ -37,20 +55,39 @@
     <% if flow.delivery_note %>
       <p class="text-[12.5px]"><%= flow.delivery_note %></p>
     <% end %>
+    <% if roll.left.positive? && (flow.finished? || flow.closed?) %>
+      <p class="text-[12.5px] wq-kid-note">This task itself is finished, but <%= pluralize(roll.left, "child step") %> below <%= roll.left == 1 ? "is" : "are" %> not.</p>
+    <% end %>
     <p class="wq-summary"><%= wq_linkify(flow.happening, item.slug) %></p>
-    <p class="text-[12.5px]"><strong>Your part:</strong> <%= flow.your_part %></p>
+    <p class="text-[12.5px] wq-your-part"><strong>Your part:</strong>
+      <% if roll.need_you.any? %>
+        <%= flow.your_part unless flow.your_part.start_with?("Nothing") %>
+        <%= pluralize(roll.need_you.size, "child step") %> <%= roll.need_you.size == 1 ? "needs" : "need" %> you:
+        <% roll.need_you.each do |k| %>
+          <%= link_to "##{k.n} #{progress.flow(k).label}", work_queue_item_detail_path(k.key), class: "wq-ref", title: k.title, data: { turbo_frame: "wq_detail" } %>
+        <% end %>
+      <% else %>
+        <%= flow.your_part %>
+      <% end %>
+    </p>
     <% kids = context.children %>
     <% if kids.any? %>
       <div class="wq-kid-steps">
         <span class="wq-eyebrow">Child steps (run in parallel, ship in this task's PR)</span>
         <ul class="wq-related">
           <% kids.each do |k| %>
-            <% kf = WorkQueue::Flow.new(k) %>
+            <% kf = progress.flow(k) %>
+            <% kr = progress.for(k) %>
             <li id="wq_kid_<%= k.slug %>_<%= k.n %>">
-              <%= link_to work_queue_item_detail_path(k.key), class: "wq-rel", data: { turbo_frame: "wq_detail" } do %>
+              <%= link_to work_queue_item_detail_path(k.key), class: "wq-rel wq-rel-kid", data: { turbo_frame: "wq_detail" } do %>
                 <span class="wq-dot wq-t-<%= kf.tone %>" aria-hidden="true"></span>
                 <span class="min-w-0 wq-rel-t">#<%= k.n %> <%= k.title %></span>
-                <span class="wq-hint"><%= kf.label %></span>
+                <% if kr.percent %>
+                  <%= wq_progress(kr.percent, tone: wq_progress_tone(kf, kr), label: "Child step #{k.n}") %>
+                <% else %>
+                  <span></span>
+                <% end %>
+                <span class="wq-hint wq-rel-l"><%= wq_flow_label(kf, kr) %><%= " · #{kr.done} of #{kr.total} done" if kr.parent? %></span>
               <% end %>
             </li>
           <% end %>
@@ -67,7 +104,7 @@
       <% if rel.any? %>
         <ul class="wq-related">
           <% rel.each do |kind, r| %>
-            <% rf = WorkQueue::Flow.new(r) %>
+            <% rf = progress.flow(r) %>
             <li>
               <%= link_to work_queue_item_detail_path(r.key), class: "wq-rel", data: { turbo_frame: "wq_detail" } do %>
                 <span class="wq-dot wq-t-<%= rf.tone %>" aria-hidden="true"></span>
