@@ -42,6 +42,26 @@
           <% end %>
         </section>
       <% end %>
+      <% if @inbox.batches.any? %>
+        <section class="inbox-section" id="inbox_s_followups" aria-labelledby="inbox_h_followups">
+          <h2 class="wq-eyebrow inbox-section-h" id="inbox_h_followups">Follow-ups to decide <span class="inbox-section-n"><%= @inbox.batches.sum { |b| b.items.size } %></span></h2>
+          <% @inbox.batches.each do |batch| %>
+            <article class="inbox-entry" id="<%= batch.dom_id %>" tabindex="-1" data-inbox-target="entry" data-key="batch:<%= batch.key %>"
+                     data-sig="followups/<%= batch.items.map(&:n).join(',') %>" data-section="followups">
+              <header class="inbox-entry-h">
+                <span class="wq-dot wq-t-wait" aria-hidden="true"></span>
+                <span class="inbox-entry-t">
+                  <span class="inbox-entry-p"><%= WorkQueue::Store.label(batch.parent.slug) %></span>
+                  <%= link_to work_queue_path(item: batch.key), class: "inbox-entry-title", title: "Open task #{batch.parent.n} in the Work Queue (o)", data: { inbox_open: true } do %>
+                    <span class="wq-n-tag">#<%= batch.parent.n %></span> <%= batch.parent.title %>
+                  <% end %>
+                </span>
+              </header>
+              <div class="inbox-entry-b"><%= render "work_queue/follow_up_batch", batch: batch %></div>
+            </article>
+          <% end %>
+        </section>
+      <% end %>
     <% end %>
   <% end %>
 

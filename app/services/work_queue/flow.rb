@@ -26,6 +26,8 @@ module WorkQueue
       "notlive" => "Nothing. It goes live with the next deploy.",
       "stacked" => "Merge the branch it went into (its parent pull request) to main. A deploy alone will not ship it.",
       "wait" => "Nothing. It starts by itself.",
+      "held" => "Clear some of what is waiting on you in this project and it starts by itself, or start it anyway.",
+      "decide" => "Start it or drop it. It is a nice-to-have, so it will not start by itself.",
       "ok" => "Nothing.",
       "closed" => "Nothing."
     }.freeze
@@ -185,6 +187,8 @@ module WorkQueue
 
     def open_state
       return ["you", "Needs your answer", item.status == "review" ? 3 : 1, %w[you answer], "answer"] if item.open_questions.any?
+      return ["wait", "Held: waiting for you to catch up", 0, %w[wait held], "held"] if item.held?
+      return ["wait", "Suggested: start or drop", 0, %w[wait decide], "decide"] if item.to_decide?
       return ["you", "Needs your approval", 1, %w[you approve], "approve"] if item.awaiting_approval
 
       case item.status

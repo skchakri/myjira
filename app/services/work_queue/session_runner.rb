@@ -21,6 +21,9 @@ module WorkQueue
       item with its parent and follow-ups and opens one PR for all of them.
       If you suggest a follow-up whose work lives in a different repo than this one, say so and give that
       repo's absolute path, so it is filed with repo set (it then ships as its own PR in that repo).
+      Mark every follow-up you suggest or file as priority "must" (this item is wrong or incomplete without it)
+      or "nice" (an improvement). File at most the must-dos for work to start; a "nice" follow-up is never
+      started by you, the person picks those in myjira.
     TXT
 
     PHASE_PROMPTS = {

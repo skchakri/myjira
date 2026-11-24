@@ -1,0 +1,40 @@
+<%# Suggested (nice-to-have) and held follow-ups of one parent, decided in one request. %>
+<% suggested = batch.suggested %>
+<% held = batch.held %>
+<%= form_with url: work_queue_item_follow_ups_path(batch.parent.key), class: "wq-batch", data: { turbo_stream: true, inbox_done: "Decided" } do %>
+  <p class="wq-batch-h">
+    <% if suggested.any? %><strong><%= pluralize(suggested.size, "suggested follow-up") %></strong><% end %>
+    <% if suggested.any? && held.any? %> · <% end %>
+    <% if held.any? %><strong><%= held.size %> held</strong><% end %>
+    <span class="wq-hint">
+      <% if suggested.any? %>Nice-to-haves never start by themselves. <% end %>
+      <% if held.any? %>Held ones start by themselves once less is waiting on you in this project.<% end %>
+    </span>
+  </p>
+  <ul class="wq-batch-list">
+    <% (suggested + held).each do |k| %>
+      <li>
+        <label class="wq-batch-row">
+          <input type="checkbox" name="ns[]" value="<%= k.n %>" checked aria-label="Follow-up <%= k.n %>">
+          <span class="wq-n-tag">#<%= k.n %></span>
+          <span class="wq-batch-t"><%= k.title %></span>
+          <span class="wq-batch-tag <%= 'wq-batch-held' if k.held? %>"><%= k.held? ? "held" : "nice to have" %></span>
+        </label>
+        <%= link_to "open", work_queue_path(item: k.key), class: "wq-link wq-batch-open", data: { turbo_frame: "_top" } %>
+      </li>
+    <% end %>
+  </ul>
+  <div class="wq-actions">
+    <button class="wq-btn wq-btn-primary" name="op" value="start"><%= held.any? && suggested.empty? ? "Start selected anyway" : "Start selected" %></button>
+    <button class="wq-btn" name="op" value="start_all">Start all</button>
+    <button class="wq-btn wq-btn-ghost" name="op" value="drop">Drop selected</button>
+    <details class="wq-merge">
+      <summary class="wq-btn wq-btn-ghost">Drop all</summary>
+      <div class="wq-merge-panel">
+        <p class="text-[12px] font-medium">Drop all <%= suggested.size + held.size %> of these follow-ups?</p>
+        <p class="wq-hint">They are marked dropped and will not run. Nothing else is deleted.</p>
+        <div class="flex gap-2 mt-2"><button class="wq-btn wq-btn-primary" name="op" value="drop_all">Confirm drop all</button></div>
+      </div>
+    </details>
+  </div>
+<% end %>
