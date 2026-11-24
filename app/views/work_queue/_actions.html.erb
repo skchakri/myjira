@@ -46,6 +46,10 @@
       <%= form_with url: work_queue_item_deploy_path(item.key), data: { turbo_stream: true }, class: "wq-merge-panel" do %>
         <p class="text-[12px] font-medium">Run the repo's Deploy workflow on <code>main</code>?</p>
         <p class="wq-hint"><%= delivery.detail %> This deploys to production and cannot be undone from here.</p>
+        <% others = WorkQueue::Releases.new.others_for(item) %>
+        <% if others.any? %>
+          <p class="wq-hint"><%= link_to "#{pluralize(others.size, 'other merged task')} would go out with this deploy", work_queue_releases_path, class: "wq-link", data: { turbo_frame: "_top" } %>.</p>
+        <% end %>
         <div class="flex gap-2 mt-2">
           <button type="submit" class="wq-btn wq-btn-primary">Confirm deploy</button>
           <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#closeMerge">Cancel</button>

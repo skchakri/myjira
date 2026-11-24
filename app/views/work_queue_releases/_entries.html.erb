@@ -1,0 +1,28 @@
+<%# The tasks of one repo: #n, title, project, PR (and the bundle it shipped in), merged when. %>
+<table class="wq-table wq-rel-table">
+  <thead><tr><th>Task</th><th>Project</th><th>Pull request</th><th>Merged</th><th>State</th></tr></thead>
+  <tbody>
+    <% entries.each do |entry| %>
+      <% item = entry.item %>
+      <tr>
+        <td><%= link_to "##{item.n} #{item.title}".truncate(110), work_queue_path(item: item.key), class: "wq-link", title: item.title %></td>
+        <td><%= WorkQueue::Store.label(item.slug) %></td>
+        <td class="wq-mono">
+          <a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">#<%= item.pr_number %></a>
+          <% if entry.bundle_root && entry.bundle_root.to_i != item.n %><span class="wq-hint">bundle of task <%= entry.bundle_root %></span><% end %>
+        </td>
+        <td class="wq-mono" title="<%= entry.merged_at&.strftime('%Y-%m-%d %H:%M %Z') %>"><%= entry.merged_at ? "#{time_ago_in_words(entry.merged_at)} ago" : "unknown" %></td>
+        <td>
+          <% case entry.state
+             when "deploying" %><span class="wq-pill wq-pill-run">Deploying</span>
+          <% when "deploy_failed" %><span class="wq-pill wq-pill-bad">Deploy failed</span>
+          <% when "testing" %><span class="wq-pill wq-pill-run">Testing together</span>
+          <% when "not_live" %><span class="wq-pill wq-pill-wait">Waiting</span>
+          <% when "stacked" %><span class="wq-hint"><%= entry.delivery.detail %></span>
+          <% else %><span class="wq-hint">not tracked</span>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

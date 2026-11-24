@@ -11,7 +11,7 @@ module WorkQueue
     FILTERS = [
       ["all", "All"], ["you", "Needs you"], ["answer", "Needs answer"], ["approve", "Needs approval"],
       ["bundle", "Ready to bundle"], ["merge", "Ready to merge"], ["run", "In progress"], ["testing", "Testing / deploying"], ["bad", "Failed"],
-      ["wait", "Queued"], ["ok", "Live"], ["open", "Not live yet"], ["closed", "Merged / dropped"]
+      ["wait", "Queued"], ["ok", "Live"], ["unreleased", "Merged, not live"], ["open", "Open or not live"], ["closed", "Merged / dropped"]
     ].freeze
 
     YOUR_PART = {
@@ -24,6 +24,7 @@ module WorkQueue
       "bundle" => "Nothing. It ships in one PR with its parent and follow-ups once they are all built.",
       "run" => "Nothing yet. It moves on by itself.",
       "notlive" => "Nothing. It goes live with the next deploy.",
+      "stacked" => "Merge the branch it went into (its parent pull request) to main. A deploy alone will not ship it.",
       "wait" => "Nothing. It starts by itself.",
       "ok" => "Nothing.",
       "closed" => "Nothing."
@@ -111,7 +112,7 @@ module WorkQueue
     # Index of the phase the item is on now.
     def phase
       @phase ||= case item.status
-      when "done" then delivery&.state.in?(%w[testing deploying not_live deploy_failed]) ? 5 : 6
+      when "done" then delivery&.state.in?(%w[testing deploying not_live stacked deploy_failed]) ? 5 : 6
       when "merged", "dropped" then 0
       when "review" then item.pr.present? ? 4 : 3
       when "running", "blocked" then RUN_PHASE.fetch(@context&.run&.dig("phase").to_s, 1)
@@ -166,9 +167,10 @@ module WorkQueue
     def done_state
       case delivery&.state
       when "testing" then ["run", "Testing together", 4, %w[testing], "run"]
-      when "deploying" then ["run", "Deploying", 5, %w[testing open], "run"]
-      when "not_live" then ["wait", "Merged, not live yet", 5, %w[open], "notlive"]
-      when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open], "bad"]
+      when "deploying" then ["run", "Deploying", 5, %w[testing open unreleased], "run"]
+      when "not_live" then ["wait", "Merged, not live yet", 5, %w[open unreleased], "notlive"]
+      when "stacked" then ["wait", "Merged into a branch, not on main", 5, %w[open unreleased], "stacked"]
+      when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open unreleased], "bad"]
       else ["ok", "Live", 5, %w[ok], "ok"]
       end
     end
