@@ -51,6 +51,53 @@ class WorkQueueFlowTest < ActiveSupport::TestCase
     assert_equal "Testing together", flow(item(status: "review", pr: "12"), delivery: d.call("testing")).label
   end
 
+  test "a running item with no activity for 30 minutes is stalled" do
+    f = WorkQueue::Flow.new(item(status: "running", updated_at: 11.hours.ago))
+    assert f.stalled?
+    assert_equal ["bad", "Stalled: no activity for 11h"], [f.tone, f.label]
+    assert_equal %w[all open bad you stalled], f.tags
+    assert_equal "Resume it, or tell the agent what to do.", f.your_part
+    assert_equal 25, f.percent
+    assert_match(/\ANo activity since /, f.happening)
+
+    assert_equal "Stalled: no activity for 45m", WorkQueue::Flow.new(item(status: "running", updated_at: 45.minutes.ago)).label
+    assert_equal "Stalled: no activity for 5d", WorkQueue::Flow.new(item(status: "running", updated_at: 5.days.ago)).label
+    assert_not WorkQueue::Flow.new(item(status: "running", updated_at: 10.minutes.ago)).stalled?
+    assert_not WorkQueue::Flow.new(item(status: "running")).stalled?
+    assert_not WorkQueue::Flow.new(item(status: "review", updated_at: 3.days.ago)).stalled?
+  end
+
+  test "recent transcript writes or a live runner process keep an old item from stalling" do
+    Activity = Struct.new(:run, :last_activity, :live_pid?) unless self.class.const_defined?(:Activity)
+    old = item(status: "running", updated_at: 6.hours.ago)
+    assert_not WorkQueue::Flow.new(old, Activity.new({}, 2.minutes.ago, false)).stalled?
+    assert_not WorkQueue::Flow.new(old, Activity.new({ "phase" => "plan" }, 6.hours.ago, true)).stalled?
+    f = WorkQueue::Flow.new(old, Activity.new({ "phase" => "plan" }, 6.hours.ago, false))
+    assert_equal ["Stalled: no activity for 6h", 1], [f.label, f.step]
+  end
+
+  test "item context takes the latest of queue time, last log line and transcript mtime" do
+    Dir.mktmpdir do |root|
+      dir = File.join(root, "proj")
+      FileUtils.mkdir_p(dir)
+      path = File.join(dir, "sess-1.jsonl")
+      File.write(path, "")
+      File.utime(5.minutes.ago.to_time, 5.minutes.ago.to_time, path)
+      old = ENV["CLAUDE_PROJECTS_DIR"]
+      ENV["CLAUDE_PROJECTS_DIR"] = root
+      i = item(status: "running", updated_at: 6.hours.ago, session: "sess-1", log: [{ "at" => (2.hours.ago.to_f * 1000).to_i, "text" => "x" }])
+      ctx = WorkQueue::ItemContext.new(i, store: WorkQueue::Store.new(dir: root))
+      assert_in_delta 5.minutes.ago.to_f, ctx.last_activity.to_f, 5
+      assert_not ctx.flow.stalled?
+      File.delete(path)
+      ctx = WorkQueue::ItemContext.new(i, store: WorkQueue::Store.new(dir: root))
+      assert_in_delta 2.hours.ago.to_f, ctx.last_activity.to_f, 5
+      assert ctx.flow.stalled?
+    ensure
+      ENV["CLAUDE_PROJECTS_DIR"] = old
+    end
+  end
+
   private
 
   def flow(i, run: {}, pr_status: nil, delivery: nil) = WorkQueue::Flow.new(i, FakeContext.new(run, pr_status, delivery))

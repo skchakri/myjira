@@ -191,6 +191,35 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
   end
 
+  test "a stalled running item reads Stalled, counts as failed, and Resume hands it to the runner" do
+    at = (3.hours.ago.to_f * 1000).to_i
+    File.write(File.join(@dir, "home-me-stall.json"), { items: [
+      { n: 1, title: "Went quiet", status: "running", questions: [], log: [{ at: at, text: "→ running" }], createdAt: at, updatedAt: at },
+      { n: 2, title: "Still going", status: "running", questions: [], log: [], updatedAt: (Time.current.to_f * 1000).to_i }
+    ] }.to_json)
+
+    get work_queue_path
+    assert_select "#wq_item_home-me-stall_1[data-tone=bad][data-tags~=stalled][data-tags~=you][data-tags~=bad] .wq-node-l", text: "Stalled: no activity for 3h"
+    assert_select "#wq_item_home-me-stall_1 form[action=?]", work_queue_item_resume_path("home-me-stall:1")
+    assert_select "#wq_item_home-me-stall_1 .wq-prog-bad"
+    assert_select "#wq_project_home-me-stall .wq-pb-bad", text: "1 failed"
+    assert_select "#wq_item_home-me-stall_2[data-tone=run] .wq-node-l", text: "Building"
+    assert_select "#wq_item_home-me-stall_2 form[action=?]", work_queue_item_resume_path("home-me-stall:2"), count: 0
+
+    get work_queue_item_detail_path("home-me-stall:1")
+    assert_select ".wq-actions form[action=?] button", work_queue_item_resume_path("home-me-stall:1"), text: "Resume"
+    assert_select ".wq-now", text: /Your part:\s*Resume it, or tell the agent what to do\./
+
+    WorkQueue::RunState.set("home-me-stall:1", { "mode" => "build", "phase" => "implement" })
+    post work_queue_item_resume_path("home-me-stall:1"), as: :turbo_stream
+    assert_response :ok
+    job = JSON.parse(WorkQueue::RunState.redis.lpop(WorkQueue::RunState::JOBS))
+    assert_equal %w[start home-me-stall:1 implement], [job["action"], job["key"], job["phase"]]
+    item = WorkQueue::Store.new.find("home-me-stall:1")
+    assert_equal "Resumed from myjira after a stall", item.log.last["text"]
+    assert_not WorkQueue::Flow.new(item).stalled?
+  end
+
   test "ready for PR asks the runner to bundle now" do
     WorkQueue::QueueWriter.new(dir: @dir).update("home-me-app", 1) do |i|
       i["status"] = "review"

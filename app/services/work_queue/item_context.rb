@@ -21,6 +21,16 @@ module WorkQueue
     def phases = @phases ||= RunState.phases(item.key)
 
     def transcript_path = @transcript_path ||= Transcript.path_for(item)
+
+    # Latest sign of life: the queue file's timestamp, the last queue log line, or a write
+    # to the item's transcript (CLI-session items log there without touching the queue).
+    def last_activity
+      @last_activity ||= [item.updated_at, log_time, transcript_time].compact.max
+    end
+
+    # A headless phase is running on the server right now (the runner clears pid when a
+    # phase ends, and its heartbeat key expires within seconds of it going down).
+    def live_pid? = run["pid"].present? && RunState.runner.present?
     def worktree = @worktree ||= run["worktree"].presence || Transcript.cwd_for(transcript_path)
     # Both read the background-refreshed StatusCache; rendering never runs git/gh.
     def pr_status = (@pr_status ||= [item.pr && item.open? ? StatusCache.pr(item.pr) : nil]).first
@@ -78,5 +88,19 @@ module WorkQueue
     end
 
     def chain_merge? = item.pr.present? && chain.size > 1
+
+    private
+
+    def log_time
+      at = item.log.last&.dig("at").to_i
+      Time.zone.at(at / 1000.0) if at > 1_000_000_000_000 # epoch ms; anything smaller is not a real timestamp
+    end
+
+    def transcript_time
+      path = transcript_path
+      File.mtime(path) if path && File.exist?(path)
+    rescue SystemCallError
+      nil
+    end
   end
 end

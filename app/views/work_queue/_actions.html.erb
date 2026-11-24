@@ -3,6 +3,11 @@
 <% delivery = context.delivery %>
 <% deployable = item.status == "done" && delivery&.state.in?(%w[not_live deploy_failed]) %>
 <div class="wq-actions" role="group" aria-label="Next steps">
+  <% if context.flow.stalled? %>
+    <%= button_to "Resume", work_queue_item_resume_path(item.key), class: "wq-btn wq-btn-primary",
+                  title: "No activity for a while: hand it back to its CLI session if that is listening, otherwise run it on the server",
+                  form: { data: { turbo_stream: true } } %>
+  <% end %>
   <% if item.awaiting_approval && item.open? %>
     <%= button_to "Approve & queue", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
   <% elsif item.pending? %>

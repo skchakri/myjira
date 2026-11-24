@@ -96,6 +96,18 @@ class WorkQueueController < ApplicationController
     toast("##{@item.n}: browser step #{{ '1' => 'on', '0' => 'off' }.fetch(value, 'auto-detect')}. Reopen the item to refresh.", :ok)
   end
 
+  # "Resume" on a stalled item: the owning CLI session when it listens, else the server
+  # runner picks it up from the phase it was on.
+  def resume
+    return respond_with_dispatch(dispatcher.resume, "Resume sent for ##{@item.n}") if dispatcher.listening?
+
+    phase = WorkQueue::RunState.get(@item.key)["phase"].presence
+    WorkQueue::RunState.set(@item.key, { "repo" => WorkQueue::Workspace.repo_for(@item.slug) }.compact) unless WorkQueue::RunState.server_run?(@item.key)
+    WorkQueue::RunState.enqueue("start", @item.key, **{ phase: phase }.compact)
+    writer.update(@item.slug, @item.n, log: "Resumed from myjira after a stall")
+    toast(runner_note("##{@item.n} resumed on the server"), :ok)
+  end
+
   def stop = runner_action("stop", "Stopping ##{@item.n}")
   def retry_run = runner_action("retry", "Retrying ##{@item.n} with a stronger model")
   def close_relay_tabs = runner_action("continue", "Asked ##{@item.n} to close its Chrome tabs",
