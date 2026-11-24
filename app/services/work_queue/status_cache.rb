@@ -43,23 +43,47 @@ module WorkQueue
 
     # Recompute one item's status; true when it differs from what was cached.
     # Done items only refresh PR + delivery (their worktree is gone).
-    def refresh(item, store:, prs: PullRequests.new, delivery: Delivery.new)
-      pr_json = nil
-      if item.pr.present?
-        st = prs.fetch(item.pr)
-        pr_json = (st&.to_h || {}).to_json
-        redis.set(pr_key(item.pr), pr_json, ex: TTL)
-        pr_json += (delivery.compute(st)&.to_h || {}).to_json.tap { |d| redis.set(delivery_key(item.pr), d, ex: TTL) }
-      end
-      git_json = ""
-      if item.open?
-        ctx = ItemContext.new(item, store: store)
-        info = GitInfo.compute(ctx.worktree, pr_base: pr(item.pr)&.base)
-        git_json = (info&.to_h || {}).to_json
-        redis.set(git_key(item.key), git_json, ex: TTL)
-      end
+    #
+    # Most sweeps find nothing new, so two shortcuts (per process; `force` skips both):
+    # git is recomputed only when the worktree's refs moved (GitInfo.signature is one
+    # git call against ~60 for a full compute), and a PR is re-read from GitHub only
+    # when its interval is up.
+    PR_EVERY = { open: 60, done: 180 }.freeze
+    MEMO = { git: {}, pr: {} } # rubocop:disable Style/MutableConstant
+
+    def refresh(item, store:, prs: PullRequests.new, delivery: Delivery.new, force: false, now: Time.current)
+      pr_json = item.pr.present? ? pr_json(item, prs, delivery, force, now) : nil
+      git_json = item.open? ? git_json(item, store, force) : ""
       sig = [git_json, pr_json].join
       redis.getset("#{git_key(item.key)}:sig", sig) != sig
+    end
+
+    def pr_json(item, prs, delivery, force, now)
+      memo = MEMO[:pr][item.pr]
+      return memo[1] if !force && memo && now - memo[0] < PR_EVERY[item.open? ? :open : :done]
+
+      st = prs.fetch(item.pr)
+      json = (st&.to_h || {}).to_json
+      redis.set(pr_key(item.pr), json, ex: TTL)
+      json += (delivery.compute(st)&.to_h || {}).to_json.tap { |d| redis.set(delivery_key(item.pr), d, ex: TTL) }
+      MEMO[:pr][item.pr] = [now, json]
+      json
+    end
+
+    def git_json(item, store, force)
+      worktree = ItemContext.new(item, store: store).worktree
+      base = pr(item.pr)&.base
+      stamp = [worktree, base, GitInfo.signature(worktree)]
+      memo = MEMO[:git][item.key]
+      if !force && memo && stamp.last && memo[0] == stamp
+        redis.expire(git_key(item.key), TTL)
+        return memo[1]
+      end
+
+      json = (GitInfo.compute(worktree, pr_base: base)&.to_h || {}).to_json
+      redis.set(git_key(item.key), json, ex: TTL)
+      MEMO[:git][item.key] = [stamp, json]
+      json
     end
 
     # Done items whose PR may still be on its way to production.

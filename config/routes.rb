@@ -154,6 +154,7 @@ Rails.application.routes.draw do
   get  "work_queue", to: "work_queue#index", as: :work_queue
   post "work_queue/group", to: "work_queue#group", as: :work_queue_group
   post "work_queue/items", to: "work_queue#create", as: :work_queue_items
+  get  "work_queue/projects/:slug", to: "work_queue#project", as: :work_queue_project
   get  "work_queue/settings", to: "work_queue#settings", as: :work_queue_settings
   get  "work_queue/costs", to: "work_queue#costs", as: :work_queue_costs
   get  "work_queue/releases", to: "work_queue_releases#index", as: :work_queue_releases

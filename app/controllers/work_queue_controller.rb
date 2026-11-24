@@ -12,7 +12,8 @@ class WorkQueueController < ApplicationController
 
   MAX_ENTRIES = 400
 
-  before_action :load_item, except: %i[index group create settings update_settings costs]
+  before_action :load_item, except: %i[index project group create settings update_settings costs]
+  before_action(only: %i[index project]) { WorkQueue::Current.repos = WorkQueue::Workspace.repos }
 
   # The list only. Git/PR status comes from WorkQueue::StatusCache (refreshed by
   # the watcher); the selected item's detail loads separately into the frame.
@@ -20,6 +21,20 @@ class WorkQueueController < ApplicationController
     @store = WorkQueue::Store.new
     @projects = @store.projects
     @item = @store.find(params[:item]) if params[:item].present?
+  end
+
+  # One project's block again: with every finished item (older=1, "Show N older") or
+  # back to the default cut (older=0). Replaces the block in place.
+  def project
+    slug = params[:slug].to_s
+    return head :not_found unless slug.match?(/\A[A-Za-z0-9-]+\z/)
+
+    items = WorkQueue::Store.new.items_for(slug)
+    return head :not_found if items.empty?
+
+    render turbo_stream: turbo_stream.replace("wq_project_#{slug}", partial: "work_queue/project",
+                                                                    locals: { slug: slug, items: items, all: params[:older] == "1",
+                                                                              selected: params[:item].presence })
   end
 
   # One item's log header + live log, for the wq_detail frame.
