@@ -374,4 +374,87 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
   ensure
     WorkQueue::RunState.del_fields("home-me-app:1", "browser")
   end
+
+  # An item flagged as a browser step whose repo belongs to a myjira project, daemon polling.
+  def chrome_item(session: nil)
+    repo = "/tmp/wqc-#{SecureRandom.hex(3)}"
+    project = Project.create!(name: "WQ Chrome", slug: "wqc-#{SecureRandom.hex(3)}", repo_path: repo)
+    WorkQueue::QueueWriter.new(dir: @dir).update("home-me-app", 1) do |i|
+      i["repo"] = repo
+      i["session"] = session if session
+    end
+    WorkQueue::RunState.set("home-me-app:1", WorkQueue::BrowserStep::FLAG => "1")
+    SessionLaunch.launcher_seen!
+    project
+  end
+
+  test "Run in Chrome swaps the button for Starting, then Running with a Watch link, and never queues twice" do
+    chrome_item
+    path = work_queue_item_run_in_chrome_path("home-me-app:1")
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post path, as: :turbo_stream
+    end
+    launch = SessionLaunch.order(:created_at).last
+    assert launch.chrome
+    assert_equal launch.id, WorkQueue::RunState.get("home-me-app:1")[WorkQueue::ChromeRun::FIELD]
+    assert_select "turbo-stream[action=append][target=wq_toasts]", 1
+    assert_select "turbo-stream[action=replace][target=wq_chrome_home-me-app_1]", 1
+    assert_match(/Starting Claude…/, response.body)
+    assert_no_match(/wq-btn-chrome/, response.body)
+
+    assert_no_difference -> { SessionLaunch.count } do
+      post path, as: :turbo_stream
+    end
+    assert_match(/already has a Claude session with Chrome/, response.body)
+    assert_match(/Starting Claude…/, response.body)
+
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 [role=status]", text: /Starting Claude…/
+    assert_select "form[action=?]", path, 0
+
+    streams = []
+    Turbo::StreamsChannel.stub(:broadcast_replace_to, ->(*args, **opts) { streams << [args, opts] }) do
+      patch api_v1_session_launch_path(launch), params: { status: "launched", tmux_target: "myjira:app-1" }, as: :json
+    end
+    assert_response :ok
+    assert_equal [[WorkQueue::Broadcaster.item_stream("home-me-app:1")], "wq_chrome_home-me-app_1", "work_queue/chrome_run"],
+                 streams.map { |args, opts| [args, opts[:target], opts[:partial]] }.first
+
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 a.wq-chrome-live[target=_blank][href=?]", launch.reload.live_terminal_url,
+                  text: /Running in Chrome · Watch/
+    assert_select "form[action=?]", path, 0
+    assert_no_match(/window\.open/, response.body)
+  end
+
+  test "Run in Chrome offers the button again once the launch failed or aged out" do
+    chrome_item
+    path = work_queue_item_run_in_chrome_path("home-me-app:1")
+    post path, as: :turbo_stream
+    launch = SessionLaunch.order(:created_at).last
+    launch.update!(status: "failed", error: "tmux missing")
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
+
+    launch.update!(status: "launched", tmux_target: "myjira:app-1", launched_at: (WorkQueue::ChromeRun::WINDOW + 1.minute).ago)
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post path, as: :turbo_stream
+    end
+  end
+
+  test "Run in Chrome sent to a listening CLI is acknowledged on the item" do
+    project = chrome_item(session: "s-wqc-listen")
+    convo = project.conversations.create!(session_id: "s-wqc-listen", started_at: 1.minute.ago,
+                                          last_message_at: 1.minute.ago, listener_seen_at: 5.seconds.ago)
+    assert_no_difference -> { SessionLaunch.count } do
+      post work_queue_item_run_in_chrome_path("home-me-app:1"), as: :turbo_stream
+    end
+    assert_equal 1, convo.session_commands.count
+    assert_match(/Browser step sent to the CLI session/, response.body)
+    assert_select "turbo-stream[action=replace][target=wq_chrome_home-me-app_1]", 1
+    assert_match(/Sent to the CLI session at \d\d:\d\d/, response.body)
+    assert_match(/wq-btn-chrome/, response.body)
+  end
 end

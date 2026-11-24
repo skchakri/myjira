@@ -79,10 +79,19 @@ class WorkQueueController < ApplicationController
   def run_in_chrome
     approve_for_run
     result = dispatcher.run_in_chrome
-    return respond_with_dispatch(result, "Browser step sent to the CLI session for ##{@item.n}") unless result.launch
+    return respond_with_dispatch(result, "") unless result.sent
 
-    WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: launched session #{result.launch.session_id.first(8)} in #{result.launch.repo_path}")
-    toast("Launching a Claude session with Chrome for ##{@item.n} (session #{result.launch.session_id.first(8)})", :ok)
+    id = result.launch&.session_id.to_s.first(8)
+    message, level = if result.duplicate
+      ["##{@item.n} already has a Claude session with Chrome (session #{id}): not launching a second one", :warn]
+    elsif result.launch
+      WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: launched session #{id} in #{result.launch.repo_path}")
+      ["Launching a Claude session with Chrome for ##{@item.n} (session #{id})", :ok]
+    else
+      WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: browser step sent to the CLI session")
+      ["Browser step sent to the CLI session for ##{@item.n}", :ok]
+    end
+    toast(message, level, also: chrome_run_stream)
   end
 
   # Explicit "needs the browser" flag: 1 = on, 0 = off (overrides detection), blank = auto.
@@ -340,8 +349,14 @@ class WorkQueueController < ApplicationController
     end
   end
 
-  def toast(message, level, copy: nil)
-    render turbo_stream: turbo_stream.append("wq_toasts", partial: "work_queue/toast",
-                                                          locals: { message: message, level: level, copy: copy })
+  # The item's Run in Chrome control, redrawn from its fresh state.
+  def chrome_run_stream
+    context = WorkQueue::ItemContext.new(@item, store: WorkQueue::Store.new)
+    turbo_stream.replace(WorkQueue::ChromeRun.dom_id(@item), partial: "work_queue/chrome_run", locals: { item: @item, context: context })
+  end
+
+  def toast(message, level, copy: nil, also: nil)
+    render turbo_stream: [turbo_stream.append("wq_toasts", partial: "work_queue/toast",
+                                                           locals: { message: message, level: level, copy: copy }), also].compact
   end
 end
