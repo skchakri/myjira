@@ -18,6 +18,7 @@ module WorkQueue
       @logger = logger
       @statuses = {}
       @prints = {}
+      @shapes = {}
       @offsets = {}
       @parsers = {}
       @listening = {}
@@ -37,11 +38,14 @@ module WorkQueue
 
     # Snapshot current state so the first change only emits what changed.
     def prime
-      @store.all.each do |i|
-        @statuses[i.key] = i.display_status
-        @prints[i.key] = fingerprint(i)
+      @store.projects.each do |slug, items|
+        @shapes[slug] = shape(items)
+        items.each do |i|
+          @statuses[i.key] = i.display_status
+          @prints[i.key] = fingerprint(i)
+        end
       end
-      @sessions = nil
+      @sessions = @owners = nil
       Dir.glob(File.join(@projects, "*", "*", "subagents", "agent-*.jsonl")).each { |f| @offsets[f] = File.size(f) }
       Dir.glob(File.join(@projects, "*", "*.jsonl")).each { |f| @offsets[f] = File.size(f) }
     end
@@ -103,19 +107,23 @@ module WorkQueue
         # Follow-ups start by themselves; the write re-triggers this with the cleared flag.
         next if @child_starter.call(items).any?
 
-        @sessions = nil
+        @sessions = @owners = nil
         transitions = items.filter_map do |i|
           from = @statuses[i.key]
           @statuses[i.key] = i.display_status
           [i, from] if from && from != i.display_status
         end
         changed = items.reject { |i| @prints[i.key] == fingerprint(i) }
-        structural = transitions.any? || changed.any? { |i| !@prints.key?(i.key) }
         changed.each { |i| @prints[i.key] = fingerprint(i) }
-        if structural
-          Broadcaster.project_changed(slug, items, transitions: transitions)
-        else
-          Broadcaster.cards_changed(changed)
+        # Redraw the whole block only when the tree itself changed: an item added,
+        # removed or moved under another parent, or a finished one reopened (it may
+        # not be in the page). Anything else is a card update.
+        was = @shapes[slug]
+        @shapes[slug] = shape(items)
+        if was != @shapes[slug] || transitions.any? { |i, from| from == "done" && i.open? }
+          Broadcaster.project_changed(slug, items, changed: changed, transitions: transitions)
+        elsif changed.any?
+          Broadcaster.items_changed(changed, transitions: transitions)
         end
       end
     rescue StandardError => e
@@ -132,8 +140,7 @@ module WorkQueue
         entries, @offsets[path] = parser.parse_file(path, from: @offsets.fetch(path) { [File.size(path) - 200_000, 0].max })
         next if entries.empty?
 
-        item = @store.all.find { |i| i.agent.to_s.split(/[,\s]+/).include?(id) || i.session == id }
-        Broadcaster.log_entries(id, entries, item: item)
+        Broadcaster.log_entries(id, entries, item: owners[id])
       end
     rescue StandardError => e
       @logger.error("[work-queue] log broadcast failed: #{e.class}: #{e.message}")
@@ -143,6 +150,18 @@ module WorkQueue
 
     # Sessions that own an item: only their main transcripts are streamed.
     def watched_sessions = @sessions ||= @store.all.filter_map(&:session).to_set
+
+    # { agent id or session id => the item it works on }, rebuilt after a queue change
+    # (transcripts change many times a second; the queue files do not).
+    def owners
+      @owners ||= @store.all.each_with_object({}) do |i, map|
+        i.agent.to_s.split(/[,\s]+/).each { |a| map[a] ||= i if a.present? }
+        map[i.session] ||= i if i.session.present?
+      end
+    end
+
+    # What the tree looks like: who exists and who is under whom.
+    def shape(items) = items.to_h { |i| [i.n, i.parent] }
 
     def fingerprint(item) = item.to_h.except(:updated_at).hash
   end

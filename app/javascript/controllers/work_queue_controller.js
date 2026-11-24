@@ -9,7 +9,7 @@ const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content
 export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
                     "notifyBtn", "help", "question", "suggestions", "answer", "merge",
-                    "composer", "composerText", "inlineAdd", "inlineHome", "inlineLabel", "files", "fileList", "project", "search", "projectFilter",
+                    "composer", "composerText", "inlineAdd", "inlineHome", "inlineLabel", "files", "fileList", "project", "counts", "search", "projectFilter",
                     "confirm", "confirmText", "instruct", "refChips", "frame", "tab", "grid"]
   static values = { selected: String, groupUrl: String }
 
@@ -19,6 +19,9 @@ export default class extends Controller {
     this.selection = new Set()
     try { this.collapsed = new Set(JSON.parse(localStorage.getItem("wq-collapsed") || "[]")) } catch (_) { this.collapsed = new Set() }
     try { this.collapsedNodes = new Set(JSON.parse(localStorage.getItem("wq-collapsed-nodes") || "[]")) } catch (_) { this.collapsedNodes = new Set() }
+    // Projects whose older finished tasks are opened, for this browser session.
+    try { this.olderOpen = new Set(JSON.parse(sessionStorage.getItem("wq-older") || "[]")) } catch (_) { this.olderOpen = new Set() }
+    this.olderLoading = new Set()
   }
 
   // Collapse / expand one parent's follow-ups in the tree; remembered per browser.
@@ -196,6 +199,7 @@ export default class extends Controller {
   }
 
   filter() {
+    if (this.needsOlder()) this.projectTargets.forEach((p) => this.loadOlder(p))
     const q = this.hasSearchTarget ? this.searchTarget.value.trim().toLowerCase() : ""
     const slug = this.hasProjectFilterTarget ? this.projectFilterTarget.value : ""
     const f = this.flowFilter || "all"
@@ -220,9 +224,16 @@ export default class extends Controller {
 
   updateCounts() {
     if (!this.hasTabTarget) return
-    const cards = this.cardTargets
+    // True totals from the server (each project's title bar carries its own), since
+    // older finished tasks are not in the page until asked for.
+    const totals = {}
+    this.countsTargets.forEach((el) => {
+      let counts = {}
+      try { counts = JSON.parse(el.dataset.counts || "{}") } catch (_) {}
+      Object.entries(counts).forEach(([tag, n]) => { totals[tag] = (totals[tag] || 0) + n })
+    })
     this.tabTargets.forEach((t) => {
-      const n = cards.filter((c) => (c.dataset.tags || "").split(" ").includes(t.dataset.f)).length
+      const n = totals[t.dataset.f] || 0
       const span = t.querySelector("[data-count]")
       if (span) span.textContent = n
       // Empty filters only add rows; keep "All" and the one in use.
@@ -257,7 +268,50 @@ export default class extends Controller {
   projectTargetConnected(p) {
     this.applyCollapsed(p)
     this.highlight(this.selectedValue)
+    // A fresh block arrives with the default cut: reopen its older tasks if they were open.
+    if (this.olderOpen.has(p.dataset.slug)) this.loadOlder(p)
     this.filter()
+  }
+
+  countsTargetConnected() { this.scheduleCounts() }
+
+  // ---- older finished tasks (not drawn until asked for) ---------------------
+  // Filters that match finished tasks, and any search, need every task in the page.
+  needsOlder() {
+    const q = this.hasSearchTarget ? this.searchTarget.value.trim() : ""
+    return Boolean(q) || ["ok", "open", "closed"].includes(this.flowFilter)
+  }
+
+  // Fetches the project's block with every task (all = true) or the default cut.
+  loadOlder(p, all = true) {
+    const slug = p.dataset.slug
+    if (!Number(p.dataset.older) || (p.dataset.all === "true") === all || this.olderLoading.has(slug)) return
+    this.olderLoading.add(slug)
+    const url = new URL(p.dataset.olderUrl, window.location.origin)
+    url.searchParams.set("older", all ? "1" : "0")
+    if (this.selectedValue) url.searchParams.set("item", this.selectedValue)
+    fetch(url, { headers: { Accept: "text/vnd.turbo-stream.html" } })
+      .then((r) => (r.ok ? r.text() : ""))
+      .then((html) => { if (html) window.Turbo.renderStreamMessage(html) })
+      .catch(() => {})
+      .finally(() => this.olderLoading.delete(slug))
+  }
+
+  rememberOlder(slug, open) {
+    open ? this.olderOpen.add(slug) : this.olderOpen.delete(slug)
+    try { sessionStorage.setItem("wq-older", JSON.stringify([...this.olderOpen])) } catch (_) {}
+  }
+
+  showOlder(e) {
+    const p = e.currentTarget.closest("[data-work-queue-target~='project']")
+    this.rememberOlder(p.dataset.slug, true)
+    this.loadOlder(p)
+  }
+
+  hideOlder(e) {
+    const p = e.currentTarget.closest("[data-work-queue-target~='project']")
+    this.rememberOlder(p.dataset.slug, false)
+    if (!this.needsOlder()) this.loadOlder(p, false)
   }
 
   cardTargetDisconnected() { this.scheduleCounts() }

@@ -46,8 +46,11 @@ module WorkQueue
       nil
     end
 
-    def initialize(runner: method(:gh))
-      @runner = runner
+    # persist: keep "does this commit contain that one" answers in Redis (on for the
+    # real gh; a fake runner in tests answers differently for the same pair).
+    def initialize(runner: nil, persist: runner.nil?)
+      @runner = runner || method(:gh)
+      @persist = persist
     end
 
     # nil = nothing to say (no batch run for it, and no deploy workflow or not merged).
@@ -185,14 +188,26 @@ module WorkQueue
       end
     end
 
-    # Does commit `head` contain commit `base`? Immutable, so cached for a day.
+    CONTAINS_TTL = 14.days.to_i
+
+    # Does commit `head` contain commit `base`? Immutable, so the answer is kept in
+    # Redis: one PR is compared against up to 70 runs, and with an in-process cache
+    # every watcher restart (each deploy) asked GitHub for all of them again.
     def contains?(repo, base, head)
       return false if base.blank? || head.blank?
       return true if base == head
 
-      Rails.cache.fetch(["wq-contains", repo, base, head], expires_in: 1.day) do
-        %w[ahead identical].include?(api("repos/#{repo}/compare/#{base}...#{head}")&.dig("status"))
-      end
+      key = "#{RunState::PREFIX}:contains:#{repo}:#{base}:#{head}"
+      hit = @persist ? StatusCache.redis.get(key) : nil
+      return hit == "1" if hit
+
+      compared = api("repos/#{repo}/compare/#{base}...#{head}")
+      # A failed call (network, rate limit) is not an answer: ask again next time.
+      return false unless compared
+
+      yes = %w[ahead identical].include?(compared["status"])
+      StatusCache.redis.set(key, yes ? "1" : "0", ex: CONTAINS_TTL) if @persist
+      yes
     end
 
     def api(path)

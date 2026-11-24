@@ -12,38 +12,57 @@ module WorkQueue
     def item_stream(key) = "work_queue:item:#{key}"
     def log_stream(agent) = "work_queue:log:#{agent}"
 
-    def project_changed(slug, items, transitions: [])
+    # The project's shape changed (an item was added, removed, moved under another
+    # parent, or reopened): redraw its whole block. Only the items that changed, and
+    # the parents above them, get a fresh detail header.
+    def project_changed(slug, items, changed: items, transitions: [])
       Turbo::StreamsChannel.broadcast_replace_to(
         LIST_STREAM, target: "wq_project_#{slug}",
         partial: "work_queue/project", locals: { slug: slug, items: items }
       )
-      items.each do |item|
-        Turbo::StreamsChannel.broadcast_replace_to(
-          item_stream(item.key), target: "wq_log_header",
-          partial: "work_queue/log_header", locals: { item: item }
-        )
-      end
+      with_ancestors(changed, items).each { |item| log_header(item) }
+      transitions.each { |item, from| event(item, from) }
+    end
+
+    # Items changed but the tree did not: redraw their cards (and their parents'),
+    # the project's title-bar numbers, and announce any status moves.
+    def items_changed(changed, transitions: [])
+      cards_changed(changed)
       transitions.each { |item, from| event(item, from) }
     end
 
     # Replace just these cards (status/git/PR change) instead of the whole project.
     # Their parents are re-rendered too: a parent's progress rolls up its child steps.
-    def cards_changed(items)
+    def cards_changed(items, counts: true)
       store = Store.new
       items.group_by(&:slug).each do |slug, changed|
         all = store.items_for(slug)
-        progress = Progress.new(all, store: store)
+        listing = Listing.new(slug, all, store: store)
         with_ancestors(changed, all).each do |item|
-          context = ItemContext.wanted?(item) ? ItemContext.new(item, store: store) : nil
           Turbo::StreamsChannel.broadcast_replace_to(
             LIST_STREAM, target: item.dom_id, partial: "work_queue/card",
-            locals: { item: item, context: context, flow: progress.flow(item), progress: progress }
+            locals: { item: item, context: listing.contexts[item.key], flow: listing.flows[item.key], progress: listing.progress }
           )
-          Turbo::StreamsChannel.broadcast_replace_to(
-            item_stream(item.key), target: "wq_log_header", partial: "work_queue/log_header", locals: { item: item }
-          )
+          log_header(item)
         end
+        project_counts(listing) if counts
       end
+    end
+
+    # The numbers in a project's title bar and the filter-chip totals it carries.
+    def project_counts(listing)
+      Turbo::StreamsChannel.broadcast_replace_to(
+        LIST_STREAM, target: "wq_proj_cnt_#{listing.slug}", partial: "work_queue/project_counts", locals: { listing: listing }
+      )
+      Turbo::StreamsChannel.broadcast_replace_to(
+        LIST_STREAM, target: "wq_proj_sub_#{listing.slug}", partial: "work_queue/project_sub", locals: { listing: listing }
+      )
+    end
+
+    def log_header(item)
+      Turbo::StreamsChannel.broadcast_replace_to(
+        item_stream(item.key), target: "wq_log_header", partial: "work_queue/log_header", locals: { item: item }
+      )
     end
 
     # The given items plus every parent above them (each once; cycle-safe).
