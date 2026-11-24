@@ -594,6 +594,17 @@ export default class extends Controller {
     this.fileListTarget.textContent = Array.from(dt.files).map((f) => f.name).join(", ")
   }
 
+  // "+ Add" on a project's title bar: open the composer with that project picked.
+  addToProject(e) {
+    const { slug, label } = e.currentTarget.dataset
+    const select = this.composerTarget.querySelector("select[name='slug']")
+    if (![...select.options].some((o) => o.value === slug)) select.add(new Option(label, slug))
+    select.value = slug
+    this.composerTarget.setAttribute("open", "")
+    this.composerTarget.scrollIntoView({ block: "start" })
+    this.composerTextTarget.focus()
+  }
+
   composerSent(e) {
     if (!e.detail.success) return
     e.target.reset()

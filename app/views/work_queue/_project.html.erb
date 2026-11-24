@@ -15,6 +15,7 @@
 <% open_n = items.count(&:open?) %>
 <% done_n = flows.values.count(&:finished?) %>
 <section id="wq_project_<%= slug %>" class="wq-project" data-slug="<%= slug %>" data-work-queue-target="project">
+  <div class="wq-proj-bar">
   <button type="button" class="wq-proj" aria-expanded="true" aria-controls="wq_tree_<%= slug %>" data-action="work-queue#toggleProject">
     <svg class="wq-car" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
     <svg class="wq-folder" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M1.5 3.5h5l1.5 1.5h6.5v8h-13z" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
@@ -28,6 +29,11 @@
       <span class="wq-pbadge wq-pb-n" title="Tasks not merged or dropped"><%= live.size %></span>
     </span>
   </button>
+  <button type="button" class="wq-proj-add" title="Add a task to <%= WorkQueue::Store.label(slug) %>" aria-label="Add a task to <%= WorkQueue::Store.label(slug) %>"
+          data-slug="<%= slug %>" data-label="<%= WorkQueue::Store.label(slug) %>" data-action="work-queue#addToProject">
+    <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="wq-proj-add-t">Add</span>
+  </button>
+  </div>
   <div id="wq_tree_<%= slug %>" class="wq-tree">
     <%= render "work_queue/tree", nodes: children[nil] || [], children: children, contexts: contexts, flows: flows,
                                   selected: selected, depth: 0, seen: (seen = Set.new), progress: progress %>
