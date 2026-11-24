@@ -26,7 +26,7 @@ module WorkQueue
     # Returns the items it changed (started, held or released).
     def call(items)
       by_n = items.index_by(&:n)
-      follow_ups = items.select { |i| i.parent.present? && by_n.key?(i.parent) && i.unstarted? && !i.to_decide? }
+      follow_ups = items.select { |i| i.parent.present? && by_n.key?(i.parent) && i.unstarted? && !i.to_decide? && !i.yours? }
       fresh = follow_ups.select { |i| candidate?(i) }
       held = follow_ups.select(&:held?)
       legacy = follow_ups.select { |i| i.awaiting_approval && !i.held? }

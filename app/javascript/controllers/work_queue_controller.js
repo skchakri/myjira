@@ -7,11 +7,11 @@ const NEEDS_YOU = ["waiting", "blocked"]
 const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content
 
 export default class extends Controller {
-  static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
+  static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "mineBtn", "mineCount", "speakToggle",
                     "notifyBtn", "help", "question", "suggestions", "answer", "merge",
                     "composer", "composerText", "inlineAdd", "inlineHome", "inlineLabel", "files", "fileList", "project", "counts", "search", "projectFilter",
                     "confirm", "confirmText", "instruct", "refChips", "frame", "tab", "grid"]
-  static values = { selected: String, groupUrl: String }
+  static values = { errandsUrl: String, selected: String, groupUrl: String }
 
   // Target callbacks can fire before connect(), so set up shared state here.
   initialize() {
@@ -163,7 +163,26 @@ export default class extends Controller {
     box.checked ? this.selection.add(box.value) : this.selection.delete(box.value)
     this.groupBtnTarget.classList.toggle("hidden", this.selection.size < 2)
     this.groupCountTarget.textContent = `(${this.selection.size})`
+    if (this.hasMineBtnTarget) {
+      this.mineBtnTarget.classList.toggle("hidden", this.selection.size < 1)
+      this.mineCountTarget.textContent = `(${this.selection.size})`
+    }
   }
+
+  // "Mark as mine": the ticked tasks become errands for the person (any project).
+  async markMine() {
+    if (!this.selection.size) return
+    const body = new FormData()
+    this.selection.forEach((k) => body.append("keys[]", k))
+    await this.post(this.errandsUrlValue, body)
+    this.selection.clear()
+    this.element.querySelectorAll(".wq-check").forEach((b) => (b.checked = false))
+    this.mineBtnTarget.classList.add("hidden")
+    this.groupBtnTarget.classList.add("hidden")
+  }
+
+  // "No" on the "looks like an errand" hint.
+  hideHint(e) { if (e.detail?.success) e.target.closest(".wq-errand-hint")?.remove() }
 
   async group() {
     if (this.selection.size < 2) return
@@ -175,6 +194,7 @@ export default class extends Controller {
     this.selection.clear()
     this.element.querySelectorAll(".wq-check").forEach((b) => (b.checked = false))
     this.groupBtnTarget.classList.add("hidden")
+    if (this.hasMineBtnTarget) this.mineBtnTarget.classList.add("hidden")
   }
 
   async post(url, body) {

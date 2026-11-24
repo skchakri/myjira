@@ -61,6 +61,14 @@ module WorkQueue
       end
     end
 
+    # Errand fields ("kind": "yours", "due", "snoozedUntil", "yoursAt"): nil removes a key.
+    def errand(slug, n, attrs, log: nil, &block)
+      update(slug, n, log: log) do |i|
+        attrs.stringify_keys.each { |k, v| v.nil? ? i.delete(k) : i[k] = v }
+        block&.call(i)
+      end
+    end
+
     def set_status(slug, n, status, log: nil) = update(slug, n, log: log) { |i| i["status"] = status }
 
     def ask(slug, n, questions)
