@@ -50,6 +50,10 @@
         <span><i class="wq-dot wq-t-you"></i>needs you</span><span><i class="wq-dot wq-t-run"></i>in progress</span>
         <span><i class="wq-dot wq-t-bad"></i>failed</span><span><i class="wq-dot wq-t-ok"></i>live</span><span><i class="wq-dot wq-t-wait"></i>queued</span>
       </div>
+      <div class="wq-bulk" role="group" aria-label="Projects">
+        <button type="button" data-action="work-queue#expandAll">Expand all</button>
+        <button type="button" data-action="work-queue#collapseAll">Collapse all</button>
+      </div>
       <% if @projects.empty? %>
         <p class="wq-empty">No queue files in <code><%= WorkQueue::Store.dir %></code> yet.</p>
       <% end %>

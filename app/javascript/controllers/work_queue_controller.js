@@ -238,6 +238,15 @@ export default class extends Controller {
     this.applyCollapsed(p)
   }
 
+  expandAll() { this.setAllCollapsed(false) }
+  collapseAll() { this.setAllCollapsed(true) }
+
+  setAllCollapsed(closed) {
+    this.collapsed = new Set(closed ? this.projectTargets.map((p) => p.dataset.slug) : [])
+    try { localStorage.setItem("wq-collapsed", JSON.stringify([...this.collapsed])) } catch (_) {}
+    this.projectTargets.forEach((p) => this.applyCollapsed(p))
+  }
+
   // force: false = open regardless (a filter/search hit), null/undefined = remembered state.
   applyCollapsed(p, force) {
     const closed = force === false ? false : this.collapsed.has(p.dataset.slug)
