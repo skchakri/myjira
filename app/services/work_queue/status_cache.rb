@@ -49,7 +49,7 @@ module WorkQueue
         st = prs.fetch(item.pr)
         pr_json = (st&.to_h || {}).to_json
         redis.set(pr_key(item.pr), pr_json, ex: TTL)
-        pr_json += (delivery.compute(st)&.to_h || {}).to_json.tap { |d| redis.set(delivery_key(item.pr), d, ex: TTL) }
+        pr_json += delivery_json(item.pr, st, delivery)
       end
       git_json = ""
       if item.open?
@@ -60,6 +60,16 @@ module WorkQueue
       end
       sig = [git_json, pr_json].join
       redis.getset("#{git_key(item.key)}:sig", sig) != sig
+    end
+
+    # The PR's delivery state as stored. When GitHub could not be asked (outage, rate limit)
+    # nothing is written: the last known state stays, instead of reading "not live".
+    def delivery_json(pr, status, delivery)
+      json = (delivery.compute(status)&.to_h || {}).to_json
+      redis.set(delivery_key(pr), json, ex: TTL)
+      json
+    rescue Delivery::Unavailable
+      redis.get(delivery_key(pr)).to_s
     end
 
     # Done items whose PR may still be on its way to production.

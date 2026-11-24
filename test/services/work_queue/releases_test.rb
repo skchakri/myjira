@@ -210,7 +210,7 @@ class WorkQueueReleasesTest < ActionDispatch::IntegrationTest
     assert_equal "running", summary.run_state
 
     down = WorkQueue::PullRequests::Status.new(url: pr("me/down", 1), state: "MERGED", head_sha: "h", merge_sha: "m")
-    WorkQueue::Delivery.new(runner: ->(*) { ["", false] }).compute(down)
+    assert_raises(WorkQueue::Delivery::Unavailable) { WorkQueue::Delivery.new(runner: ->(*) { ["", false] }).compute(down) }
     assert_nil WorkQueue::Delivery.summary("me/down")
   end
 
