@@ -109,7 +109,7 @@ module WorkQueue
 
     # Shipped, cancelled, already-bundled, own-PR and branchless (relay/answer) items aren't part of a new bundle.
     def member?(i)
-      return false if IGNORE.include?(i.status) || i.status == "done" || i.bundle_info.present? || i.pr.present?
+      return false if i.yours? || IGNORE.include?(i.status) || i.status == "done" || i.bundle_info.present? || i.pr.present?
 
       i.ready_to_bundle? || i.branch.present? || WAIT.include?(i.status)
     end

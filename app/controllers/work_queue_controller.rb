@@ -12,7 +12,7 @@ class WorkQueueController < ApplicationController
 
   MAX_ENTRIES = 400
 
-  before_action :load_item, except: %i[index project group create settings update_settings costs]
+  before_action :load_item, except: %i[index project group mark_errands create settings update_settings costs]
   before_action(only: %i[index project]) { WorkQueue::Current.repos = WorkQueue::Workspace.repos }
 
   # The list only. Git/PR status comes from WorkQueue::StatusCache (refreshed by
@@ -60,6 +60,10 @@ class WorkQueueController < ApplicationController
     writer.update(slug, item["n"]) { |i| i["description"] += "\n\nAttached files:\n#{paths.join("\n")}" } if paths.any?
     key = "#{slug}:#{item['n']}"
     WorkQueue::RunState.set(key, { "repo" => WorkQueue::Workspace.repo_for(slug) }.compact)
+    if params[:yours] == "1" # "This is an errand for me": filed for the person, never started
+      writer.errand(slug, item["n"], errand_mark, log: "Added as an errand for you (Yours)") { |i| i["status"] = "queued" }
+      return toast("Added ##{item['n']} to #{WorkQueue::Store.label(slug)} as yours to do", :ok)
+    end
     start_server(key, relay: params[:relay] == "1") if params[:start] == "1" || params[:relay] == "1"
     toast("Added ##{item['n']} to #{WorkQueue::Store.label(slug)}#{' and started' if params[:start] == '1'}", :ok)
   end
@@ -82,6 +86,8 @@ class WorkQueueController < ApplicationController
   end
 
   def run
+    return toast("##{@item.n} is an errand for you. Hand it to an agent first if one should do it.", :error) if @item.errand?
+
     approve_for_run
     admit_follow_up
     return respond_with_dispatch(dispatcher.run_now, "Run now sent for ##{@item.n}") if dispatcher.listening?
@@ -156,6 +162,39 @@ class WorkQueueController < ApplicationController
       picked.each { |k| starter.start_now(k) }
       toast(runner_note("Started #{names}"), :ok)
     end
+  end
+
+  # Errands ("Yours"): one endpoint, op = mark | unmark | hand | done | snooze | wake | due | dismiss_hint.
+  # Always written with QueueWriter (like the follow-up batch): these fields are myjira's
+  # own, and the CLI mod reloads the file when its mtime changes.
+  def errand
+    op = params[:op].to_s
+    return errand_hint_off if op == "dismiss_hint"
+    return toast("##{@item.n} is already closed", :error) unless @item.open?
+    return toast("##{@item.n} is not marked as yours", :error) if %w[mark].exclude?(op) && !@item.yours?
+
+    case op
+    when "mark" then mark_errand(@item)
+    when "unmark" then writer.errand(@item.slug, @item.n, errand_clear, log: "No longer an errand: back in the agent queue")
+    when "hand" then return hand_to_agent
+    when "done" then writer.errand(@item.slug, @item.n, { snoozedUntil: nil }, log: "Done by you") { |i| i["status"] = "done" }
+    when "wake" then writer.errand(@item.slug, @item.n, { snoozedUntil: nil }, log: "Snooze ended by you")
+    when "snooze" then return snooze_errand
+    when "due" then return due_errand
+    else return toast("Unknown errand action", :error)
+    end
+    toast({ "mark" => "##{@item.n} is yours to do", "unmark" => "##{@item.n} is back in the agent queue",
+            "done" => "##{@item.n} done", "wake" => "##{@item.n} is back in your list" }.fetch(op), :ok)
+  end
+
+  # "Mark as mine" on the multi-select bar: every ticked open item becomes an errand.
+  def mark_errands
+    store = WorkQueue::Store.new
+    items = Array(params[:keys]).filter_map { |k| store.find(k) }.select { |i| i.open? && !i.yours? }
+    return toast("Select at least one open task that is not yours already", :error) if items.empty?
+
+    items.each { |i| mark_errand(i) }
+    toast("Marked #{items.map { |i| "##{i.n}" }.join(', ')} as yours to do", :ok)
   end
 
   def stop = runner_action("stop", "Stopping ##{@item.n}")
@@ -369,6 +408,51 @@ class WorkQueueController < ApplicationController
       [ph, WorkQueue::Router.valid?(m, e) ? { "model" => m, "effort" => e } : WorkQueue::Router::DEFAULTS[ph]]
     end
     WorkQueue::RunState.save_routing(table)
+  end
+
+  def errand_mark = { kind: "yours", yoursAt: (Time.current.to_f * 1000).to_i }
+  def errand_clear = { kind: nil, due: nil, snoozedUntil: nil, yoursAt: nil }
+
+  # Marking does not change the status; a run in flight is stopped so no agent keeps going.
+  def mark_errand(item)
+    writer.errand(item.slug, item.n, errand_mark, log: "Marked as an errand for you (Yours): no agent will run it") do |i|
+      i.delete("awaitingApproval")
+    end
+    WorkQueue::RunState.enqueue("stop", item.key) if WorkQueue::RunState.get(item.key)["pid"].present?
+  end
+
+  # "Hand to an agent": no longer an errand, queued, and started the way Run now starts things.
+  def hand_to_agent
+    writer.errand(@item.slug, @item.n, errand_clear, log: "Handed to an agent by you") do |i|
+      i["status"] = "queued" if %w[triage blocked review].include?(i["status"])
+    end
+    return respond_with_dispatch(dispatcher.run_now, "##{@item.n} handed to its CLI session") if dispatcher.listening?
+
+    WorkQueue::RunState.set(@item.key, { "repo" => WorkQueue::Workspace.repo_for(@item.slug) }.compact) unless WorkQueue::RunState.server_run?(@item.key)
+    start_server(@item.key, force: true)
+    toast(runner_note("##{@item.n} handed to an agent and queued on the server"), :ok)
+  end
+
+  def snooze_errand
+    till = WorkQueue::Errands.snooze_until(params[:until].presence || params[:date])
+    return toast("Pick a day in the future to snooze until", :error) unless till
+
+    writer.errand(@item.slug, @item.n, { snoozedUntil: (till.to_f * 1000).to_i }, log: "Snoozed by you until #{till.strftime('%a %b %-d')}")
+    toast("##{@item.n} snoozed until #{till.strftime('%a %b %-d')}", :ok)
+  end
+
+  def due_errand
+    raw = params[:date].to_s.strip
+    date = (Date.iso8601(raw) rescue nil) # rubocop:disable Style/RescueModifier
+    return toast("That is not a date", :error) if raw.present? && date.nil?
+
+    writer.errand(@item.slug, @item.n, { due: date&.iso8601 }, log: date ? "Due #{date.strftime('%a %b %-d')}" : "Due date removed")
+    toast(date ? "##{@item.n} due #{date.strftime('%a %b %-d')}" : "##{@item.n} has no due date now", :ok)
+  end
+
+  def errand_hint_off
+    WorkQueue::Errands.dismiss_hint(@item)
+    toast("Won't suggest that for ##{@item.n} again", :ok)
   end
 
   def dispatcher = @dispatcher ||= WorkQueue::Dispatcher.new(@item)

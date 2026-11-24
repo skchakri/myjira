@@ -23,7 +23,7 @@
         <%= wq_wait_tag(flow, prefix: "") unless flow.stalled? %>
         <%= wq_cost_tag(item, roll.parent? ? progress.descendants(item) : []) %>
       </span>
-      <% if roll.percent && (roll.parent? || !flow.closed?) %>
+      <% if roll.percent && (roll.parent? || !(flow.closed? || item.yours?)) %>
         <span class="wq-node-p">
           <%= wq_progress(roll.percent, tone: wq_progress_tone(flow, roll),
                           label: roll.parent? ? "Task #{item.n} with its child steps" : "Task #{item.n}") %>
@@ -33,13 +33,19 @@
     </span>
     <% if qs.positive? %><span class="wq-node-q" title="<%= pluralize(qs, 'open question') %>"><%= qs %> ?</span><% end %>
   <% end %>
+  <% if item.errand? %>
+    <%= button_to work_queue_item_errand_path(item.key), params: { op: "done" }, class: "wq-icon-btn wq-icon-btn-mine", title: "Done: tick this errand off",
+                  "aria-label": "Mark errand #{item.n} done", form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>
+      <span class="wq-errand-box" aria-hidden="true"></span>
+    <% end %>
+  <% end %>
   <% if flow.stalled? %>
     <%= button_to work_queue_item_resume_path(item.key), class: "wq-icon-btn wq-icon-btn-bad", title: "Resume (it stalled)", "aria-label": "Resume task #{item.n}",
                   form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>
       <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg>
     <% end %>
   <% end %>
-  <% if item.pending? %>
+  <% if item.pending? && !item.yours? %>
     <% run_label = item.awaiting_approval ? "Approve & queue" : "Run now" %>
     <%= button_to work_queue_item_run_path(item.key), class: "wq-icon-btn", title: "#{run_label} (r)", "aria-label": "#{run_label}: task #{item.n}",
                   form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>

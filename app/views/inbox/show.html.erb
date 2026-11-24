@@ -33,13 +33,23 @@
         <% end %>
       </nav>
 
-      <% oldest = @inbox.entries.find { |e| e.flow.waiting_level == "late" } %>
+      <% oldest = @inbox.entries.find { |e| !e.errand? && e.flow.waiting_level == "late" } %>
+      <% snoozed_shown = false %>
       <% @inbox.sections.each do |key, title, entries| %>
         <section class="inbox-section" id="inbox_s_<%= key %>" aria-labelledby="inbox_h_<%= key %>">
           <h2 class="wq-eyebrow inbox-section-h" id="inbox_h_<%= key %>"><%= title %> <span class="inbox-section-n"><%= entries.size %></span></h2>
           <% entries.each do |entry| %>
-            <%= render "inbox/entry", entry: entry, anchor: (entry == oldest ? "inbox_oldest" : nil) %>
+            <%= render "inbox/entry", entry: entry, anchor: (entry == oldest ? "inbox_oldest" : nil), hinted: @inbox.hinted?(entry) %>
           <% end %>
+          <% if key == "yours" && @inbox.snoozed.any? %>
+            <% snoozed_shown = true %>
+            <%= render "inbox/snoozed", entries: @inbox.snoozed %>
+          <% end %>
+        </section>
+      <% end %>
+      <% if @inbox.snoozed.any? && !snoozed_shown %>
+        <section class="inbox-section" id="inbox_s_yours" aria-label="Yours">
+          <%= render "inbox/snoozed", entries: @inbox.snoozed %>
         </section>
       <% end %>
       <% if @inbox.batches.any? %>

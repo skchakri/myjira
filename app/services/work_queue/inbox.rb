@@ -6,6 +6,7 @@ module WorkQueue
     # key, section title, word for the summary ("6 decisions").
     SECTIONS = [
       ["decisions", "Decisions", "decision"],
+      ["yours", "Yours", "yours"],
       ["permissions", "Permission prompts", "permission prompt"],
       ["approve", "Needs approval", "to approve"],
       ["review", "Ready to review or merge", "to review"],
@@ -19,6 +20,7 @@ module WorkQueue
       def key = item.key
       def dom_id = "inbox_#{item.slug}_#{item.n}"
       def since = flow.waiting_since
+      def errand? = section == "yours"
       # Changes when what is asked changes, so an "answered" row re-opens for a new question.
       def signature = [section, item.open_questions.size, item.status].join("/")
     end
@@ -39,7 +41,7 @@ module WorkQueue
     # Follow-ups to decide, grouped under their parent.
     def self.batches_for(items)
       by_n = items.index_by(&:n)
-      picked = items.select { |i| i.parent.present? && by_n.key?(i.parent) && (i.to_decide? || i.held?) }
+      picked = items.select { |i| i.parent.present? && by_n.key?(i.parent) && !i.yours? && (i.to_decide? || i.held?) }
       picked.group_by(&:parent).map do |n, kids|
         Batch.new(parent: by_n[n], suggested: kids.select(&:to_decide?).sort_by(&:n), held: kids.select(&:held?).sort_by(&:n))
       end
@@ -50,9 +52,19 @@ module WorkQueue
     end
 
     def entries
-      @entries ||= @store.all.filter_map { |item| entry_for(item) }
-                         .sort_by { |e| [e.since || Time.current, e.item.slug, e.item.n] }
+      @entries ||= all_entries.reject { |e| e.item.snoozed? }.sort_by { |e| order(e) }
     end
+
+    # Errands put away for now; shown folded under the Yours section.
+    def snoozed
+      @snoozed ||= all_entries.select { |e| e.item.snoozed? }.sort_by { |e| [e.item.snoozed_until, e.item.slug, e.item.n] }
+    end
+
+    def errands = entries.select(&:errand?)
+    def errands_due = errands.select { |e| e.item.due_now? }
+    def errands_overdue = errands.count { |e| e.item.overdue? }
+    # An unmarked item that reads like an errand (the "mark as mine?" hint shows on it).
+    def hinted?(entry) = !entry.errand? && Errands.suggest?(entry.item, run: entry.context.run)
 
     # [[key, title, [Entry]]] for the sections that have entries, in display order.
     def sections
@@ -69,9 +81,11 @@ module WorkQueue
     def held = batches.sum { |b| b.held.size }
 
     def counts = @counts ||= SECTIONS.to_h { |key, _, _| [key, entries.count { |e| e.section == key }] }
-    def total = entries.size + batches.size
-    def overdue = entries.count { |e| e.flow.waiting_level == "late" }
-    def empty? = entries.empty? && batches.empty?
+    # The sidebar number: everything waiting on the person, but of the errands only the
+    # ones due today or overdue (the rest are a to-do list, not something to chase).
+    def total = entries.count { |e| !e.errand? || e.item.due_now? } + batches.size
+    def overdue = entries.count { |e| !e.errand? && e.flow.waiting_level == "late" }
+    def empty? = entries.empty? && batches.empty? && snoozed.empty?
 
     # Open permission prompts (questions, not items): what the person actually clicks through.
     def permission_prompts
@@ -82,6 +96,8 @@ module WorkQueue
     def summary
       parts = SECTIONS.filter_map do |key, _, word|
         n = key == "permissions" ? permission_prompts : counts[key]
+        next ["yours", "#{n} yours#{" (#{errands_overdue} overdue)" if errands_overdue.positive?}"] if key == "yours" && n.positive?
+
         [key, "#{n} #{COUNTED.include?(key) ? word.pluralize(n) : word}"] if n.positive?
       end
       parts << ["followups", "#{to_decide} #{'follow-up'.pluralize(to_decide)} to decide"] if to_decide.positive?
@@ -90,13 +106,13 @@ module WorkQueue
       parts
     end
 
-    def summary_line = empty? ? "Nothing needs you." : summary.map(&:last).join(" · ")
+    def summary_line = summary.empty? ? "Nothing needs you." : summary.map(&:last).join(" · ")
 
     # { "total" => n, "overdue" => n } for the sidebar, cached briefly: it renders on every page.
     def self.counts
       Rails.cache.fetch(COUNT_CACHE, expires_in: 30.seconds) do
         inbox = new
-        { "total" => inbox.total, "overdue" => inbox.overdue }
+        { "total" => inbox.total, "overdue" => inbox.overdue + inbox.errands_overdue }
       end
     rescue StandardError => e
       Rails.logger.warn("[inbox] counts failed: #{e.class}: #{e.message}")
@@ -105,11 +121,20 @@ module WorkQueue
 
     private
 
+    def all_entries = @all_entries ||= @store.all.filter_map { |item| entry_for(item) }
+
+    # Oldest first; errands by due date first (overdue, due today, later, no date), then age.
+    def order(entry)
+      due = entry.errand? ? (entry.item.due || Date.new(9999)) : Date.new(1)
+      [due, entry.since || Time.current, entry.item.slug, entry.item.n]
+    end
+
     def entry_for(item)
       return unless ItemContext.wanted?(item)
 
       context = ItemContext.new(item, store: @store)
       flow = context.flow
+      return Entry.new(item: item, context: context, flow: flow, section: "yours") if item.errand?
       return unless flow.tags.include?("you")
 
       Entry.new(item: item, context: context, flow: flow, section: section_for(item, flow))

@@ -11,7 +11,7 @@ module WorkQueue
     FILTERS = [
       ["all", "All"], ["you", "Needs you"], ["answer", "Needs answer"], ["approve", "Needs approval"],
       ["bundle", "Ready to bundle"], ["merge", "Ready to merge"], ["run", "In progress"], ["testing", "Testing / deploying"], ["bad", "Failed"],
-      ["wait", "Queued"], ["ok", "Live"], ["unreleased", "Merged, not live"], ["open", "Open or not live"], ["closed", "Merged / dropped"]
+      ["wait", "Queued"], ["yours", "Yours"], ["ok", "Live"], ["unreleased", "Merged, not live"], ["open", "Open or not live"], ["closed", "Merged / dropped"]
     ].freeze
 
     YOUR_PART = {
@@ -28,6 +28,9 @@ module WorkQueue
       "wait" => "Nothing. It starts by itself.",
       "held" => "Clear some of what is waiting on you in this project and it starts by itself, or start it anyway.",
       "decide" => "Start it or drop it. It is a nice-to-have, so it will not start by itself.",
+      "yours" => "Do it, then tick it off. No agent will pick this up.",
+      "snoozed" => "Nothing until the snooze ends.",
+      "yours_done" => "Nothing. You ticked it off.",
       "ok" => "Nothing.",
       "closed" => "Nothing."
     }.freeze
@@ -57,7 +60,7 @@ module WorkQueue
         at = (@context.last_activity if @context.respond_to?(:last_activity)) || item.updated_at
         idle = at && Time.current - at
         alive = @context.respond_to?(:live_pid?) && @context.live_pid?
-        idle if item.status == "running" && !alive && idle && idle >= STALL_AFTER
+        idle if item.status == "running" && !item.yours? && !alive && idle && idle >= STALL_AFTER
       end
     end
     def your_part = YOUR_PART.fetch(@part)
@@ -70,7 +73,9 @@ module WorkQueue
     def waiting_since
       return @waiting_since if defined?(@waiting_since)
 
-      @waiting_since = if tags.include?("you")
+      @waiting_since = if item.errand?
+        item.yours_at || status_since || item.created_at || item.updated_at
+      elsif tags.include?("you")
         asked = item.open_questions.filter_map { |q| epoch_ms(q.at) }.min
         asked || (Time.current - stalled_for if stalled?) || status_since || item.updated_at || item.created_at
       end
@@ -90,6 +95,8 @@ module WorkQueue
 
     # nil (fresh), "warn" (over a day) or "late" (over three days).
     def waiting_level
+      return (item.overdue? ? "late" : ("warn" if item.due_today?)) if item.errand? # an errand nags by its due date, not its age
+
       seconds = waiting_for or return
       return "late" if seconds >= WAIT_LATE
 
@@ -117,6 +124,7 @@ module WorkQueue
     # phase while one is running. nil for dropped / folded items (they count nowhere).
     def percent
       return nil if closed?
+      return item.open? ? 0 : 100 if item.yours? # an errand has no agent phases: not done, or done
       return 100 if phase >= PHASES.size
 
       ((phase + (item.status == "running" ? 0.5 : 0)).fdiv(PHASES.size) * 100).round
@@ -147,7 +155,9 @@ module WorkQueue
 
     # Index of the phase the item is on now.
     def phase
-      @phase ||= case item.status
+      @phase ||= case item.yours? ? "yours-#{item.open? ? 'open' : item.status}" : item.status
+      when "yours-open" then 0
+      when "yours-done" then PHASES.size
       when "done" then delivery&.state.in?(%w[testing deploying not_live stacked deploy_failed]) ? 5 : 6
       when "merged", "dropped" then 0
       when "review" then item.pr.present? ? 4 : 3
@@ -177,6 +187,8 @@ module WorkQueue
     private
 
     def compute
+      return ["ok", "Done by you", 5, %w[ok], "yours_done"] if item.yours? && item.status == "done"
+
       case item.status
       when "merged" then ["wait", item.merged_into ? "Folded into task #{item.merged_into}" : "Folded into another task", 0, %w[closed], "closed"]
       when "dropped" then ["wait", "Dropped", 0, %w[closed], "closed"]
@@ -186,6 +198,7 @@ module WorkQueue
     end
 
     def open_state
+      return yours_state if item.yours?
       return ["you", "Needs your answer", item.status == "review" ? 3 : 1, %w[you answer], "answer"] if item.open_questions.any?
       return ["wait", "Held: waiting for you to catch up", 0, %w[wait held], "held"] if item.held?
       return ["wait", "Suggested: start or drop", 0, %w[wait decide], "decide"] if item.to_decide?
@@ -198,6 +211,30 @@ module WorkQueue
       when "blocked" then item.bundle_failed? ? ["bad", "Left out of bundle", 3, %w[bad you], "bad"] : ["bad", "Stuck: needs a look", 2, %w[bad you], "bad"]
       else review_state
       end
+    end
+
+    # An errand: its own tone ("mine"), never "needs you" / failed / stalled, so it stays
+    # out of the agent pipeline's counts. "due" marks the ones the inbox badge counts.
+    def yours_state
+      if item.snoozed?
+        return ["wait", "Snoozed until #{day_words(item.snoozed_until.to_date)}", 0, %w[yours snoozed], "snoozed"]
+      end
+
+      label = if item.overdue? then "Yours · overdue #{(Time.zone.today - item.due).to_i}d"
+      elsif item.due_today? then "Yours · due today"
+      elsif item.due then "Yours · due #{item.due.strftime('%b %-d')}"
+      else "Yours"
+      end
+      ["mine", label, 0, item.due_now? ? %w[yours due] : %w[yours], "yours"]
+    end
+
+    # "tomorrow", "Mon" (within a week), else "Nov 28".
+    def day_words(date)
+      days = (date - Time.zone.today).to_i
+      return "tomorrow" if days == 1
+      return "later today" if days <= 0
+
+      days < 7 ? date.strftime("%a") : date.strftime("%b %-d")
     end
 
     def delivery = @context.respond_to?(:delivery) ? @context.delivery : nil
