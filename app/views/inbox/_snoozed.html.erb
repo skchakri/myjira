@@ -1,0 +1,18 @@
+<%# Errands put away for now: folded, with a one-click wake. %>
+<details class="inbox-snoozed">
+  <summary><%= entries.size %> snoozed</summary>
+  <ul class="inbox-snoozed-list">
+    <% entries.each do |entry| %>
+      <% item = entry.item %>
+      <li>
+        <span class="wq-dot wq-t-wait" aria-hidden="true"></span>
+        <%= link_to work_queue_path(item: item.key), class: "inbox-entry-title" do %>
+          <span class="wq-n-tag">#<%= item.n %></span> <%= item.title.truncate(90) %>
+        <% end %>
+        <span class="wq-hint"><%= WorkQueue::Store.label(item.slug) %> · until <%= item.snoozed_until.strftime("%a %b %-d") %></span>
+        <%= button_to "Wake now", work_queue_item_errand_path(item.key), params: { op: "wake" }, class: "wq-btn wq-btn-ghost",
+                      form: { data: { turbo_stream: true, inbox_keep: true } } %>
+      </li>
+    <% end %>
+  </ul>
+</details>

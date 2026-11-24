@@ -154,6 +154,8 @@ Rails.application.routes.draw do
   get  "work_queue", to: "work_queue#index", as: :work_queue
   post "work_queue/group", to: "work_queue#group", as: :work_queue_group
   post "work_queue/items", to: "work_queue#create", as: :work_queue_items
+  post "work_queue/errands", to: "work_queue#mark_errands", as: :work_queue_errands
+  get  "work_queue/projects/:slug", to: "work_queue#project", as: :work_queue_project
   get  "work_queue/settings", to: "work_queue#settings", as: :work_queue_settings
   get  "work_queue/costs", to: "work_queue#costs", as: :work_queue_costs
   get  "work_queue/releases", to: "work_queue_releases#index", as: :work_queue_releases
@@ -166,6 +168,8 @@ Rails.application.routes.draw do
     post :answer, to: "work_queue#answer"
     post :instruct, to: "work_queue#instruct"
     post :children, to: "work_queue#add_child"
+    post :follow_ups, to: "work_queue#follow_ups"
+    post :errand, to: "work_queue#errand"
     post :merge_pr, to: "work_queue#merge_pr"
     post :merge_chain, to: "work_queue#merge_chain"
     post :ship, to: "work_queue#ship"

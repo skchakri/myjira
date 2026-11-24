@@ -4,7 +4,7 @@
 <% flow = entry.flow %>
 <% pr = context.pr_status %>
 <article class="inbox-entry" id="<%= entry.dom_id %>" tabindex="-1" data-inbox-target="entry"
-         data-key="<%= entry.key %>" data-sig="<%= entry.signature %>" data-section="<%= entry.section %>">
+         data-key="<%= entry.key %>" data-sig="<%= [entry.signature, (item.snoozed? ? 'snoozed' : nil)].compact.join('/') %>" data-section="<%= entry.section %>">
   <% if local_assigns[:anchor] %><span id="<%= anchor %>"></span><% end %>
   <header class="inbox-entry-h">
     <span class="wq-dot wq-t-<%= flow.tone %>" aria-hidden="true"></span>
@@ -16,15 +16,18 @@
     </span>
     <span class="inbox-entry-meta">
       <span class="wq-hint"><%= flow.label %></span>
-      <%= wq_wait_tag(flow) %>
+      <%= wq_wait_tag(flow, prefix: item.errand? ? "yours for " : "waiting ") %>
     </span>
   </header>
   <p class="inbox-now"><%= flow.happening.to_s.squish.truncate(240) %></p>
+  <% if local_assigns[:hinted] %><%= render "work_queue/errand_hint", item: item, inbox: true %><% end %>
 
   <div class="inbox-entry-b">
     <% case entry.section %>
     <% when "decisions", "permissions" %>
       <%= render "work_queue/question_box", item: item %>
+    <% when "yours" %>
+      <%= render "work_queue/errand_actions", item: item, inbox: true %>
     <% when "approve" %>
       <div class="wq-actions">
         <%= button_to "Approve & queue", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary",

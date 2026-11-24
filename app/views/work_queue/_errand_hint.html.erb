@@ -1,0 +1,10 @@
+<%# "Looks like an errand" on an unmarked item (WorkQueue::Errands.suggest?). One click accepts, one dismisses; never automatic. %>
+<% url = work_queue_item_errand_path(item.key) %>
+<% inbox = local_assigns[:inbox] %>
+<div class="wq-errand-hint" role="note">
+  <span>Looks like an errand only you can do. Mark it as yours?</span>
+  <%= button_to "Mark as mine", url, params: { op: "mark" }, class: "wq-btn",
+                form: { data: inbox ? { turbo_stream: true, inbox_done: "Marked as yours" } : { turbo_stream: true } } %>
+  <%= button_to "No", url, params: { op: "dismiss_hint" }, class: "wq-btn wq-btn-ghost", title: "Don't suggest this for this task again",
+                form: { data: { turbo_stream: true, inbox_keep: true, action: "turbo:submit-end->#{inbox ? 'inbox' : 'work-queue'}#hideHint" } } %>
+</div>

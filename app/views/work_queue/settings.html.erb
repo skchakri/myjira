@@ -83,6 +83,22 @@
     <% end %>
   </section>
 
+  <section class="mt-10" aria-labelledby="wq-limit-h">
+    <h2 id="wq-limit-h" class="text-lg font-semibold">Follow-up limit</h2>
+    <p class="wq-hint mt-1">Per project. Agents file follow-ups faster than they can be reviewed, so once this many of the project's tasks are waiting on you (questions, approvals, reviews, stalled, failed), new agent-filed follow-ups are held instead of started. They start by themselves, oldest first, when the count drops below the limit. Follow-ups you type yourself and Run now are never held. Nice-to-have follow-ups never start by themselves; you start or drop them as a batch on their parent.</p>
+    <% if @slug %>
+      <%= form_with url: work_queue_settings_path, method: :patch, class: "mt-3 flex flex-wrap items-center gap-2" do %>
+        <%= hidden_field_tag :slug, @slug %>
+        <label class="wq-label" for="review_limit">Hold follow-ups in <%= WorkQueue::Store.label(@slug) %> once this many tasks wait on you</label>
+        <%= number_field_tag :review_limit, @review_limit, min: 0, step: 1, class: "wq-input wq-mono", style: "width: 6rem", placeholder: "none" %>
+        <button class="wq-btn wq-btn-primary">Save limit</button>
+        <span class="wq-hint">Default <%= WorkQueue::RunState::DEFAULT_REVIEW_LIMIT %>. Blank or 0 = no limit.</span>
+      <% end %>
+    <% else %>
+      <p class="wq-hint mt-2">Pick a project above to set its limit (default <%= WorkQueue::RunState::DEFAULT_REVIEW_LIMIT %>).</p>
+    <% end %>
+  </section>
+
   <section class="mt-10" aria-labelledby="wq-budget-h">
     <h2 id="wq-budget-h" class="text-lg font-semibold">Daily budget</h2>
     <p class="wq-hint mt-1">Optional, per project. Once the server runner has spent this much on a project today, new tasks for it wait as queued until tomorrow. Run now on a task overrides it; tasks already running finish their phase. Leave blank for no budget.</p>

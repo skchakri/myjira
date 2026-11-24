@@ -1,0 +1,51 @@
+<%# What the person can do with an errand ("Yours"): tick it off, snooze it, set a due date, or give it back.
+    Used in the detail pane and the inbox; every button posts to work_queue#errand. %>
+<% url = work_queue_item_errand_path(item.key) %>
+<% inbox = local_assigns[:inbox] %>
+<% done = ->(text) { inbox ? { turbo_stream: true, inbox_done: text } : { turbo_stream: true } } %>
+<div class="wq-errand" role="group" aria-label="Your errand">
+  <%= button_to url, params: { op: "done" }, class: "wq-errand-done", title: "Tick it off: marks the task done",
+                form: { data: done.call("Done") }, data: { inbox_main: (true if inbox) } do %>
+    <span class="wq-errand-box" aria-hidden="true"></span>Done
+  <% end %>
+
+  <% if item.snoozed? %>
+    <%= button_to "Wake now", url, params: { op: "wake" }, class: "wq-btn", form: { data: done.call("Back in your list") } %>
+  <% else %>
+    <details class="wq-merge wq-errand-menu">
+      <summary class="wq-btn">Snooze</summary>
+      <div class="wq-merge-panel">
+        <p class="text-[12px] font-medium">Hide it from your list until</p>
+        <div class="flex flex-wrap gap-2 mt-1">
+          <% WorkQueue::Errands::SNOOZES.each do |value, label| %>
+            <%= button_to label, url, params: { op: "snooze", until: value }, class: "wq-btn", form: { data: done.call("Snoozed") } %>
+          <% end %>
+        </div>
+        <%= form_with url: url, data: done.call("Snoozed"), class: "flex flex-wrap items-center gap-2 mt-2" do %>
+          <%= hidden_field_tag :op, "snooze", id: nil %>
+          <%= date_field_tag :date, nil, min: Time.zone.tomorrow.iso8601, required: true, class: "wq-input wq-input-sm", "aria-label": "Snooze until this day", id: nil %>
+          <button class="wq-btn">Until this day</button>
+        <% end %>
+      </div>
+    </details>
+  <% end %>
+
+  <details class="wq-merge wq-errand-menu">
+    <summary class="wq-btn"><%= item.due ? "Due #{item.due.strftime('%b %-d')}" : "Set due date" %></summary>
+    <div class="wq-merge-panel">
+      <%= form_with url: url, data: { turbo_stream: true, inbox_keep: true }, class: "flex flex-wrap items-center gap-2" do %>
+        <%= hidden_field_tag :op, "due", id: nil %>
+        <%= date_field_tag :date, item.due&.iso8601, class: "wq-input wq-input-sm", "aria-label": "Due date", id: nil %>
+        <button class="wq-btn wq-btn-primary">Save</button>
+      <% end %>
+      <% if item.due %>
+        <%= button_to "Remove due date", url, params: { op: "due", date: "" }, class: "wq-btn wq-btn-ghost mt-2", form: { data: { turbo_stream: true, inbox_keep: true } } %>
+      <% end %>
+    </div>
+  </details>
+
+  <%= button_to "Hand to an agent", url, params: { op: "hand" }, class: "wq-btn wq-btn-ghost",
+                title: "Not an errand after all: queue it for an agent to do", form: { data: done.call("Handed to an agent") } %>
+  <%= button_to "Not an errand", url, params: { op: "unmark" }, class: "wq-btn wq-btn-ghost",
+                title: "Put it back as an ordinary task without starting it", form: { data: done.call("Back in the agent queue") } %>
+</div>

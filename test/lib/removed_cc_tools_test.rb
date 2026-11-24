@@ -17,6 +17,9 @@ class RemovedCcToolsTest < ActiveSupport::TestCase
 
   SCAN_DIRS  = %w[app lib config .claude].freeze
   SCAN_GLOBS = %w[*.rb *.erb *.md *.markdown *.yml *.yaml *.json *.txt].freeze
+  # Agent worktrees are whole second checkouts (they contain this very test and the
+  # docs that explain the removal); dependencies and scratch files are not shipped.
+  SKIP = %r{/(\.claude/worktrees|node_modules|tmp)/}
 
   test "no removed Claude Code tools are referenced in shipped source" do
     pattern  = /#{REMOVED_TOOLS.map { |t| Regexp.escape(t) }.join("|")}/
@@ -28,6 +31,8 @@ class RemovedCcToolsTest < ActiveSupport::TestCase
 
       SCAN_GLOBS.each do |glob|
         Dir.glob(root.join("**", glob)).each do |path|
+          next if path.delete_prefix(Rails.root.to_s).match?(SKIP)
+
           File.foreach(path).with_index(1) do |line, lineno|
             offenders << "#{path}:#{lineno}: #{line.strip}" if line.match?(pattern)
           end

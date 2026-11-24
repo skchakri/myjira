@@ -15,6 +15,9 @@
       <input type="file" name="files[]" multiple accept="image/*,application/pdf,text/*,.md,.json,.log" class="hidden" data-action="change->work-queue#filesPicked">
       <p class="wq-files" data-wq-files></p>
     </div>
+    <label class="wq-toggle wq-errand-check" title="File it for yourself: no agent will run it, and it shows under Yours in the inbox">
+      <input type="checkbox" name="yours" value="1"> This is an errand for me
+    </label>
     <div class="flex flex-wrap items-center gap-2 mt-2">
       <button type="button" class="wq-mic" aria-label="Dictate" data-action="work-queue#dictate">mic</button>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#pickFiles">Files</button>

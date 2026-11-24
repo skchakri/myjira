@@ -6,9 +6,13 @@ namespace :inbox do
     inbox.entries.select { |e| e.flow.waiting_level == "late" }.first(5).each do |e|
       puts "  waiting #{e.flow.waiting_words}: #{WorkQueue::Store.label(e.item.slug)} ##{e.item.n} #{e.item.title.truncate(80)}"
     end
+    inbox.errands_due.first(8).each do |e|
+      puts "  yours, #{e.item.overdue? ? "overdue #{(Time.zone.today - e.item.due).to_i}d" : 'due today'}: " \
+           "#{WorkQueue::Store.label(e.item.slug)} ##{e.item.n} #{e.item.title.truncate(80)}"
+    end
     next unless ENV["PUSH"] == "1"
 
-    if inbox.empty?
+    if inbox.summary.empty?
       puts "Push: skipped, nothing is waiting"
     elsif !WebPushNotifier.vapid_configured?
       puts "Push: skipped, VAPID keys are not set"

@@ -81,6 +81,8 @@ export default class extends Controller {
     if (!e.detail?.success) return
     const entry = e.target.closest("[data-inbox-target~='entry']")
     if (!entry) return
+    // A change that leaves the entry in the list (a due date, waving a hint away): just reload.
+    if (e.target.dataset.inboxKeep) { this.scheduleRefresh(); return }
     const box = e.target.closest(".wq-qbox[data-item-key]")
     if (box) { try { sessionStorage.removeItem(this.draftKey(box)) } catch (_) {} }
     const text = e.target.dataset.inboxDone || (box ? "Answered" : "Done")
@@ -93,6 +95,9 @@ export default class extends Controller {
     if (next) this.focus(next)
     this.scheduleRefresh()
   }
+
+  // "No" on the "looks like an errand" hint.
+  hideHint(e) { if (e.detail?.success) e.target.closest(".wq-errand-hint")?.remove() }
 
   readDone() {
     try {

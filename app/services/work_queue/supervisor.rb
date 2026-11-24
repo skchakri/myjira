@@ -113,12 +113,19 @@ module WorkQueue
 
     def queue_start(key, job)
       item = @store.find(key) or return
+      return refuse_errand(item) if item.errand?
+
       RunState.set(key, { "phase" => job["phase"].presence || (job["relay"] ? "relay" : "plan"),
                           "attempts" => job["attempts"].to_i, "mode" => job["relay"] ? "relay" : "build" })
       return if hold_for_budget(item, key, job)
 
       RunState.redis.rpush("#{RunState::PREFIX}:waiting", key) unless RunState.redis.lrange("#{RunState::PREFIX}:waiting", 0, -1).include?(key)
       @writer.set_status(item.slug, item.n, "queued", log: "Queued to run on the server") if %w[triage blocked].include?(item.status)
+    end
+
+    # An errand is the person's own to do: no agent runs it, whoever asked for the start.
+    def refuse_errand(item)
+      @writer.update(item.slug, item.n, log: "Not started: this is an errand for you (Yours). Hand it to an agent first.")
     end
 
     # True when the project has spent today's budget and this start was not forced (Run now).

@@ -36,7 +36,7 @@ module WorkQueueHelper
   def wq_progress_tone(flow, roll)
     return "ok" if roll.complete?
 
-    flow.tone.in?(%w[ok wait]) && roll.active ? "run" : flow.tone
+    flow.tone.in?(%w[ok wait mine]) && roll.active ? "run" : flow.tone
   end
 
   # Thin bar + "NN%". label: is what a screen reader hears for the bar.
@@ -59,7 +59,7 @@ module WorkQueueHelper
     words = flow.waiting_words or return
     since = flow.waiting_since
     tag.span("#{prefix}#{words}", class: ["wq-wait", ("wq-wait-#{flow.waiting_level}" if flow.waiting_level)],
-                                  title: "Waiting on you since #{since.strftime('%b %-d %H:%M')}")
+                                  title: "#{flow.item.errand? ? 'Yours' : 'Waiting on you'} since #{since.strftime('%b %-d %H:%M')}")
   end
 
   # A finished parent with child steps still going must not read as plain "Live".

@@ -37,7 +37,7 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
       end
       [body.to_json, true, ""]
     end
-    WorkQueue::Delivery.new(runner: runner)
+    WorkQueue::Delivery.new(runner: runner, persist: true)
   end
 
   def deploy_run(sha, status: "completed", conclusion: "success") = { head_sha: sha, status: status, conclusion: conclusion }

@@ -337,6 +337,49 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_nil WorkQueue::RunState.daily_budget("home-me-app")
   end
 
+  test "a parent's suggested and held follow-ups are started or dropped as one batch" do
+    writer = WorkQueue::QueueWriter.new(dir: @dir)
+    writer.add("home-me-app", title: "Nice one", parent: 1, priority: "nice")
+    writer.add("home-me-app", title: "Nice two", parent: 1, priority: "nice")
+    writer.add("home-me-app", title: "Held one", parent: 1)
+    writer.follow_up("home-me-app", 4, { held: true })
+
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_follow_up_batch form.wq-batch input[name='ns[]']", 3
+    assert_select "#wq_follow_up_batch", text: /2 suggested follow-ups/
+    assert_select "#wq_follow_up_batch .wq-batch-held", text: "held"
+    get inbox_path
+    assert_select "#inbox_s_followups .wq-batch-row", 3
+    assert_select ".inbox-strip", text: /2 follow-ups to decide/
+
+    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "drop", ns: [3] }, as: :turbo_stream
+    assert_response :ok
+    assert_equal "dropped", WorkQueue::Store.new.find("home-me-app:3").status
+    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "start_all" }, as: :turbo_stream
+    store = WorkQueue::Store.new
+    assert_not store.find("home-me-app:2").to_decide?
+    assert_not store.find("home-me-app:4").held?
+    jobs = WorkQueue::RunState.redis.lrange(WorkQueue::RunState::JOBS, 0, -1).map { |j| JSON.parse(j)["key"] }
+    assert_equal %w[home-me-app:2 home-me-app:4], jobs.last(2)
+    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "start" }, as: :turbo_stream
+    assert_match "Tick at least one", response.body
+  end
+
+  test "a child typed by the person is marked so the follow-up limit never holds it" do
+    post work_queue_item_children_path("home-me-app:1"), params: { title: "Typed child" }, as: :turbo_stream
+    assert_equal "person", WorkQueue::Store.new.find("home-me-app:2").follow_up_info["by"]
+  end
+
+  test "the follow-up limit defaults to 8 and can be changed or removed per project" do
+    assert_equal 8, WorkQueue::RunState.review_limit("home-me-app")
+    patch work_queue_settings_path, params: { slug: "home-me-app", review_limit: "3" }
+    assert_equal 3, WorkQueue::RunState.review_limit("home-me-app")
+    patch work_queue_settings_path, params: { slug: "home-me-app", review_limit: "" }
+    assert_nil WorkQueue::RunState.review_limit("home-me-app")
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select "#wq-limit-h", text: "Follow-up limit"
+  end
+
   test "settings save a validated routing table" do
     patch work_queue_settings_path, params: { routing: { plan: { model: "claude-sonnet-5-5", effort: "max" }, implement: { model: "nope", effort: "low" } } }
     assert_redirected_to work_queue_settings_path

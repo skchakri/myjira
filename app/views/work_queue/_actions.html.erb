@@ -2,6 +2,9 @@
 <% pr = context.pr_status %>
 <% delivery = context.delivery %>
 <% deployable = item.status == "done" && delivery&.state.in?(%w[not_live deploy_failed]) %>
+<% if item.errand? %>
+  <%= render "work_queue/errand_actions", item: item %>
+<% else %>
 <div class="wq-actions" role="group" aria-label="Next steps">
   <% if context.flow.stalled? %>
     <%= button_to "Resume", work_queue_item_resume_path(item.key), class: "wq-btn wq-btn-primary",
@@ -63,8 +66,14 @@
              end %>
     <button type="button" class="wq-btn" disabled title="<%= why %>">Deploy</button>
   <% end %>
+  <% if item.open? %>
+    <%= button_to "Mine to do", work_queue_item_errand_path(item.key), params: { op: "mark" }, class: "wq-btn wq-btn-ghost",
+                  title: "This is an errand only you can do: take it out of the agent queue (stops a run in flight)",
+                  form: { data: { turbo_stream: true } } %>
+  <% end %>
 </div>
-<% if item.open? %>
+<% end %>
+<% if item.open? && !item.yours? %>
   <% step = context.browser_step %>
   <div class="wq-browser-flag">
     <% if step %>

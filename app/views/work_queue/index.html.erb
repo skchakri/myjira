@@ -4,7 +4,8 @@
 <%= turbo_stream_from WorkQueue::Broadcaster::LIST_STREAM %>
 <div class="wq" data-controller="work-queue"
      data-work-queue-selected-value="<%= @item&.key %>"
-     data-work-queue-group-url-value="<%= work_queue_group_path %>">
+     data-work-queue-group-url-value="<%= work_queue_group_path %>"
+     data-work-queue-errands-url-value="<%= work_queue_errands_path %>">
   <header class="wq-top">
     <div class="flex items-center gap-3 min-w-0">
       <h1 class="text-[15px] font-semibold tracking-tight">Work Queue</h1>
@@ -13,6 +14,10 @@
     <div class="flex items-center gap-2">
       <button type="button" class="wq-btn wq-btn-ghost hidden" data-work-queue-target="groupBtn" data-action="work-queue#group">
         Group / merge <span data-work-queue-target="groupCount"></span>
+      </button>
+      <button type="button" class="wq-btn wq-btn-ghost hidden" data-work-queue-target="mineBtn" data-action="work-queue#markMine"
+              title="The ticked tasks are errands only you can do: take them out of the agent queue">
+        Mark as mine <span data-work-queue-target="mineCount"></span>
       </button>
       <label class="wq-toggle" title="Speak when an item needs you or is ready for review">
         <input type="checkbox" data-work-queue-target="speakToggle" data-action="work-queue#toggleSpeak"> Announce
@@ -50,7 +55,7 @@
       </div>
       <div class="wq-legend" aria-hidden="true">
         <span><i class="wq-dot wq-t-you"></i>needs you</span><span><i class="wq-dot wq-t-run"></i>in progress</span>
-        <span><i class="wq-dot wq-t-bad"></i>failed</span><span><i class="wq-dot wq-t-ok"></i>live</span><span><i class="wq-dot wq-t-wait"></i>queued</span>
+        <span><i class="wq-dot wq-t-bad"></i>failed</span><span><i class="wq-dot wq-t-ok"></i>live</span><span><i class="wq-dot wq-t-wait"></i>queued</span><span><i class="wq-dot wq-t-mine"></i>yours</span>
       </div>
       <div class="wq-bulk" role="group" aria-label="Projects">
         <button type="button" data-action="work-queue#expandAll">Expand all</button>
@@ -87,6 +92,9 @@
       <textarea id="wq_inline_text" name="text" rows="3" required class="wq-input" placeholder="What should be done? First line becomes the title. Drop or paste files here."></textarea>
       <input type="file" name="files[]" multiple accept="image/*,application/pdf,text/*,.md,.json,.log" class="hidden" data-action="change->work-queue#filesPicked">
       <p class="wq-files" data-wq-files></p>
+      <label class="wq-toggle wq-errand-check" title="File it for yourself: no agent will run it, and it shows under Yours in the inbox">
+        <input type="checkbox" name="yours" value="1"> This is an errand for me
+      </label>
       <div class="flex flex-wrap items-center gap-2">
         <button type="button" class="wq-mic" aria-label="Dictate" data-action="work-queue#dictate">mic</button>
         <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#pickFiles">Files</button>

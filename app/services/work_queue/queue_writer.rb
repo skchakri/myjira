@@ -19,7 +19,7 @@ module WorkQueue
       @dir.join("#{slug}.json")
     end
 
-    def add(slug, title:, description: "", parent: nil, session: nil)
+    def add(slug, title:, description: "", parent: nil, session: nil, by: nil, priority: nil)
       item = nil
       transaction(slug) do |items|
         now = now_ms
@@ -29,6 +29,8 @@ module WorkQueue
         item["session"] = session if session
         # Follow-ups never wait for approval: they start by themselves and ship in the parent's PR.
         item["parent"] = parent.to_i if parent
+        follow = { "by" => by, "priority" => priority }.compact
+        item["followUp"] = follow if follow.any?
         items << item
       end
       item
@@ -47,6 +49,23 @@ module WorkQueue
         item["log"] << { "at" => at, "text" => log } if log
         item["log"] << { "at" => at, "text" => "→ #{item['status']}" } if before != item["status"]
         item["updatedAt"] = at
+      end
+    end
+
+    # Merge keys into the item's followUp record (nil values remove a key).
+    def follow_up(slug, n, attrs, log: nil, &block)
+      update(slug, n, log: log) do |i|
+        record = (i["followUp"].is_a?(Hash) ? i["followUp"] : {}).merge(attrs.stringify_keys).compact
+        record.any? ? i["followUp"] = record : i.delete("followUp")
+        block&.call(i)
+      end
+    end
+
+    # Errand fields ("kind": "yours", "due", "snoozedUntil", "yoursAt"): nil removes a key.
+    def errand(slug, n, attrs, log: nil, &block)
+      update(slug, n, log: log) do |i|
+        attrs.stringify_keys.each { |k, v| v.nil? ? i.delete(k) : i[k] = v }
+        block&.call(i)
       end
     end
 

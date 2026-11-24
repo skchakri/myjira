@@ -72,8 +72,11 @@ module WorkQueue
       nil
     end
 
-    def initialize(runner: method(:gh))
-      @runner = runner
+    # persist: keep "does this commit contain that one" answers in Redis (on for the
+    # real gh; a fake runner in tests answers differently for the same pair).
+    def initialize(runner: nil, persist: runner.nil?)
+      @runner = runner || method(:gh)
+      @persist = persist
     end
 
     # nil = nothing to say (no batch run for it, and no deploy workflow or not merged).
@@ -248,12 +251,16 @@ module WorkQueue
     end
 
     def kept(key)
+      return unless @persist
+
       RunState.redis.get(key)
     rescue Redis::BaseError
       nil
     end
 
     def keep(key, value, ttl)
+      return unless @persist
+
       RunState.redis.set(key, value, ex: ttl)
     rescue Redis::BaseError
       nil

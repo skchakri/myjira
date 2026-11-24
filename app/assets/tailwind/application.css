@@ -826,6 +826,10 @@ a.wq-chrome-live:hover { background: var(--color-paper-sunk); }
 .wq-node-root .wq-node-t { font-weight: 600; }
 .wq-n-tag { font: 500 11px var(--font-mono); color: var(--color-ink-faint); }
 .wq-kid-sum { font-size: 11px; color: var(--color-ink-faint); }
+/* "Show N older finished tasks": the row at the foot of a project block that loads what the default view leaves out. */
+.wq-older { display: block; width: 100%; margin: 4px 0 2px; padding: 6px 8px; border-radius: 7px; border: 1px dashed var(--color-hair); font-size: 11.5px; font-weight: 500; text-align: center; color: var(--color-ink-soft); background: transparent; cursor: pointer; }
+.wq-older:hover { color: var(--color-ink); border-color: var(--color-ink-faint); background: var(--color-paper-sunk); }
+.wq-older:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 1px; }
 /* Detail: labelled next-step buttons and the child-steps list. */
 .wq-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
 .wq-actions .wq-btn[disabled] { opacity: .5; cursor: not-allowed; }
@@ -986,6 +990,17 @@ html[data-theme="dark"] .wq-releases { --wq-run: #67E8F9; --wq-run-wash: rgba(10
 .inbox-entry-focus { border-color: var(--color-amber-ink); box-shadow: inset 3px 0 0 var(--color-amber-ink); }
 .inbox-entry-h { display: flex; align-items: flex-start; gap: 10px; }
 .inbox-entry-h .wq-dot { margin-top: 7px; flex-shrink: 0; }
+/* Follow-ups to decide (#24): a parent's suggested / held follow-ups as one batch form. */
+.wq-batch { display: flex; flex-direction: column; gap: 8px; }
+.wq-batch-h { font-size: 12.5px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0; }
+.wq-batch-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.wq-batch-list li { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--color-hair); background: var(--color-paper-raised); }
+.wq-batch-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 13px; cursor: pointer; }
+.wq-batch-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wq-batch-tag { flex-shrink: 0; font: 500 10.5px var(--font-mono); padding: 1px 7px; border-radius: 9999px; color: var(--color-ink-soft); background: var(--color-paper-sunk); }
+.wq-batch-held { color: var(--wq-you); background: color-mix(in srgb, var(--wq-you) 14%, var(--color-paper-raised)); }
+.wq-batch-open { font-size: 11.5px; flex-shrink: 0; }
+.wq-batch-row input:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 2px; }
 .inbox-entry-t { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .inbox-entry-p { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--color-ink-faint); }
 .inbox-entry-title { font-size: 14px; font-weight: 600; line-height: 1.35; color: var(--color-ink); }
@@ -1004,6 +1019,36 @@ html[data-theme="dark"] .wq-releases { --wq-run: #67E8F9; --wq-run-wash: rgba(10
 .inbox-clear { display: grid; place-items: center; gap: 4px; padding: 72px 16px; text-align: center; border: 1px dashed var(--color-hair); border-radius: 12px; }
 .inbox-clear-t { font-size: 18px; font-weight: 600; }
 @media (max-width: 640px) { .inbox-entry-h { flex-wrap: wrap; } .inbox-entry-meta { width: 100%; padding-left: 20px; } .inbox-body { padding: 12px 12px 96px; } }
+
+/* Yours: errands only the person can do (kind "yours"). Own tone "mine" = --wq-rev (violet), so an
+   errand never reads as amber "needs you" or as agent work. Used by the Work Queue list, the detail
+   pane and the inbox (both carry .wq, which defines --wq-rev and its wash for light and dark). */
+.wq-t-mine { background: var(--wq-rev); }
+.wq-pill-mine { color: var(--wq-rev); background: var(--wq-rev-wash); }
+.wq-prog-mine { --wq-fill: var(--wq-rev); }
+.wq-step-now-mine i { background: var(--wq-rev); }
+.wq-errand-box { display: inline-block; width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; border: 1.5px solid var(--wq-rev); background: var(--color-paper-raised); }
+.wq-errand-box-on { background: var(--wq-ok); border-color: var(--wq-ok); box-shadow: inset 0 0 0 2px var(--color-paper-raised); }
+.wq-errand { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wq-errand form, .wq-errand-hint form, .wq-errand-row form { display: inline-flex; }
+.wq-errand-done { display: inline-flex; align-items: center; gap: 7px; padding: 5px 11px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; color: var(--wq-rev); background: var(--wq-rev-wash); border: 1px solid color-mix(in srgb, var(--wq-rev) 45%, var(--color-hair)); }
+.wq-errand-done:hover { border-color: var(--wq-rev); }
+.wq-errand-done:hover .wq-errand-box { background: color-mix(in srgb, var(--wq-rev) 30%, var(--color-paper-raised)); }
+.wq-errand-done:focus-visible, .wq-icon-btn-mine:focus-visible { outline: 2px solid var(--wq-rev); outline-offset: 2px; }
+.wq-errand-menu { position: relative; }
+.wq-errand-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--wq-rev-wash) 60%, transparent); font-size: 12.5px; }
+.wq-errand-row-done { background: color-mix(in srgb, var(--color-paper-sunk) 70%, transparent); font-weight: 600; }
+.wq-errand-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; color: var(--color-ink); border: 1px dashed color-mix(in srgb, var(--wq-rev) 50%, var(--color-hair)); background: color-mix(in srgb, var(--wq-rev-wash) 45%, transparent); }
+.wq-errand-check { align-self: flex-start; margin-top: 2px; }
+.wq-icon-btn-mine { border-color: color-mix(in srgb, var(--wq-rev) 45%, var(--color-hair)); }
+.wq-icon-btn-mine:hover { background: var(--wq-rev-wash); }
+.wq-icon-btn-mine .wq-errand-box { width: 12px; height: 12px; }
+.inbox-snoozed { border: 1px dashed var(--color-hair); border-radius: 10px; padding: 6px 12px; }
+.inbox-snoozed > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--color-ink-soft); }
+.inbox-snoozed > summary:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 2px; }
+.inbox-snoozed-list { list-style: none; margin: 8px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.inbox-snoozed-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12.5px; }
+.inbox-snoozed-list .inbox-entry-title { font-size: 12.5px; font-weight: 500; }
 .wq-packs { display: flex; flex-direction: column; gap: 6px; margin: 0 0 8px; padding: 0; border: 0; min-width: 0; }
 .wq-pack { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid var(--color-hair); border-radius: 8px; background: var(--color-paper-raised); cursor: pointer; }
 .wq-pack > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 13px; }
