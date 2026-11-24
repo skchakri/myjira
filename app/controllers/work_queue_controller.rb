@@ -73,6 +73,28 @@ class WorkQueueController < ApplicationController
     toast(runner_note("##{@item.n} queued to run on the server"), :ok)
   end
 
+  # "Run in Chrome": see Dispatcher#run_in_chrome (owning CLI, else a launched
+  # interactive session; never the headless runner, which has no Chrome tools).
+  def run_in_chrome
+    approve_for_run
+    result = dispatcher.run_in_chrome
+    return respond_with_dispatch(result, "Browser step sent to the CLI session for ##{@item.n}") unless result.launch
+
+    WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: launched session #{result.launch.session_id.first(8)} in #{result.launch.repo_path}")
+    toast("Launching a Claude session with Chrome for ##{@item.n} (session #{result.launch.session_id.first(8)})", :ok)
+  end
+
+  # Explicit "needs the browser" flag: 1 = on, 0 = off (overrides detection), blank = auto.
+  def browser
+    value = params[:value].to_s
+    if %w[0 1].include?(value)
+      WorkQueue::RunState.set(@item.key, WorkQueue::BrowserStep::FLAG => value)
+    else
+      WorkQueue::RunState.del_fields(@item.key, WorkQueue::BrowserStep::FLAG)
+    end
+    toast("##{@item.n}: browser step #{{ '1' => 'on', '0' => 'off' }.fetch(value, 'auto-detect')}. Reopen the item to refresh.", :ok)
+  end
+
   def stop = runner_action("stop", "Stopping ##{@item.n}")
   def retry_run = runner_action("retry", "Retrying ##{@item.n} with a stronger model")
   def close_relay_tabs = runner_action("continue", "Asked ##{@item.n} to close its Chrome tabs",

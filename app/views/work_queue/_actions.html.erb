@@ -9,6 +9,15 @@
     <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
   <% end %>
 
+  <% if item.open? && (step = context.browser_step) %>
+    <%= button_to work_queue_item_run_in_chrome_path(item.key), class: "wq-btn wq-btn-chrome",
+                  title: step == :flag ? "Marked as a browser step" : "Looks like a browser step (auto-detected)",
+                  form: { data: { turbo_stream: true } } do %>
+      <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5h8.2M8.9 13.8 4.8 6.7M15 13.8l-4.1 7.1"/></svg>
+      Run in Chrome
+    <% end %>
+  <% end %>
+
   <% if item.ready_to_bundle? && item.pr.blank? %>
     <%= button_to "Ready for PR", work_queue_item_ship_path(item.key), class: "wq-btn wq-btn-primary",
                   title: "Bundle this task (and any ready follow-ups) into its parent's single PR now",
@@ -43,6 +52,25 @@
           <button type="submit" class="wq-btn wq-btn-primary">Confirm deploy</button>
           <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#closeMerge">Cancel</button>
         </div>
+<% if item.open? %>
+  <% step = context.browser_step %>
+  <div class="wq-browser-flag">
+    <% if step %>
+      <% if (blocker = context.chrome_blocker) %>
+        <p class="wq-hint wq-chrome-blocked" role="status"><%= blocker %>
+          <button type="button" class="wq-btn wq-btn-ghost" data-controller="wq-toast" data-action="wq-toast#copy"
+                  data-text="/item<%= item.n %> <%= WorkQueue::Dispatcher::CHROME_COPY %>">Copy command</button></p>
+      <% end %>
+      <span class="wq-hint"><%= step == :flag ? "Marked as needing the browser." : "Auto-detected as a browser step." %></span>
+      <%= button_to (step == :flag ? "Unmark" : "Not a browser step"), work_queue_item_browser_path(item.key),
+                    params: { value: step == :flag ? "" : "0" }, class: "wq-btn wq-btn-ghost", form: { data: { turbo_stream: true } } %>
+    <% else %>
+      <%= button_to "Needs the browser", work_queue_item_browser_path(item.key), params: { value: "1" },
+                    class: "wq-btn wq-btn-ghost", title: "Show a Run in Chrome button for this item",
+                    form: { data: { turbo_stream: true } } %>
+    <% end %>
+  </div>
+<% end %>
       <% end %>
     </details>
   <% else %>
@@ -53,3 +81,22 @@
     <button type="button" class="wq-btn" disabled title="<%= why %>">Deploy</button>
   <% end %>
 </div>
+<% if item.open? %>
+  <% step = context.browser_step %>
+  <div class="wq-browser-flag">
+    <% if step %>
+      <% if (blocker = context.chrome_blocker) %>
+        <p class="wq-hint wq-chrome-blocked" role="status"><%= blocker %>
+          <button type="button" class="wq-btn wq-btn-ghost" data-controller="wq-toast" data-action="wq-toast#copy"
+                  data-text="/item<%= item.n %> <%= WorkQueue::Dispatcher::CHROME_COPY %>">Copy command</button></p>
+      <% end %>
+      <span class="wq-hint"><%= step == :flag ? "Marked as needing the browser." : "Auto-detected as a browser step." %></span>
+      <%= button_to (step == :flag ? "Unmark" : "Not a browser step"), work_queue_item_browser_path(item.key),
+                    params: { value: step == :flag ? "" : "0" }, class: "wq-btn wq-btn-ghost", form: { data: { turbo_stream: true } } %>
+    <% else %>
+      <%= button_to "Needs the browser", work_queue_item_browser_path(item.key), params: { value: "1" },
+                    class: "wq-btn wq-btn-ghost", title: "Show a Run in Chrome button for this item",
+                    form: { data: { turbo_stream: true } } %>
+    <% end %>
+  </div>
+<% end %>

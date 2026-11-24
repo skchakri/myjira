@@ -9,6 +9,7 @@ module Api
     # (PATCH status=launching) before spawning so a re-poll never double-spawns.
     class SessionLaunchesController < BaseController
       def pending
+        SessionLaunch.launcher_seen!
         launches = SessionLaunch.pending.order(:created_at).limit(20).includes(:project)
         render json: launches.map { |l| daemon_view(l) }
       end

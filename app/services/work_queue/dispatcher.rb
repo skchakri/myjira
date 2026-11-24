@@ -7,7 +7,7 @@ module WorkQueue
   # a `/itemN …` line the person can paste into any CLI session in that project
   # (the mod's own reply command).
   class Dispatcher
-    Result = Struct.new(:sent, :command, :copy, :reason, keyword_init: true)
+    Result = Struct.new(:sent, :command, :copy, :reason, :launch, keyword_init: true)
     PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). When filing a " \
                     "follow-up whose work lives in a different repo, pass repo (its absolute repo path).".freeze
 
@@ -63,7 +63,42 @@ module WorkQueue
               "status \"done\" with a log line.", copy: "/item#{@item.n} PR merged, mark done")
     end
 
+    # "Run in Chrome": the item's next step needs a real browser. The headless
+    # runner has no Claude-in-Chrome tools, so this goes to the owning CLI when it
+    # listens, else to a fresh interactive `claude --chrome` session spawned by the
+    # host launcher daemon in the item's repo. Never silent: with neither path the
+    # result carries the reason and a copy command.
+    def run_in_chrome
+      body = chrome_instruction
+      copy = "/item#{@item.n} #{CHROME_COPY}"
+      return deliver(body, copy: copy) if listening?
+
+      repo = @item.repo.presence || Workspace.repo_for(@item.slug)
+      project = Project.find_by(repo_path: repo) if repo
+      reasons = [listen_reason]
+      reasons << "no myjira project has repo_path #{repo || "for #{@item.slug}"}" unless project
+      reasons << "the session launcher daemon isn't polling (start myjira-session-launcher.service)" unless SessionLaunch.launcher_alive?
+      return Result.new(sent: false, copy: copy, reason: reasons.join("; ")) if reasons.size > 1
+
+      launch = SessionLaunch.queue!(project: project, prompt: body, repo_path: repo, chrome: true, permission_mode: "auto",
+                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}")
+      Result.new(sent: true, launch: launch)
+    end
+
+    CHROME_COPY = "run this item's browser step now in Chrome (myjira-relay controller mode)".freeze
+
+    def chrome_instruction
+      "Run the browser step of work-queue item ##{@item.n} (#{@item.title}) now in Chrome (Run in Chrome from the " \
+        "myjira Work Queue). Use the myjira-relay skill (~/.claude/skills/myjira-relay) in controller mode: drive " \
+        "Claude-in-Chrome yourself with the mcp__claude-in-chrome tools, log progress to a myjira ticket with the relay " \
+        "CLI, run `relay blocked` before asking if a login or approval is needed, and close every tab you opened when " \
+        "done. Then op \"update\" n #{@item.n} with a log line and summary of what happened in the browser." \
+        "\nItem details:\n#{@item.description.to_s.truncate(2000)}"
+    end
+
     private
+
+    def listen_reason = conversation ? "CLI session #{@item.session.to_s.first(8)} isn't listening" : "no live CLI session owns this item"
 
     def follow_up_note
       return "" if @item.parent.blank?
@@ -74,8 +109,7 @@ module WorkQueue
 
     def deliver(body, copy:)
       unless listening?
-        reason = conversation ? "session #{@item.session.to_s.first(8)} isn't listening" : "no live session owns this item"
-        return Result.new(sent: false, copy: copy, reason: reason)
+        return Result.new(sent: false, copy: copy, reason: listen_reason)
       end
 
       cmd = conversation.session_commands.create!(body: "[work-queue] #{body}\n#{PROTOCOL_HINT}", source: "work-queue")
