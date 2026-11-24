@@ -56,7 +56,7 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
 
     bad = WorkQueue::Router.new(runner: ->(_) { [{ structured_output: { model: "gpt-9", effort: "low", reason: "x" } }.to_json, true] })
     c = bad.choose(item, "plan")
-    assert_equal %w[claude-opus-5-5 high table], [c.model, c.effort, c.source]
+    assert_equal %w[claude-sonnet-5-5 high table], [c.model, c.effort, c.source]
   end
 
   test "router honours lock and escalates after failures" do
@@ -66,7 +66,60 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     assert_equal "claude-fable-5-2", locked.model
 
     esc = router.choose(item, "implement", attempts: 1)
-    assert_equal %w[claude-opus-5-5 high], [esc.model, esc.effort]
+    assert_equal %w[claude-opus-5-5 medium], [esc.model, esc.effort]
+  end
+
+  test "escalation is one step per failure: model first, then effort, never max" do
+    item = Struct.new(:title, :description, :key).new("t", "d", "k:1")
+    router = WorkQueue::Router.new(runner: ->(_) { ["", false] })
+    steps = (0..4).map { |n| router.choose(item, "plan", attempts: n).then { |c| [c.model, c.effort] } }
+    assert_equal [%w[claude-sonnet-5-5 high], %w[claude-opus-5-5 high], %w[claude-opus-5-5 xhigh],
+                  %w[claude-opus-5-5 xhigh], %w[claude-opus-5-5 xhigh]], steps
+    assert_equal steps.first(3), WorkQueue::Router.ladder("claude-sonnet-5-5", "high")
+    assert_equal %w[claude-fable-5-2 xhigh], WorkQueue::Router.climb("claude-fable-5-2", "high", 3), "off-ladder models only gain effort"
+    assert_equal %w[claude-opus-5-5 max], WorkQueue::Router.climb("claude-opus-5-5", "max", 1), "a max you chose is kept, not lowered"
+  end
+
+  test "the routing table caps the router on a first attempt, and a saved table wins over the defaults" do
+    item = Struct.new(:title, :description, :key).new("t", "d", "k:1")
+    eager = WorkQueue::Router.new(runner: ->(_) { [{ structured_output: { model: "claude-opus-5-5", effort: "max", reason: "big" } }.to_json, true] })
+    c = eager.choose(item, "plan")
+    assert_equal %w[claude-sonnet-5-5 xhigh router], [c.model, c.effort, c.source]
+    assert_includes c.reason, "capped"
+
+    WorkQueue::RunState.save_routing("plan" => { "model" => "claude-opus-5-5", "effort" => "max" })
+    c = eager.choose(item, "plan")
+    assert_equal %w[claude-opus-5-5 max], [c.model, c.effort], "your saved table is the ceiling"
+    cheap = WorkQueue::Router.new(runner: ->(_) { [{ structured_output: { model: "claude-haiku-5-5", effort: "low", reason: "tiny" } }.to_json, true] })
+    assert_equal "claude-haiku-5-5", cheap.choose(item, "plan").model, "the router may still go cheaper"
+  end
+
+  test "a project over its daily budget holds new starts until forced or under budget" do
+    @writer.add("home-me-x", title: "T")
+    key = "home-me-x:1"
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    waiting = "#{WorkQueue::RunState::PREFIX}:waiting"
+    WorkQueue::RunState.save_project("home-me-x", "daily_budget" => 1.0)
+    WorkQueue::Costs.add(key, 1.25, phase: "plan", model: "claude-sonnet-5-5")
+    assert WorkQueue::RunState.over_budget?("home-me-x")
+
+    sup.handle({ "action" => "start", "key" => key })
+    assert_empty WorkQueue::RunState.redis.lrange(waiting, 0, -1)
+    assert_equal [key], WorkQueue::RunState.held("home-me-x")
+    item = @store.find(key)
+    assert_equal "queued", item.status
+    assert(item.log.any? { |l| l["text"].match?(/Daily budget reached \(\$1\.25 of \$1\.00 today\)/) })
+
+    sup.handle({ "action" => "start", "key" => key, "force" => true })
+    assert_equal [key], WorkQueue::RunState.redis.lrange(waiting, 0, -1)
+    assert_empty WorkQueue::RunState.held("home-me-x")
+
+    WorkQueue::RunState.redis.del(waiting)
+    sup.handle({ "action" => "start", "key" => key })
+    WorkQueue::RunState.save_project("home-me-x", "daily_budget" => 5.0)
+    sup.send(:release_held)
+    assert_equal [key], WorkQueue::RunState.redis.lrange(waiting, 0, -1), "released once the project is under budget"
+    assert_empty WorkQueue::RunState.held("home-me-x")
   end
 
   test "session runner builds real claude flags and parses the stream" do
