@@ -53,6 +53,10 @@ class SessionLaunch < ApplicationRecord
   # so a re-PATCH of the same status can't dupe a node.
   after_update_commit :emit_status_worklog, if: :saved_change_to_status?
 
+  # A "Run in Chrome" launch fired from a Work Queue item: redraw that item's
+  # control (Starting → Running, or back to the button when it failed).
+  after_update_commit -> { WorkQueue::ChromeRun.launch_changed(self) }, if: -> { chrome && saved_change_to_status? }
+
   scope :recent,  -> { order(created_at: :desc) }
   scope :pending, -> { where(status: "pending") }
   # What the "active launches" strip shows: still in flight, or launched recently

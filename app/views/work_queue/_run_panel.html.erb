@@ -38,6 +38,12 @@
       <button class="wq-btn wq-btn-ghost">Save</button>
     <% end %>
   </details>
+  <% below = context.children.any? ? WorkQueue::Progress.new(context.project_items).descendants(item) : [] %>
+  <% tree_cost = below.any? ? wq_costs(item.slug).tree(item, below) : 0 %>
+  <% if tree_cost.positive? %>
+    <p class="wq-hint">With its <%= pluralize(below.size, "child step") %>: <strong class="wq-cost"><%= wq_money(tree_cost) %></strong> on the server runner
+      (this task alone <%= wq_money(wq_costs(item.slug).item(item.n)) %>). <%= link_to "All costs", work_queue_costs_path, class: "wq-link", data: { turbo_frame: "_top" } %></p>
+  <% end %>
   <% if context.phases.any? %>
     <details class="wq-model">
       <summary class="wq-hint">Cost by phase: $<%= format("%.2f", context.phases.sum { |p| p["cost_usd"].to_f }) %></summary>

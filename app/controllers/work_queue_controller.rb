@@ -12,7 +12,7 @@ class WorkQueueController < ApplicationController
 
   MAX_ENTRIES = 400
 
-  before_action :load_item, except: %i[index project group create settings update_settings]
+  before_action :load_item, except: %i[index project group create settings update_settings costs]
   before_action(only: %i[index project]) { WorkQueue::Current.repos = WorkQueue::Workspace.repos }
 
   # The list only. Git/PR status comes from WorkQueue::StatusCache (refreshed by
@@ -85,7 +85,7 @@ class WorkQueueController < ApplicationController
     approve_for_run
     return respond_with_dispatch(dispatcher.run_now, "Run now sent for ##{@item.n}") if dispatcher.listening?
 
-    start_server(@item.key, relay: params[:relay] == "1")
+    start_server(@item.key, relay: params[:relay] == "1", force: true) # Run now also overrides a spent daily budget
     toast(runner_note("##{@item.n} queued to run on the server"), :ok)
   end
 
@@ -94,10 +94,24 @@ class WorkQueueController < ApplicationController
   def run_in_chrome
     approve_for_run
     result = dispatcher.run_in_chrome
-    return respond_with_dispatch(result, "Browser step sent to the CLI session for ##{@item.n}") unless result.launch
+    return respond_with_dispatch(result, "") unless result.sent
 
-    WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: launched session #{result.launch.session_id.first(8)} in #{result.launch.repo_path}")
-    toast("Launching a Claude session with Chrome for ##{@item.n} (session #{result.launch.session_id.first(8)})", :ok)
+    id = result.launch&.session_id.to_s.first(8)
+    # Lost the click race: the other request is still queueing and redraws the control itself.
+    if result.duplicate && result.launch.nil?
+      return toast("##{@item.n} is already being sent to Chrome: not launching a second session", :warn)
+    end
+
+    message, level = if result.duplicate
+      ["##{@item.n} already has a Claude session with Chrome (session #{id}): not launching a second one", :warn]
+    elsif result.launch
+      WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: launched session #{id} in #{result.launch.repo_path}")
+      ["Launching a Claude session with Chrome for ##{@item.n} (session #{id})", :ok]
+    else
+      WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: browser step sent to the CLI session")
+      ["Browser step sent to the CLI session for ##{@item.n}", :ok]
+    end
+    toast(message, level, also: chrome_run_stream)
   end
 
   # Explicit "needs the browser" flag: 1 = on, 0 = off (overrides detection), blank = auto.
@@ -137,27 +151,41 @@ class WorkQueueController < ApplicationController
     toast(attrs["override_model"].present? ? "##{@item.n}: #{params[:model]} / #{params[:effort]}#{' (locked)' if attrs['lock_model'] == '1'}" : "##{@item.n}: auto routing", :ok)
   end
 
+  # What the server runner has spent: totals, the last 14 days, per project, per phase and model.
+  def costs
+    @costs = WorkQueue::Costs.overview
+    @store = WorkQueue::Store.new
+    @budgets = @costs.projects.to_h { |row| [row[:slug], WorkQueue::RunState.daily_budget(row[:slug])] }
+  end
+
   def settings
     @routing = WorkQueue::RunState.routing
     @projects = WorkQueue::Workspace.choices
     @slug = params[:slug].presence if params[:slug].to_s.match?(/\A[A-Za-z0-9-]+\z/)
     @rules = @slug ? WorkQueue::RunState.project(@slug)["always_allow"] : []
+    @budget = @slug ? WorkQueue::RunState.daily_budget(@slug) : nil
+    @repo = @slug && WorkQueue::Workspace.repo_for(@slug)
+    @packs_detected = WorkQueue::PermissionRules.pack_names(@repo)
+    @packs_off = @slug ? Array(WorkQueue::RunState.project(@slug)["packs_off"]) : []
   end
 
   def update_settings
-    table = WorkQueue::Router::PHASES.to_h do |ph|
-      m, e = params.dig(:routing, ph, :model), params.dig(:routing, ph, :effort)
-      [ph, WorkQueue::Router.valid?(m, e) ? { "model" => m, "effort" => e } : WorkQueue::Router::DEFAULTS[ph]]
-    end
-    WorkQueue::RunState.save_routing(table)
+    save_routing_table if params.key?(:routing) # the per-project forms below must not reset the table
     slug = params[:slug].to_s
     notice = "Saved"
+    if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:daily_budget)
+      budget = params[:daily_budget].to_s.strip.to_f
+      WorkQueue::RunState.save_project(slug, "daily_budget" => budget.positive? ? budget.round(2) : nil)
+      notice = budget.positive? ? "Daily budget set to $#{format('%.2f', budget)}" : "Daily budget removed"
+    end
     if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:rules)
       raw = Array(params[:rules]).map(&:to_s) + params[:new_rules].to_s.split("\n")
       raw -= Array(params[:delete_rules]).map(&:to_s)
       allow = WorkQueue::PermissionRules.clean(raw)
       skipped = raw.map(&:strip).compact_blank.uniq.size - allow.size
-      WorkQueue::RunState.save_project(slug, "always_allow" => allow)
+      attrs = { "always_allow" => allow }
+      attrs["packs_off"] = WorkQueue::PermissionRules::PACKS.keys - Array(params[:packs]).map(&:to_s) if params[:packs_shown] == "1"
+      WorkQueue::RunState.save_project(slug, attrs)
       notice = "Saved #{allow.size} rule#{'s' unless allow.size == 1}#{"; skipped #{skipped} invalid" if skipped.positive?}"
     end
     redirect_to work_queue_settings_path(slug: slug.presence), notice: notice
@@ -255,8 +283,20 @@ class WorkQueueController < ApplicationController
     head :not_found unless @item
   end
 
+  ALLOW_ALL = { "once" => "Allow once", "always" => "Always allow in this project" }.freeze
+
+  # "Allow all N": the chosen grant for every open permission question, plus
+  # whatever was picked or typed for the other questions.
+  def allow_all_pairs
+    text = ALLOW_ALL[params[:allow_all].to_s] or return []
+
+    @item.questions.each_with_index.filter_map do |q, i|
+      [i, text] if q.open? && WorkQueue::PermissionRules.permission_question?(q.q) && q.options.include?(text)
+    end
+  end
+
   def answer_pairs
-    return [[params[:index].to_i, params[:text].to_s.strip]].reject { |_, t| t.blank? } unless params.key?(:answers) || params.key?(:custom)
+    return [[params[:index].to_i, params[:text].to_s.strip]].reject { |_, t| t.blank? } unless params.key?(:answers) || params.key?(:custom) || params.key?(:allow_all)
 
     picked = params.permit(answers: {})[:answers].to_h
     custom = params.permit(custom: {})[:custom].to_h
@@ -264,7 +304,7 @@ class WorkQueueController < ApplicationController
       index = Integer(k, exception: false)
       text = custom[k].to_s.strip.presence || picked[k].to_s.strip
       [index, text] if index && text.present? && @item.questions[index]
-    end.sort_by(&:first)
+    end.then { |picked_pairs| (allow_all_pairs + picked_pairs).uniq(&:first) }.sort_by(&:first)
   end
 
   def answer_on_server(index, text)
@@ -288,11 +328,19 @@ class WorkQueueController < ApplicationController
     @item.awaiting_approval = false
   end
 
+  def save_routing_table
+    table = WorkQueue::Router::PHASES.to_h do |ph|
+      m, e = params.dig(:routing, ph, :model), params.dig(:routing, ph, :effort)
+      [ph, WorkQueue::Router.valid?(m, e) ? { "model" => m, "effort" => e } : WorkQueue::Router::DEFAULTS[ph]]
+    end
+    WorkQueue::RunState.save_routing(table)
+  end
+
   def dispatcher = @dispatcher ||= WorkQueue::Dispatcher.new(@item)
   def writer = @writer ||= WorkQueue::QueueWriter.new
 
-  def start_server(key, relay: false)
-    WorkQueue::RunState.enqueue("start", key, relay: relay)
+  def start_server(key, relay: false, force: false)
+    WorkQueue::RunState.enqueue("start", key, relay: relay, **(force ? { force: true } : {}))
   end
 
   def runner_action(action, message, **extra)
@@ -355,8 +403,14 @@ class WorkQueueController < ApplicationController
     end
   end
 
-  def toast(message, level, copy: nil)
-    render turbo_stream: turbo_stream.append("wq_toasts", partial: "work_queue/toast",
-                                                          locals: { message: message, level: level, copy: copy })
+  # The item's Run in Chrome control, redrawn from its fresh state.
+  def chrome_run_stream
+    context = WorkQueue::ItemContext.new(@item, store: WorkQueue::Store.new)
+    turbo_stream.replace(WorkQueue::ChromeRun.dom_id(@item), partial: "work_queue/chrome_run", locals: { item: @item, context: context })
+  end
+
+  def toast(message, level, copy: nil, also: nil)
+    render turbo_stream: [turbo_stream.append("wq_toasts", partial: "work_queue/toast",
+                                                           locals: { message: message, level: level, copy: copy }), also].compact
   end
 end

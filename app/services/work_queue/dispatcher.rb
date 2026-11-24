@@ -7,7 +7,7 @@ module WorkQueue
   # a `/itemN …` line the person can paste into any CLI session in that project
   # (the mod's own reply command).
   class Dispatcher
-    Result = Struct.new(:sent, :command, :copy, :reason, :launch, keyword_init: true)
+    Result = Struct.new(:sent, :command, :copy, :reason, :launch, :duplicate, keyword_init: true)
     PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). When filing a " \
                     "follow-up whose work lives in a different repo, pass repo (its absolute repo path).".freeze
 
@@ -78,22 +78,14 @@ module WorkQueue
     # runner has no Claude-in-Chrome tools, so this goes to the owning CLI when it
     # listens, else to a fresh interactive `claude --chrome` session spawned by the
     # host launcher daemon in the item's repo. Never silent: with neither path the
-    # result carries the reason and a copy command.
+    # result carries the reason and a copy command. A launch still starting or
+    # running for the item is returned as is (duplicate: true), never queued twice.
+    # The check and the queue run under a short per-item Redis lock, so a second
+    # near-simultaneous click gets the duplicate result too (its launch may be nil
+    # when the first click has not finished queueing yet).
     def run_in_chrome
-      body = chrome_instruction
-      copy = "/item#{@item.n} #{CHROME_COPY}"
-      return deliver(body, copy: copy) if listening?
-
-      repo = @item.repo.presence || Workspace.repo_for(@item.slug)
-      project = Project.find_by(repo_path: repo) if repo
-      reasons = [listen_reason]
-      reasons << "no myjira project has repo_path #{repo || "for #{@item.slug}"}" unless project
-      reasons << "the session launcher daemon isn't polling (start myjira-session-launcher.service)" unless SessionLaunch.launcher_alive?
-      return Result.new(sent: false, copy: copy, reason: reasons.join("; ")) if reasons.size > 1
-
-      launch = SessionLaunch.queue!(project: project, prompt: body, repo_path: repo, chrome: true, permission_mode: "auto",
-                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}")
-      Result.new(sent: true, launch: launch)
+      ChromeRun.exclusive(@item) { chrome_run } ||
+        Result.new(sent: true, launch: ChromeRun.active_launch(RunState.get(@item.key)), duplicate: true)
     end
 
     CHROME_COPY = "run this item's browser step now in Chrome (myjira-relay controller mode)".freeze
@@ -108,6 +100,27 @@ module WorkQueue
     end
 
     private
+
+    def chrome_run
+      active = ChromeRun.active_launch(RunState.get(@item.key))
+      return Result.new(sent: true, launch: active, duplicate: true) if active
+
+      body = chrome_instruction
+      copy = "/item#{@item.n} #{CHROME_COPY}"
+      return deliver(body, copy: copy).tap { |r| ChromeRun.sent!(@item) if r.sent } if listening?
+
+      repo = @item.repo.presence || Workspace.repo_for(@item.slug)
+      project = Project.find_by(repo_path: repo) if repo
+      reasons = [listen_reason]
+      reasons << "no myjira project has repo_path #{repo || "for #{@item.slug}"}" unless project
+      reasons << "the session launcher daemon isn't polling (start myjira-session-launcher.service)" unless SessionLaunch.launcher_alive?
+      return Result.new(sent: false, copy: copy, reason: reasons.join("; ")) if reasons.size > 1
+
+      launch = SessionLaunch.queue!(project: project, prompt: body, repo_path: repo, chrome: true, permission_mode: "auto",
+                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}")
+      ChromeRun.remember(@item, launch)
+      Result.new(sent: true, launch: launch)
+    end
 
     def listen_reason = conversation ? "CLI session #{@item.session.to_s.first(8)} isn't listening" : "no live CLI session owns this item"
 

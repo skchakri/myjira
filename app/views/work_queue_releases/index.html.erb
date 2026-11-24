@@ -1,0 +1,79 @@
+<% content_for :title, "Releases · Work Queue · myjira" %>
+<% repos = @releases.repos %>
+<% busy = repos.any? { |r| r.state == "deploying" } %>
+<div class="wq-releases">
+  <header class="flex flex-wrap items-baseline gap-3">
+    <h1 class="text-xl font-semibold">Releases</h1>
+    <%= link_to "Back to queue", work_queue_path, class: "wq-link" %>
+    <% if @slug %>
+      <span class="wq-hint">Showing <%= WorkQueue::Store.label(@slug) %> only.</span>
+      <%= link_to "All projects", work_queue_releases_path, class: "wq-link" %>
+    <% end %>
+  </header>
+  <p class="wq-hint mt-1">Tasks whose pull request is merged but that no successful Deploy run includes yet, grouped by the GitHub repo they live in.
+    One Deploy ships everything merged to <code>main</code> in that repo.</p>
+
+  <%= form_with url: work_queue_releases_path, method: :get, class: "wq-rel-filter", data: { controller: "auto-submit", turbo: false } do %>
+    <label class="wq-hint" for="wq_rel_slug">Project</label>
+    <select id="wq_rel_slug" name="slug" class="wq-input wq-input-sm" data-action="change->auto-submit#submit">
+      <option value="">All projects</option>
+      <% @projects.each do |slug| %><option value="<%= slug %>" <%= "selected" if slug == @slug %>><%= WorkQueue::Store.label(slug) %></option><% end %>
+    </select>
+    <noscript><button class="wq-btn">Show</button></noscript>
+  <% end %>
+
+  <%= turbo_frame_tag "wq_releases", src: (work_queue_releases_path(slug: @slug) if busy), target: "_top",
+                      data: ({ controller: "auto-reload", auto_reload_interval_value: 20_000 } if busy) do %>
+    <dl class="wq-rel-tiles">
+      <div><dt>Merged, not live</dt><dd><%= @releases.pending_count %></dd></div>
+      <div><dt>Repos waiting</dt><dd><%= repos.size %></dd></div>
+      <div><dt>Deploying now</dt><dd><%= repos.count { |r| r.state == "deploying" } %></dd></div>
+    </dl>
+
+    <% if repos.empty? %>
+      <p class="wq-empty wq-box mt-4" role="status">Nothing is waiting for a deploy. Every merged task with a tracked Deploy workflow is live.</p>
+    <% end %>
+
+    <% repos.each do |repo| %>
+      <%= render "work_queue_releases/repo", repo: repo, slug: @slug %>
+    <% end %>
+
+    <% if @releases.stacked.any? %>
+      <section class="wq-box wq-rel-repo mt-4" aria-labelledby="wq_rel_stacked_h">
+        <h2 id="wq_rel_stacked_h" class="wq-eyebrow">Merged into a branch, not on main: a deploy would not ship these</h2>
+        <p class="wq-hint">Each pull request below was merged into another branch (a stacked or parent branch). It reaches production only after that branch is merged to <code>main</code> and deployed.</p>
+        <% @releases.stacked.each do |group| %>
+          <details class="wq-rel-loose" open>
+            <summary><span class="wq-mono"><%= group.name %></span> <span class="wq-hint"><%= pluralize(group.entries.size, "task") %></span></summary>
+            <%= render "work_queue_releases/entries", entries: group.entries %>
+          </details>
+        <% end %>
+      </section>
+    <% end %>
+
+    <% if @releases.no_workflow.any? %>
+      <section class="wq-box wq-rel-repo mt-4" aria-labelledby="wq_rel_loose_h">
+        <h2 id="wq_rel_loose_h" class="wq-eyebrow">No Deploy workflow: nothing to release from here</h2>
+        <p class="wq-hint">These repos have no active GitHub Actions workflow whose name starts with "Deploy", so myjira cannot tell whether merged work is live and has nothing to run. Tasks merged in the last 14 days:</p>
+        <% @releases.no_workflow.each do |loose| %>
+          <details class="wq-rel-loose">
+            <summary><span class="wq-mono"><%= loose.name %></span> <span class="wq-hint"><%= pluralize(loose.entries.size, "merged task") %></span></summary>
+            <%= render "work_queue_releases/entries", entries: loose.entries %>
+          </details>
+        <% end %>
+      </section>
+    <% end %>
+
+    <% if @releases.closed_unmerged.any? || @releases.unknown.any? %>
+      <p class="wq-hint mt-4">
+        <% if @releases.closed_unmerged.any? %>
+          <%= pluralize(@releases.closed_unmerged.size, "done task") %> <%= @releases.closed_unmerged.size == 1 ? "has" : "have" %> a pull request that was closed without merging
+          (shipped another way, such as a release-train batch, or abandoned). They are not counted here.
+        <% end %>
+        <% if @releases.unknown.any? %>
+          <%= pluralize(@releases.unknown.size, "done task") %> <%= @releases.unknown.size == 1 ? "has" : "have" %> a pull request whose status has not been looked up, so they are not counted either.
+        <% end %>
+      </p>
+    <% end %>
+  <% end %>
+</div>

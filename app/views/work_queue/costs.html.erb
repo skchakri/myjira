@@ -1,0 +1,104 @@
+<% content_for :title, "Work Queue costs · myjira" %>
+<% days = @costs.days %>
+<% peak = days.map(&:last).max.to_f %>
+<% recent = days.sum(&:last) %>
+<% today = days.last&.last.to_f %>
+<% peak_day = days.max_by(&:last)&.first %>
+<div class="wq-costs">
+  <header class="flex flex-wrap items-baseline gap-3">
+    <h1 class="text-xl font-semibold">Work Queue costs</h1>
+    <%= link_to "Back to queue", work_queue_path, class: "wq-link" %>
+    <%= link_to "Routing and budgets", work_queue_settings_path, class: "wq-link" %>
+  </header>
+  <p class="wq-hint mt-1">What the server runner spent on tasks it ran for you. Work done in your own CLI sessions is not counted here, so your real total is higher.</p>
+
+  <dl class="wq-cost-tiles">
+    <div><dt>All time</dt><dd><%= wq_money(@costs.total) %></dd></div>
+    <div><dt>Last <%= days.size %> days</dt><dd><%= wq_money(recent) %></dd></div>
+    <div><dt>Today</dt><dd><%= wq_money(today) %></dd></div>
+    <div><dt>Tasks with a cost</dt><dd><%= @costs.projects.sum { |p| p[:tasks] } %></dd></div>
+  </dl>
+
+  <% if @costs.total.zero? %>
+    <p class="wq-empty mt-6">No cost recorded yet. It appears here after the server runner finishes a phase of a task.
+      If tasks ran before this page existed, run <code>bin/rails work_queue:rebuild_costs</code> once.</p>
+  <% else %>
+    <section class="wq-box mt-6" aria-labelledby="wq-cost-days-h">
+      <h2 id="wq-cost-days-h" class="wq-eyebrow">Per day, last <%= days.size %> days</h2>
+      <ol class="wq-cost-days" aria-label="Runner cost per day">
+        <% days.each do |day, amount| %>
+          <% height = peak.positive? ? (amount / peak * 100).round(1) : 0 %>
+          <li class="wq-cost-day <%= 'wq-cost-day-on' if amount.positive? %>" tabindex="0"
+              title="<%= day.strftime('%a %b %-d') %>: <%= wq_money(amount) %>" aria-label="<%= day.strftime('%A %B %-d') %>: <%= wq_money(amount) %>">
+            <span class="wq-cost-val <%= 'wq-cost-val-show' if amount.positive? && (day == peak_day || day == days.last.first) %>"><%= wq_money(amount) %></span>
+            <span class="wq-cost-bar"><i style="height: <%= height %>%"></i></span>
+            <span class="wq-cost-date"><%= day.day == 1 || day == days.first.first ? day.strftime("%b %-d") : day.strftime("%-d") %></span>
+          </li>
+        <% end %>
+      </ol>
+    </section>
+
+    <div class="wq-cost-grid">
+      <section class="wq-box" aria-labelledby="wq-cost-proj-h">
+        <h2 id="wq-cost-proj-h" class="wq-eyebrow">Per project</h2>
+        <table class="wq-table">
+          <thead><tr><th>Project</th><th class="wq-num">Tasks</th><th class="wq-num">Today</th><th class="wq-num">Last <%= days.size %> days</th><th class="wq-num">All time</th><th>Daily budget</th></tr></thead>
+          <tbody>
+            <% @costs.projects.each do |row| %>
+              <% budget = @budgets[row[:slug]] %>
+              <tr>
+                <td><%= link_to WorkQueue::Store.label(row[:slug]), work_queue_settings_path(slug: row[:slug]), class: "wq-link", title: "Set this project's daily budget" %></td>
+                <td class="wq-num wq-mono"><%= row[:tasks] %></td>
+                <td class="wq-num wq-mono"><%= wq_money(row[:today]) %></td>
+                <td class="wq-num wq-mono"><%= wq_money(row[:recent]) %></td>
+                <td class="wq-num wq-mono"><%= wq_money(row[:total]) %></td>
+                <td>
+                  <% if budget %>
+                    <span class="wq-mono"><%= wq_money(budget) %></span>
+                    <% if row[:today] >= budget %><span class="wq-flag">reached: new tasks wait</span><% end %>
+                  <% else %>
+                    <span class="wq-hint">none</span>
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="wq-box" aria-labelledby="wq-cost-mix-h">
+        <h2 id="wq-cost-mix-h" class="wq-eyebrow">Per phase and model</h2>
+        <table class="wq-table">
+          <thead><tr><th>Phase</th><th>Model</th><th class="wq-num">Cost</th><th class="wq-num">Share</th></tr></thead>
+          <tbody>
+            <% @costs.mix.each do |row| %>
+              <tr>
+                <td><%= row[:phase] %></td>
+                <td class="wq-mono"><%= row[:model].to_s.delete_prefix("claude-") %></td>
+                <td class="wq-num wq-mono"><%= wq_money(row[:cost]) %></td>
+                <td class="wq-num wq-mono"><%= number_to_percentage(row[:cost] / @costs.total * 100, precision: 0) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <section class="wq-box mt-4" aria-labelledby="wq-cost-top-h">
+      <h2 id="wq-cost-top-h" class="wq-eyebrow">Most expensive tasks</h2>
+      <table class="wq-table">
+        <thead><tr><th>Task</th><th>Project</th><th class="wq-num">Cost</th></tr></thead>
+        <tbody>
+          <% @costs.top.each do |row| %>
+            <% item = @store.find("#{row[:slug]}:#{row[:n]}") %>
+            <tr>
+              <td><%= link_to "##{row[:n]} #{item&.title || '(no longer in the queue)'}".truncate(110), work_queue_path(item: "#{row[:slug]}:#{row[:n]}"), class: "wq-link" %></td>
+              <td><%= WorkQueue::Store.label(row[:slug]) %></td>
+              <td class="wq-num wq-mono"><%= wq_money(row[:cost]) %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </section>
+  <% end %>
+</div>

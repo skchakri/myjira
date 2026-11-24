@@ -54,11 +54,46 @@ module WorkQueueHelper
     roll.need_you.any? ? "#{text} · #{roll.need_you.size} need you" : text
   end
 
+  # "waiting 4d 3h" for an item that needs the person: amber after a day, red after three.
+  def wq_wait_tag(flow, prefix: "waiting ")
+    words = flow.waiting_words or return
+    since = flow.waiting_since
+    tag.span("#{prefix}#{words}", class: ["wq-wait", ("wq-wait-#{flow.waiting_level}" if flow.waiting_level)],
+                                  title: "Waiting on you since #{since.strftime('%b %-d %H:%M')}")
+  end
+
   # A finished parent with child steps still going must not read as plain "Live".
   def wq_flow_label(flow, roll)
     return flow.label unless roll.left.positive? && (flow.finished? || flow.closed?)
 
     "#{flow.label} · #{pluralize(roll.left, 'child step')} still in progress"
+  end
+
+  # One project's recorded runner cost, read once per page render.
+  def wq_costs(slug)
+    @wq_costs ||= {}
+    @wq_costs[slug] ||= WorkQueue::Costs.project(slug)
+  end
+
+  # "$1.24", or "<$0.01" for a recorded cost that rounds to nothing.
+  def wq_money(amount)
+    amount = amount.to_f
+    amount.positive? && amount < 0.005 ? "<$0.01" : number_to_currency(amount)
+  end
+
+  # The small cost tag on a card: the item's own cost, or the whole tree's for a parent.
+  def wq_cost_tag(item, descendants = [])
+    costs = wq_costs(item.slug)
+    own = costs.item(item.n)
+    tree = costs.tree(item, descendants)
+    return unless tree.positive?
+
+    title = if descendants.any?
+      "Server runner cost of this task and its #{pluralize(descendants.size, 'child step')}: #{wq_money(tree)} (this task alone #{wq_money(own)}). CLI-session work is not counted."
+    else
+      "Server runner cost of this task. CLI-session work is not counted."
+    end
+    tag.span(wq_money(tree), class: "wq-cost", title: title)
   end
 
   def wq_copy_menu(item, context)

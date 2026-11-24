@@ -20,6 +20,8 @@
       <span class="wq-node-s">
         <span class="wq-node-l"><%= wq_flow_label(flow, roll) %></span>
         <% if (other_repo = item.foreign_repo) %><span class="wq-mono wq-repo" title="Lives in another repo: <%= other_repo %>"><%= File.basename(other_repo) %></span><% end %>
+        <%= wq_wait_tag(flow, prefix: "") unless flow.stalled? %>
+        <%= wq_cost_tag(item, roll.parent? ? progress.descendants(item) : []) %>
       </span>
       <% if roll.percent && (roll.parent? || !flow.closed?) %>
         <span class="wq-node-p">

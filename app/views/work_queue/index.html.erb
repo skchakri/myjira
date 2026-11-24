@@ -18,6 +18,8 @@
         <input type="checkbox" data-work-queue-target="speakToggle" data-action="work-queue#toggleSpeak"> Announce
       </label>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#enableNotifications" data-work-queue-target="notifyBtn">Notify me</button>
+      <%= link_to "Releases", work_queue_releases_path, class: "wq-btn wq-btn-ghost" %>
+      <%= link_to "Costs", work_queue_costs_path, class: "wq-btn wq-btn-ghost" %>
       <%= link_to "Routing", work_queue_settings_path, class: "wq-btn wq-btn-ghost" %>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#toggleHelp" aria-label="Keyboard shortcuts">?</button>
     </div>
@@ -25,7 +27,7 @@
 
   <div class="wq-help hidden" data-work-queue-target="help">
     <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>Enter</kbd> open · <kbd>x</kbd> select · <kbd>g</kbd> group · <kbd>r</kbd> run now ·
-    <kbd>1</kbd>-<kbd>4</kbd> pick option · <kbd>m</kbd> merge · <kbd>v</kbd> voice · <kbd>/</kbd> answer box · <kbd>n</kbd> new item · <kbd>s</kbd> stop · <kbd>Esc</kbd> close
+    <kbd>1</kbd>-<kbd>4</kbd> pick option · <kbd>a</kbd> allow all · <kbd>m</kbd> merge · <kbd>v</kbd> voice · <kbd>/</kbd> answer box · <kbd>n</kbd> new item · <kbd>s</kbd> stop · <kbd>Esc</kbd> close
   </div>
 
   <div class="wq-grid" data-work-queue-target="grid">

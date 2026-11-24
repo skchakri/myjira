@@ -1,7 +1,10 @@
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
-  root "projects#index"
+  # Home is the inbox: everything in the Work Queue that is waiting on the person.
+  # The projects list stays at /projects ("All projects" under More in the sidebar).
+  root "inbox#show"
+  get "inbox", to: "inbox#show", as: :inbox
 
   # Global full-text search across tasks, follow-ups, captured conversations and
   # test results. Optional ?project_id=<slug|uuid> scopes it to one folder.
@@ -153,6 +156,9 @@ Rails.application.routes.draw do
   post "work_queue/items", to: "work_queue#create", as: :work_queue_items
   get  "work_queue/projects/:slug", to: "work_queue#project", as: :work_queue_project
   get  "work_queue/settings", to: "work_queue#settings", as: :work_queue_settings
+  get  "work_queue/costs", to: "work_queue#costs", as: :work_queue_costs
+  get  "work_queue/releases", to: "work_queue_releases#index", as: :work_queue_releases
+  post "work_queue/releases/deploy", to: "work_queue_releases#deploy", as: :work_queue_releases_deploy
   patch "work_queue/settings", to: "work_queue#update_settings"
   scope "work_queue/items/:id", constraints: { id: /[^\/]+/ }, as: :work_queue_item do
     post :run, to: "work_queue#run"

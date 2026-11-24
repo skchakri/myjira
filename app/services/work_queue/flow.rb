@@ -11,7 +11,7 @@ module WorkQueue
     FILTERS = [
       ["all", "All"], ["you", "Needs you"], ["answer", "Needs answer"], ["approve", "Needs approval"],
       ["bundle", "Ready to bundle"], ["merge", "Ready to merge"], ["run", "In progress"], ["testing", "Testing / deploying"], ["bad", "Failed"],
-      ["wait", "Queued"], ["ok", "Live"], ["open", "Not live yet"], ["closed", "Merged / dropped"]
+      ["wait", "Queued"], ["ok", "Live"], ["unreleased", "Merged, not live"], ["open", "Open or not live"], ["closed", "Merged / dropped"]
     ].freeze
 
     YOUR_PART = {
@@ -24,6 +24,7 @@ module WorkQueue
       "bundle" => "Nothing. It ships in one PR with its parent and follow-ups once they are all built.",
       "run" => "Nothing yet. It moves on by itself.",
       "notlive" => "Nothing. It goes live with the next deploy.",
+      "stacked" => "Merge the branch it went into (its parent pull request) to main. A deploy alone will not ship it.",
       "wait" => "Nothing. It starts by itself.",
       "ok" => "Nothing.",
       "closed" => "Nothing."
@@ -58,6 +59,40 @@ module WorkQueue
       end
     end
     def your_part = YOUR_PART.fetch(@part)
+
+    WAIT_WARN = 1.day
+    WAIT_LATE = 3.days
+
+    # When the item started waiting on the person (nil when it is not): the oldest open
+    # question, the moment a run went quiet, else when it entered its current status.
+    def waiting_since
+      return @waiting_since if defined?(@waiting_since)
+
+      @waiting_since = if tags.include?("you")
+        asked = item.open_questions.filter_map { |q| epoch_ms(q.at) }.min
+        asked || (Time.current - stalled_for if stalled?) || status_since || item.updated_at || item.created_at
+      end
+    end
+
+    def waiting_for = waiting_since && [Time.current - waiting_since, 0].max
+
+    # "12m", "5h 12m", "4d 3h".
+    def waiting_words
+      seconds = waiting_for or return
+      minutes = (seconds / 60).floor
+      return "#{minutes}m" if minutes < 60
+      return "#{minutes / 60}h #{minutes % 60}m" if minutes < 1440
+
+      "#{minutes / 1440}d #{(minutes % 1440) / 60}h"
+    end
+
+    # nil (fresh), "warn" (over a day) or "late" (over three days).
+    def waiting_level
+      seconds = waiting_for or return
+      return "late" if seconds >= WAIT_LATE
+
+      "warn" if seconds >= WAIT_WARN
+    end
 
     # Queue log lines that say nothing to a person: status arrows, routing picks, worktree paths.
     NOISE = %r{\A(?:→ |Worktree |(?:plan|implement|review|trivial|relay): \S+ / )}
@@ -111,7 +146,7 @@ module WorkQueue
     # Index of the phase the item is on now.
     def phase
       @phase ||= case item.status
-      when "done" then delivery&.state.in?(%w[testing deploying not_live deploy_failed]) ? 5 : 6
+      when "done" then delivery&.state.in?(%w[testing deploying not_live stacked deploy_failed]) ? 5 : 6
       when "merged", "dropped" then 0
       when "review" then item.pr.present? ? 4 : 3
       when "running", "blocked" then RUN_PHASE.fetch(@context&.run&.dig("phase").to_s, 1)
@@ -166,9 +201,10 @@ module WorkQueue
     def done_state
       case delivery&.state
       when "testing" then ["run", "Testing together", 4, %w[testing], "run"]
-      when "deploying" then ["run", "Deploying", 5, %w[testing open], "run"]
-      when "not_live" then ["wait", "Merged, not live yet", 5, %w[open], "notlive"]
-      when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open], "bad"]
+      when "deploying" then ["run", "Deploying", 5, %w[testing open unreleased], "run"]
+      when "not_live" then ["wait", "Merged, not live yet", 5, %w[open unreleased], "notlive"]
+      when "stacked" then ["wait", "Merged into a branch, not on main", 5, %w[open unreleased], "stacked"]
+      when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open unreleased], "bad"]
       else ["ok", "Live", 5, %w[ok], "ok"]
       end
     end
@@ -197,6 +233,17 @@ module WorkQueue
     end
 
     RUN_STEP = { "plan" => 1, "review" => 4 }.freeze
+
+    # Time of the last "→ status" line in the queue log.
+    def status_since
+      line = item.log.reverse.find { |l| l["text"].to_s.start_with?("→ ") }
+      epoch_ms(line && line["at"])
+    end
+
+    def epoch_ms(value)
+      ms = value.to_i
+      Time.zone.at(ms / 1000.0) if ms > 1_000_000_000_000 # anything smaller is not a real timestamp
+    end
 
     def idle_words(seconds)
       minutes = (seconds / 60).floor

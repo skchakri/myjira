@@ -56,7 +56,7 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
 
     bad = WorkQueue::Router.new(runner: ->(_) { [{ structured_output: { model: "gpt-9", effort: "low", reason: "x" } }.to_json, true] })
     c = bad.choose(item, "plan")
-    assert_equal %w[claude-opus-5-5 high table], [c.model, c.effort, c.source]
+    assert_equal %w[claude-sonnet-5-5 high table], [c.model, c.effort, c.source]
   end
 
   test "router honours lock and escalates after failures" do
@@ -66,7 +66,60 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     assert_equal "claude-fable-5-2", locked.model
 
     esc = router.choose(item, "implement", attempts: 1)
-    assert_equal %w[claude-opus-5-5 high], [esc.model, esc.effort]
+    assert_equal %w[claude-opus-5-5 medium], [esc.model, esc.effort]
+  end
+
+  test "escalation is one step per failure: model first, then effort, never max" do
+    item = Struct.new(:title, :description, :key).new("t", "d", "k:1")
+    router = WorkQueue::Router.new(runner: ->(_) { ["", false] })
+    steps = (0..4).map { |n| router.choose(item, "plan", attempts: n).then { |c| [c.model, c.effort] } }
+    assert_equal [%w[claude-sonnet-5-5 high], %w[claude-opus-5-5 high], %w[claude-opus-5-5 xhigh],
+                  %w[claude-opus-5-5 xhigh], %w[claude-opus-5-5 xhigh]], steps
+    assert_equal steps.first(3), WorkQueue::Router.ladder("claude-sonnet-5-5", "high")
+    assert_equal %w[claude-fable-5-2 xhigh], WorkQueue::Router.climb("claude-fable-5-2", "high", 3), "off-ladder models only gain effort"
+    assert_equal %w[claude-opus-5-5 max], WorkQueue::Router.climb("claude-opus-5-5", "max", 1), "a max you chose is kept, not lowered"
+  end
+
+  test "the routing table caps the router on a first attempt, and a saved table wins over the defaults" do
+    item = Struct.new(:title, :description, :key).new("t", "d", "k:1")
+    eager = WorkQueue::Router.new(runner: ->(_) { [{ structured_output: { model: "claude-opus-5-5", effort: "max", reason: "big" } }.to_json, true] })
+    c = eager.choose(item, "plan")
+    assert_equal %w[claude-sonnet-5-5 xhigh router], [c.model, c.effort, c.source]
+    assert_includes c.reason, "capped"
+
+    WorkQueue::RunState.save_routing("plan" => { "model" => "claude-opus-5-5", "effort" => "max" })
+    c = eager.choose(item, "plan")
+    assert_equal %w[claude-opus-5-5 max], [c.model, c.effort], "your saved table is the ceiling"
+    cheap = WorkQueue::Router.new(runner: ->(_) { [{ structured_output: { model: "claude-haiku-5-5", effort: "low", reason: "tiny" } }.to_json, true] })
+    assert_equal "claude-haiku-5-5", cheap.choose(item, "plan").model, "the router may still go cheaper"
+  end
+
+  test "a project over its daily budget holds new starts until forced or under budget" do
+    @writer.add("home-me-x", title: "T")
+    key = "home-me-x:1"
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    waiting = "#{WorkQueue::RunState::PREFIX}:waiting"
+    WorkQueue::RunState.save_project("home-me-x", "daily_budget" => 1.0)
+    WorkQueue::Costs.add(key, 1.25, phase: "plan", model: "claude-sonnet-5-5")
+    assert WorkQueue::RunState.over_budget?("home-me-x")
+
+    sup.handle({ "action" => "start", "key" => key })
+    assert_empty WorkQueue::RunState.redis.lrange(waiting, 0, -1)
+    assert_equal [key], WorkQueue::RunState.held("home-me-x")
+    item = @store.find(key)
+    assert_equal "queued", item.status
+    assert(item.log.any? { |l| l["text"].match?(/Daily budget reached \(\$1\.25 of \$1\.00 today\)/) })
+
+    sup.handle({ "action" => "start", "key" => key, "force" => true })
+    assert_equal [key], WorkQueue::RunState.redis.lrange(waiting, 0, -1)
+    assert_empty WorkQueue::RunState.held("home-me-x")
+
+    WorkQueue::RunState.redis.del(waiting)
+    sup.handle({ "action" => "start", "key" => key })
+    WorkQueue::RunState.save_project("home-me-x", "daily_budget" => 5.0)
+    sup.send(:release_held)
+    assert_equal [key], WorkQueue::RunState.redis.lrange(waiting, 0, -1), "released once the project is under budget"
+    assert_empty WorkQueue::RunState.held("home-me-x")
   end
 
   test "session runner builds real claude flags and parses the stream" do
@@ -126,6 +179,64 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     assert_equal "Bash(bundle exec rspec:*)", WorkQueue::PermissionRules.for_command("cd /a && RAILS_ENV=test bundle exec rspec x")
     assert_equal "Bash(ls:*)", WorkQueue::PermissionRules.for_command("ls -la")
     assert_equal ["Bash(git push:*)", "WebFetch"], WorkQueue::PermissionRules.clean(["Bash(git push:*)", "WebFetch", "x y", ""])
+  end
+
+  test "a command allowed once twice becomes a project rule and is logged on the item" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    2.times do
+      WorkQueue::RunState.set(key, { "pending_permissions" => [{ tool_name: "Bash", tool_input: { command: "make lint" } }].to_json })
+      sup.send(:answer_prompt, key, { "text" => "Allow once" })
+    end
+    assert_equal ["Bash(make lint:*)"], WorkQueue::RunState.project("home-me-x")["always_allow"]
+    assert(@store.find(key).log.any? { |l| l["text"] == "Now always allowed in this project: Bash(make lint:*)" })
+  end
+
+  test "destructive commands never become a rule by themselves" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    3.times do
+      WorkQueue::RunState.set(key, { "pending_permissions" => [{ tool_name: "Bash", tool_input: { command: "rm -rf tmp/cache" } }].to_json })
+      sup.send(:answer_prompt, key, { "text" => "Allow once" })
+    end
+    assert_empty WorkQueue::RunState.project("home-me-x")["always_allow"]
+  end
+
+  test "denials the project's packs cover are granted without asking; the rest are asked" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    item = @store.find(key)
+    repo = Dir.mktmpdir("repo")
+    File.write(File.join(repo, "Gemfile"), "")
+    WorkQueue::RunState.set(key, { "repo" => repo })
+    wrapped = "PATH=/x/bin:$PATH GEM_HOME=/x /home/u/.rvm/bin/rvm 3.3.6 do bundle exec rspec spec/a_spec.rb -e \"one\""
+    denials = [{ "tool_name" => "Bash", "tool_input" => { "command" => wrapped } },
+               { "tool_name" => "Bash", "tool_input" => { "command" => "bash /tmp/run.sh rspec" } },
+               { "tool_name" => "Bash", "tool_input" => { "command" => "ls -la app" } }]
+    sup.send(:handle_denials, item, key, denials)
+
+    item = @store.find(key)
+    assert_equal ["Permission: Bash bash /tmp/run.sh rspec?"], item.open_questions.map(&:q)
+    assert_equal "Allow once", item.open_questions.first.options.first
+    auto = WorkQueue::RunState.project("home-me-x")["auto_allow"]
+    assert_includes auto, "Bash(PATH=/x/bin:$PATH GEM_HOME=/x /home/u/.rvm/bin/rvm 3.3.6 do bundle exec rspec:*)"
+    assert_includes auto, "Bash(ls:*)"
+    assert_equal 2, JSON.parse(WorkQueue::RunState.get(key)["permission_notes"]).size
+    assert_includes WorkQueue::PermissionRules.allowed_for("home-me-x", repo), "Bash(bundle exec rspec:*)"
+  ensure
+    FileUtils.rm_rf(repo) if repo
+  end
+
+  test "a safe command outside the enabled packs is asked with Always allow first" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    WorkQueue::RunState.save_project("home-me-x", "packs_off" => %w[base ruby node])
+    sup.send(:handle_denials, @store.find(key), key, [{ "tool_name" => "Bash", "tool_input" => { "command" => "git status" } }])
+    assert_equal WorkQueue::Supervisor::SAFE_PERMISSION_OPTIONS, @store.find(key).open_questions.first.options
   end
 
   test "suggestions are validated, cached and broadcast" do

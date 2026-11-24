@@ -1,0 +1,61 @@
+<%# One repo with a Deploy workflow and merged-not-live tasks: last run, the tasks, one Deploy with an in-page confirm. %>
+<% summary = repo.summary %>
+<% count = repo.entries.size %>
+<% dom = "wq_rel_#{repo.name.parameterize}" %>
+<section id="<%= dom %>" class="wq-box wq-rel-repo wq-rel-<%= repo.state %> mt-4" aria-labelledby="<%= dom %>_h">
+  <header class="wq-rel-head">
+    <div class="min-w-0">
+      <h2 id="<%= dom %>_h" class="wq-rel-name wq-mono"><%= repo.name %></h2>
+      <p class="wq-hint">
+        <%= pluralize(count, "merged task") %> waiting<%= " in #{pluralize(repo.prs.size, 'pull request')}" if repo.prs.size != count %>.
+        <% if summary&.run.present? %>
+          Last <%= summary.workflow %> run:
+          <% label = { "running" => "running", "success" => "succeeded", "failed" => "failed" }[summary.run_state] %>
+          <a class="wq-link" href="<%= summary.run_url %>" target="_blank" rel="noopener"><%= label %> <%= time_ago_in_words(summary.run_at) %> ago</a>.
+        <% elsif summary&.workflow? %>
+          <%= summary.workflow %> has not run on <code>main</code> yet.
+        <% end %>
+      </p>
+    </div>
+    <div class="wq-rel-act">
+      <% case repo.state
+         when "deploying" %>
+        <span class="wq-pill wq-pill-run" role="status">Deploying…</span>
+      <% when "failed" %>
+        <span class="wq-pill wq-pill-bad" role="status">Deploy failed</span>
+      <% end %>
+    </div>
+  </header>
+
+  <% if repo.state == "failed" %>
+    <p class="wq-rel-note wq-flag">The last <%= summary&.workflow || "Deploy" %> run that included this work failed.
+      <% if summary&.run_url %><a class="wq-link" href="<%= summary.run_url %>" target="_blank" rel="noopener">Open the run</a> to see why, then retry.<% end %></p>
+  <% elsif repo.state == "deploying" %>
+    <p class="wq-rel-note wq-hint"><%= repo.dispatch_pending? ? "Deploy sent from here #{time_ago_in_words(repo.dispatched_at)} ago; waiting for GitHub to start the run." : "A deploy run with this work is in progress." %>
+      Tasks flip to Live once the run succeeds. This page refreshes by itself.</p>
+  <% end %>
+
+  <%= render "work_queue_releases/entries", entries: repo.entries %>
+
+  <% if repo.deployable? %>
+    <details class="wq-rel-confirm" data-controller="wq-release" data-action="keydown->wq-release#key">
+      <summary class="wq-btn wq-btn-primary"><%= repo.state == "failed" ? "Retry deploy of" : "Deploy" %> <%= repo.name.split("/").last %></summary>
+      <%= form_with url: work_queue_releases_deploy_path, class: "wq-rel-panel", data: { turbo: false } do %>
+        <%= hidden_field_tag :repo, repo.name %>
+        <%= hidden_field_tag :slug, slug if slug %>
+        <p class="wq-rel-q">Run <strong><%= summary&.workflow || "Deploy" %></strong> on <code>main</code> of <span class="wq-mono"><%= repo.name %></span>?</p>
+        <p class="wq-hint">This goes out (<%= pluralize(count, "task") %>):</p>
+        <ul class="wq-rel-out">
+          <% repo.entries.each do |entry| %>
+            <li><span class="wq-mono">#<%= entry.item.n %></span> <%= entry.item.title.truncate(100) %> <span class="wq-hint wq-mono">PR #<%= entry.item.pr_number %></span></li>
+          <% end %>
+        </ul>
+        <p class="wq-rel-warn">This deploys <code>main</code> to production and cannot be undone from here. Anything else already merged to <code>main</code> in this repo goes out with it.</p>
+        <div class="flex gap-2 mt-2">
+          <button type="submit" class="wq-btn wq-btn-primary">Confirm deploy</button>
+          <button type="button" class="wq-btn wq-btn-ghost" data-action="wq-release#close">Cancel</button>
+        </div>
+      <% end %>
+    </details>
+  <% end %>
+</section>
