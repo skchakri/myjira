@@ -15,10 +15,20 @@ module WorkQueue
   # A follow-up that finishes while its bundle's PR is still open is merged onto
   # that same bundle branch, so it lands in the parent's PR. Only when the
   # parent's PR is already merged/closed does it get a new bundle (and PR).
+  #
+  # A red run is only blamed on members when the base is green by itself. When
+  # the base is red too (or the suite cannot run in the bundle worktree), nobody
+  # is blocked: the items keep "readyToBundle" and get a log line with the reason.
   class Bundler
     WAIT = %w[triage queued running blocked].freeze
     IGNORE = %w[dropped merged].freeze
     Member = Struct.new(:item, :branch)
+    # Git-ignored files a fresh worktree lacks but the suite needs (credentials key, built CSS, deps).
+    SHARED = ["config/*.key", "config/credentials/*.key", "app/assets/builds/*", ".env*", "node_modules"].freeze
+    # A base that was red is tried again when it moves, or after this long (the cause may be outside git).
+    RECHECK_RED_BASE = 15.minutes
+    TAIL_LINES = 8
+    TAIL_CHARS = 600
 
     # shell: ->(cwd, *cmd) { [output, ok] }; resolver: ->(cwd, branch) { ok }
     def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, shell: nil, resolver: nil, repo_for: nil, commands: nil)
@@ -29,6 +39,7 @@ module WorkQueue
       @resolver = resolver || method(:claude_resolve)
       @repo_for = repo_for || Workspace.method(:repo_for)
       @commands = commands || method(:detect_commands)
+      @red_bases = {}
     end
 
     def tick
@@ -57,40 +68,51 @@ module WorkQueue
       members = tree(root, items).select { |i| member?(i) && i.ready_to_bundle? }
       return @logger.info("[work-queue] #{key}: nothing ready to bundle") if members.empty?
 
-      ship(item.slug, root, members, branch_for(root, items))
+      ship(item.slug, root, members, branch_for(root, items), force: true)
     end
 
     # Members whose repo differs from the root's can't share its PR: each ships
-    # as its own one-item bundle (and PR) in its own repo.
-    def ship(slug, root, items, branch)
+    # as its own one-item bundle (and PR) in its own repo. force: try even if the base was just seen red.
+    def ship(slug, root, items, branch, force: false)
       root_repo = repo_of(root)
       own, foreign = items.partition { |i| repo_of(i) == root_repo }
-      foreign.each { |i| ship_in(repo_of(i), slug, i, [i], solo_branch(i), onto: nil) }
+      foreign.each { |i| ship_in(repo_of(i), slug, i, [i], solo_branch(i), onto: nil, force: force) }
       return if own.empty?
 
       onto = open_bundle(root, @store.items_for(slug)) == branch ? branch : nil
-      ship_in(root_repo, slug, root, own, branch, onto: onto)
+      ship_in(root_repo, slug, root, own, branch, onto: onto, force: force)
     end
 
     private
 
-    def ship_in(repo, slug, root, items, branch, onto:)
+    def ship_in(repo, slug, root, items, branch, onto:, force: false)
       return @logger.warn("[work-queue] bundle #{slug}:#{root.n} waiting: no repo_path") unless repo
 
       path = "#{repo}-bundle-#{root.n}"
       members = items.map { |i| Member.new(i, i.branch) }
-      log(slug, items, onto ? "Adding #{items.size} item(s) to the open bundle #{branch}" : "Bundling #{items.size} item(s) into #{branch}")
-
       base = setup(repo, path, onto: onto)
+      sha = git(path, "rev-parse", "HEAD").first.to_s.strip
+      seen = @red_bases[[slug, path]]
+      seen = nil unless seen && seen[:sha] == sha
+      return if seen && seen[:at] > RECHECK_RED_BASE.ago && !force
+
+      log(slug, items, onto ? "Adding #{items.size} item(s) to the open bundle #{branch}" : "Bundling #{items.size} item(s) into #{branch}") unless seen
       merged, failed = merge_all(path, branch, base, members)
       cmds = @commands.call(path)
-      bad = cmds.any? ? isolate(path, branch, base, merged, cmds) : []
-      failed += bad.map { |m| [m, "Breaks the bundle's test/lint run (#{cmds.join(' && ')})"] }
-      good = merged - bad
+      red = merged.any? ? failure(path, cmds) : nil
+      if red && (base_red = base_failure(path, base, cmds))
+        failed.each { |m, why| fail_member(slug, root, m, why) }
+        return red_base(slug, path, base, sha, merged, base_red, seen)
+      end
+      @red_bases.delete([slug, path])
+
+      bad = red ? isolate(path, branch, base, merged, cmds, red) : []
+      failed += bad.map { |m, why| [m, "Breaks the bundle's test/lint run: #{why}"] }
+      good = merged - bad.map(&:first)
       if bad.any? && good.any?
         rebuild(path, branch, base, good)
-        unless green?(path, cmds)
-          failed += good.map { |m| [m, "Bundle still red after removing the failing items"] }
+        if (still = failure(path, cmds))
+          failed += good.map { |m| [m, "Bundle still red after removing the failing items: #{still}"] }
           good = []
         end
       end
@@ -98,6 +120,18 @@ module WorkQueue
       publish(slug, root, path, branch, good, failed, append: onto.present?) if good.any?
     ensure
       cleanup(repo, path) if repo && path
+    end
+
+    # The run is red without any member's changes, so no member is to blame: say why on the
+    # items (once per base commit) and leave them ready, to be bundled when the base is green.
+    def red_base(slug, path, base, sha, members, why, seen)
+      told = seen ? seen[:told] : Set.new
+      @logger.warn("[work-queue] bundle #{path}: base #{base} is red, nobody blamed: #{why}")
+      log(slug, members.map(&:item).reject { |i| told.include?(i.n) },
+          "Not bundled yet, and no item is blamed: the bundle's base (#{base}) is red or its tests could not run here. #{why}. " \
+          "Still ready to bundle; tried again when the base changes.")
+      @red_bases[[slug, path]] = { sha: sha, at: Time.current, told: told | members.map { |m| m.item.n } }
+      nil
     end
 
     # An item's own repo (set when it lives in a different repo than its project), else the project's.
@@ -150,7 +184,23 @@ module WorkQueue
       base = candidates.find { |b| git(repo, "rev-parse", "--verify", "-q", b).last } || "HEAD"
       cleanup(repo, path)
       git(repo, "worktree", "add", "--detach", path, base)
+      link_shared(repo, path)
       base
+    end
+
+    # A fresh worktree has none of the repo's git-ignored files, and the suite cannot run without
+    # some of them. Links them in from the main checkout; only ignored paths, so a bundle's content never changes.
+    def link_shared(repo, path)
+      return unless File.directory?(path)
+
+      SHARED.flat_map { |glob| Dir.glob(glob, base: repo) }.each do |rel|
+        to = File.join(path, rel)
+        next if File.exist?(to) || File.symlink?(to) || !File.directory?(File.dirname(to))
+
+        File.symlink(File.join(repo, rel), to) if git(path, "check-ignore", "-q", rel).last
+      end
+    rescue SystemCallError => e
+      @logger.warn("[work-queue] bundle #{path}: could not link shared files: #{e.message}")
     end
 
     def cleanup(repo, path)
@@ -191,22 +241,44 @@ module WorkQueue
       members.select { |m| merge(path, m) }
     end
 
-    # Members whose changes make the run red. Halves are retested separately;
-    # when every half is green but the whole is red (an interaction), the later
-    # half is blamed so the earlier items still ship.
-    def isolate(path, branch, base, members, cmds)
-      return [] if members.empty? || green?(path, cmds)
-      return members if members.size == 1
+    # [[member, failing output]] for the members whose changes make the run red (red: the
+    # failure already seen with all of them merged). Halves are retested separately; when
+    # every half is green but the whole is red (an interaction), the later half is blamed
+    # so the earlier items still ship.
+    def isolate(path, branch, base, members, cmds, red = nil)
+      return [] if members.empty?
+
+      red ||= failure(path, cmds) or return []
+      return [[members.first, red]] if members.size == 1
 
       left, right = members.each_slice((members.size / 2.0).ceil).to_a
       bad = [left, right].flat_map do |half|
         rebuild(path, branch, base, half)
         isolate(path, branch, base, half, cmds)
       end
-      bad.empty? ? right : bad
+      bad.empty? ? right.map { |m| [m, red] } : bad
     end
 
-    def green?(path, cmds) = cmds.all? { |c| @shell.call(path, "sh", "-c", c).last }
+    # Why the run is red on the base alone (no member merged), or nil when the base is green.
+    def base_failure(path, base, cmds)
+      git(path, "reset", "--hard")
+      git(path, "checkout", "--detach", base)
+      failure(path, cmds)
+    end
+
+    # nil when every command passes, else the first failing command with the tail of its output.
+    def failure(path, cmds)
+      cmds.each do |c|
+        out, ok = @shell.call(path, "sh", "-c", c)
+        return "`#{c}` failed: #{tail(out)}" unless ok
+      end
+      nil
+    end
+
+    def tail(out)
+      lines = out.to_s.scrub.gsub(/\e\[[\d;]*m/, "").lines.map(&:strip).reject { |l| l.match?(/\A[.EFS*]*\z/) }
+      lines.last(TAIL_LINES).join(" | ").last(TAIL_CHARS).presence || "(no output)"
+    end
 
     # Full test + lint commands for the bundle's repo.
     def detect_commands(path)

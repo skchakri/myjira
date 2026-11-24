@@ -4,12 +4,15 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
   SLUG = "home-me-app".freeze
 
   # Pretend git/gh: tracks which branches are merged into the bundle branch;
-  # the test command is red while any branch in `bad` is merged.
+  # the test command is red while any branch in `bad` is merged, or always when `red_base`.
   class FakeShell
     attr_reader :calls, :merged, :cwds
+    attr_accessor :red_base
 
-    def initialize(bad: [], conflict: [])
+    def initialize(bad: [], conflict: [], red_base: false, tracked: [])
       @bad = bad
+      @red_base = red_base
+      @tracked = tracked
       @conflict = conflict
       @merged = []
       @calls = []
@@ -20,14 +23,18 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
       @calls << cmd
       @cwds << cwd
       case cmd
-      in ["git", "checkout", "-B", *] then @merged = []
+      in ["git", "checkout", "-B" | "--detach", *] then @merged = []
+      in ["git", "check-ignore", "-q", rel] then return ["", @tracked.exclude?(rel)]
       in ["git", "merge", "--no-ff", "--no-edit", ref]
         br = ref.delete_prefix("origin/")
         return ["CONFLICT", false] if @conflict.include?(br)
 
         @merged << br
       in ["git", "diff", *] then return ["src/x.rb\n", true]
-      in ["sh", "-c", _] then return ["", (@merged & @bad).empty?]
+      in ["sh", "-c", _]
+        return ["", true] if !@red_base && (@merged & @bad).empty?
+
+        return ["...E..\n\nError:\nFooTest#test_x:\nBoom: no tailwind.css\n\n9 runs, 1 errors\n", false]
       in ["gh", "pr", "create", *] then return ["https://github.com/me/app/pull/42\n", true]
       else nil
       end
@@ -54,9 +61,9 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
     item["n"]
   end
 
-  def bundler(shell, resolver: ->(*) { false })
+  def bundler(shell, resolver: ->(*) { false }, repo: "/repo")
     WorkQueue::Bundler.new(store: @store, writer: @writer, logger: Logger.new(nil), shell: shell, resolver: resolver,
-                           repo_for: ->(_) { "/repo" }, commands: ->(_) { ["bin/rails test"] })
+                           repo_for: ->(_) { repo }, commands: ->(_) { ["bin/rails test"] })
   end
 
   def items = @store.items_for(SLUG).index_by(&:n)
@@ -179,5 +186,78 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
     assert_equal({ "root" => kid, "branch" => "bundle/2-other-repo-kid", "pr" => "https://github.com/me/app/pull/42", "size" => 1 },
                  items[kid].bundle)
     assert_equal 1, items[root].bundle["size"]
+  end
+
+  def logs(n) = items[n].log.map { |l| l["text"] }
+
+  def runs(shell) = shell.calls.count { |c| c[0..1] == %w[sh -c] }
+
+  test "a red base blames nobody: items stay ready with the reason in their log" do
+    root = add("Root")
+    kid = add("Kid", parent: root)
+    shell = FakeShell.new(red_base: true)
+    b = bundler(shell)
+    b.tick
+
+    assert_includes shell.calls, ["git", "checkout", "--detach", "origin/main"]
+    assert_not(shell.calls.any? { |c| c[0..1] == %w[gh pr] || c[0..1] == %w[git push] })
+    [root, kid].each do |n|
+      assert_equal "review", items[n].status
+      assert items[n].ready_to_bundle?
+      assert_empty items[n].bundle_info
+      reason = logs(n).last
+      assert_includes reason, "no item is blamed"
+      assert_includes reason, "base (origin/main) is red"
+      assert_includes reason, "`bin/rails test` failed: Error: | FooTest#test_x: | Boom: no tailwind.css | 9 runs, 1 errors"
+    end
+
+    # Same base commit: not run again on the next tick, and "Ready for PR" retries without repeating the log line.
+    count = runs(shell)
+    lines = logs(kid).size
+    b.tick
+    assert_equal count, runs(shell)
+    b.ship_now("#{SLUG}:#{kid}")
+    assert_operator runs(shell), :>, count
+    assert_equal lines, logs(kid).size
+
+    # Once the base is green the same items ship.
+    shell.red_base = false
+    b.ship_now("#{SLUG}:#{kid}")
+    [root, kid].each { |n| assert_equal "https://github.com/me/app/pull/42", items[n].pr }
+  end
+
+  test "a red base still leaves out a member that cannot be merged" do
+    root = add("Root")
+    kid = add("Kid", parent: root)
+    bundler(FakeShell.new(red_base: true, conflict: ["wq/#{kid}"])).tick
+    assert_includes items[kid].bundle_info["failed"], "Merge conflict"
+    assert items[root].ready_to_bundle?
+    assert_equal "review", items[root].status
+  end
+
+  test "a blamed member keeps the tail of the failing output" do
+    root = add("Root")
+    kid = add("Kid", parent: root)
+    bundler(FakeShell.new(bad: ["wq/#{kid}"])).tick
+    assert_equal "blocked", items[kid].status
+    why = "Breaks the bundle's test/lint run: `bin/rails test` failed: Error: | FooTest#test_x: | Boom: no tailwind.css | 9 runs, 1 errors"
+    assert_equal why, items[kid].bundle_info["failed"]
+    assert_includes logs(kid), "Left out of bundle ##{root}: #{why}"
+    assert_equal "https://github.com/me/app/pull/42", items[root].pr
+  end
+
+  test "the bundle worktree gets the repo's git-ignored files the suite needs" do
+    repo = File.join(@dir, "app")
+    tree = "#{repo}-bundle-1"
+    [repo, tree].each { |d| FileUtils.mkdir_p([File.join(d, "config"), File.join(d, "app/assets/builds")]) }
+    %w[config/master.key app/assets/builds/tailwind.css .env config/database.yml].each { |rel| File.write(File.join(repo, rel), "x") }
+    File.write(File.join(repo, "app/assets/builds/.keep"), "")
+    add("Root")
+    bundler(FakeShell.new(tracked: [".env"]), repo: repo).tick
+
+    %w[config/master.key app/assets/builds/tailwind.css].each do |rel|
+      assert_equal File.join(repo, rel), File.readlink(File.join(tree, rel))
+    end
+    %w[.env config/database.yml app/assets/builds/.keep].each { |rel| assert_not File.exist?(File.join(tree, rel)), rel }
   end
 end
