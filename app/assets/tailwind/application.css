@@ -611,6 +611,12 @@ html[data-theme="dark"] .wq { --wq-run: #67E8F9; --wq-run-wash: rgba(103,232,249
 html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 .wq-btn-chrome { background: color-mix(in srgb, var(--color-amber-ink) 12%, transparent); color: var(--color-ink); border-color: var(--color-amber-ink); }
 .wq-btn-chrome:hover { background: color-mix(in srgb, var(--color-amber-ink) 22%, transparent); }
+.wq-chrome-run { display: contents; }
+.wq-chrome-status { cursor: default; color: var(--color-ink-soft); }
+.wq-chrome-status .wq-live-dot { color: var(--color-block-ink); }
+a.wq-chrome-live { cursor: pointer; color: var(--color-ink); }
+a.wq-chrome-live:hover { background: var(--color-paper-sunk); }
+.wq-chrome-live .wq-live-dot { color: var(--color-pass-ink); }
 .wq-browser-flag { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .wq-browser-flag form { display: inline; }
 .wq-chrome-blocked { flex-basis: 100%; color: var(--color-ink); }
