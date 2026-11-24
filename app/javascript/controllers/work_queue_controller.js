@@ -9,7 +9,7 @@ const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content
 export default class extends Controller {
   static targets = ["card", "link", "log", "jump", "event", "groupBtn", "groupCount", "speakToggle",
                     "notifyBtn", "help", "question", "suggestions", "answer", "merge",
-                    "composer", "composerText", "files", "fileList", "project", "search", "projectFilter",
+                    "composer", "composerText", "inlineAdd", "inlineHome", "inlineLabel", "files", "fileList", "project", "search", "projectFilter",
                     "confirm", "confirmText", "instruct", "refChips", "frame", "tab", "grid"]
   static values = { selected: String, groupUrl: String }
 
@@ -48,7 +48,7 @@ export default class extends Controller {
     if ("Notification" in window && Notification.permission === "granted" && this.hasNotifyBtnTarget) this.notifyBtnTarget.classList.add("hidden")
     this.frameLoad = () => this.afterFrame()
     document.addEventListener("turbo:frame-load", this.frameLoad)
-    this.streamRender = (e) => this.keepDraftAcrossStream(e)
+    this.streamRender = (e) => { this.keepDraftAcrossStream(e); this.keepInlineAddAcrossStream(e) }
     document.addEventListener("turbo:before-stream-render", this.streamRender)
     this.afterFrame()
     this.groupTools()
@@ -594,15 +594,45 @@ export default class extends Controller {
     this.fileListTarget.textContent = Array.from(dt.files).map((f) => f.name).join(", ")
   }
 
-  // "+ Add" on a project's title bar: open the composer with that project picked.
+  // "+ Add" on a project's title bar: show the add form inside that project's block.
   addToProject(e) {
     const { slug, label } = e.currentTarget.dataset
-    const select = this.composerTarget.querySelector("select[name='slug']")
-    if (![...select.options].some((o) => o.value === slug)) select.add(new Option(label, slug))
-    select.value = slug
-    this.composerTarget.setAttribute("open", "")
-    this.composerTarget.scrollIntoView({ block: "start" })
-    this.composerTextTarget.focus()
+    const form = this.inlineAddTarget
+    if (form.closest("[data-work-queue-target~='project']")?.dataset.slug === slug) return this.closeInlineAdd()
+    form.querySelector("input[name='slug']").value = slug
+    this.inlineLabelTarget.textContent = label
+    this.placeInlineAdd(slug)
+    form.querySelector("textarea").focus()
+  }
+
+  placeInlineAdd(slug) {
+    const bar = this.projectTargets.find((p) => p.dataset.slug === slug)?.querySelector(".wq-proj-bar")
+    bar ? bar.after(this.inlineAddTarget) : this.inlineHomeTarget.append(this.inlineAddTarget)
+  }
+
+  closeInlineAdd() { this.inlineHomeTarget.append(this.inlineAddTarget) }
+
+  inlineSent(e) {
+    if (!e.detail.success) return
+    e.target.reset()
+    this.closeInlineAdd()
+  }
+
+  // A live update replaces the whole project block: carry the open add form (and what is typed) across.
+  keepInlineAddAcrossStream(e) {
+    if (!this.hasInlineAddTarget) return
+    const form = this.inlineAddTarget
+    const old = document.getElementById(e.target?.getAttribute?.("target") || "")
+    if (!old?.contains(form)) return
+    const slug = form.querySelector("input[name='slug']").value
+    const focused = form.contains(document.activeElement) ? document.activeElement : null
+    const render = e.detail.render
+    e.detail.render = async (stream) => {
+      this.closeInlineAdd()
+      await render(stream)
+      this.placeInlineAdd(slug)
+      focused?.focus()
+    }
   }
 
   composerSent(e) {
