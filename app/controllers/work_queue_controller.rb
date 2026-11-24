@@ -144,6 +144,17 @@ class WorkQueueController < ApplicationController
     toast(runner_note("##{@item.n} resumed on the server"), :ok)
   end
 
+  # "Close task" on a parent in review whose child steps are all done (nothing of its own to merge).
+  def close
+    kids = WorkQueue::Store.new.items_for(@item.slug).select { |i| i.parent == @item.n && i.n != @item.n }
+    unless @item.status == "review" && @item.pr.blank? && WorkQueue::ParentCloser.children_done?(kids)
+      return toast("##{@item.n} still has work of its own or open child steps", :error)
+    end
+
+    writer.set_status(@item.slug, @item.n, "done", log: "Closed by you: every child step is done")
+    toast("Closed ##{@item.n}", :ok)
+  end
+
   # Batch on a parent: start or drop its suggested (nice-to-have) and held follow-ups
   # in one request. op: start | drop (the ticked ns[]) or start_all | drop_all.
   def follow_ups

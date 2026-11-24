@@ -10,9 +10,10 @@ module WorkQueue
     REFRESH_EVERY = ENV.fetch("WORK_QUEUE_REFRESH_SECONDS", 20).to_i
     TRANSCRIPT = /(?:agent-[\w-]+|\A[0-9a-f-]{36})\.jsonl\z/
 
-    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new)
+    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new, parent_closer: ParentCloser.new)
       @store = store
       @child_starter = child_starter
+      @parent_closer = parent_closer
       @queues = queues.to_s
       @projects = projects.to_s
       @logger = logger
@@ -106,6 +107,8 @@ module WorkQueue
         items = @store.items_for(slug)
         # Follow-ups start by themselves; the write re-triggers this with the cleared flag.
         next if @child_starter.call(items).any?
+        # A parent with nothing of its own to merge closes once its child steps are all done.
+        next if @parent_closer.call(items).any?
 
         @sessions = @owners = nil
         transitions = items.filter_map do |i|
