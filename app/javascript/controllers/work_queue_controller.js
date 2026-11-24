@@ -356,7 +356,7 @@ export default class extends Controller {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form.requestSubmit() }
   }
 
-  resetForm(e) { if (e.detail.success) { e.target.reset(); this.scanRefs() } }
+  resetForm(e) { if (e.detail.success) { e.target.reset(); this.clearFiles(e.target); this.scanRefs() } }
 
   toast(message, level = "ok") {
     const el = document.createElement("div")
@@ -580,19 +580,68 @@ export default class extends Controller {
   }
 
   // ---- composer ------------------------------------------------------------
-  pickFiles() { this.filesTarget.click() }
-  dragOver(e) { e.preventDefault(); e.currentTarget.classList.add("wq-drop-over") }
-  dragLeave(e) { e.currentTarget.classList.remove("wq-drop-over") }
+  // Any [data-wq-drop] zone holds its own file input and name list, so every box
+  // (new item, in-project add, instruction) takes dropped and pasted files.
+  dropZone(el) { return el.closest("[data-wq-drop]") }
+  pickFiles(e) { this.dropZone(e.currentTarget)?.querySelector("input[type=file]")?.click() }
+  dragOver(e) { e.preventDefault(); this.dropZone(e.currentTarget)?.classList.add("wq-drop-over") }
+  dragLeave(e) { this.dropZone(e.currentTarget)?.classList.remove("wq-drop-over") }
 
   drop(e) {
     e.preventDefault()
-    e.currentTarget.classList.remove("wq-drop-over")
-    const dt = new DataTransfer()
-    Array.from(this.filesTarget.files).forEach((f) => dt.items.add(f))
-    Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/")).forEach((f) => dt.items.add(f))
-    this.filesTarget.files = dt.files
-    this.fileListTarget.textContent = Array.from(dt.files).map((f) => f.name).join(", ")
+    const zone = this.dropZone(e.currentTarget)
+    zone?.classList.remove("wq-drop-over")
+    this.addFiles(zone, e.dataTransfer.files)
   }
+
+  // Pasted files (a screenshot, a copied file) attach; pasted text behaves as usual.
+  paste(e) {
+    const files = Array.from(e.clipboardData?.files || [])
+    if (!files.length) return
+    e.preventDefault()
+    this.addFiles(this.dropZone(e.currentTarget), files)
+  }
+
+  filesPicked(e) { this.listFiles(this.dropZone(e.currentTarget)) }
+
+  addFiles(zone, files) {
+    const input = zone?.querySelector("input[type=file]")
+    if (!input) return
+    const ok = Array.from(files).filter((f) => /^(image\/|text\/|application\/(pdf|json)$)/.test(f.type) || /\.(md|txt|log|csv|json|ya?ml)$/i.test(f.name))
+    const skipped = files.length - ok.length
+    const dt = new DataTransfer()
+    Array.from(input.files).forEach((f) => dt.items.add(f))
+    ok.forEach((f, n) => {
+      // Pasted screenshots all arrive as "image.png": give each its own name.
+      const name = f.name === "image.png" ? `pasted-${Date.now()}-${n}.png` : f.name
+      dt.items.add(name === f.name ? f : new File([f], name, { type: f.type }))
+    })
+    input.files = dt.files
+    this.listFiles(zone)
+    if (skipped) this.toast(`${skipped} file${skipped > 1 ? "s" : ""} skipped: only images, PDFs and text files attach`, "warn")
+  }
+
+  listFiles(zone) {
+    const input = zone?.querySelector("input[type=file]")
+    const list = zone?.querySelector("[data-wq-files]")
+    if (!input || !list) return
+    list.replaceChildren(...Array.from(input.files).map((f) => {
+      const chip = document.createElement("span")
+      chip.className = "wq-file-chip"
+      chip.textContent = f.name
+      return chip
+    }))
+    if (input.files.length) {
+      const clear = document.createElement("button")
+      clear.type = "button"
+      clear.className = "wq-file-clear"
+      clear.textContent = "remove all"
+      clear.addEventListener("click", () => { input.value = ""; this.listFiles(zone) })
+      list.append(clear)
+    }
+  }
+
+  clearFiles(form) { form.querySelectorAll("[data-wq-drop]").forEach((z) => { const i = z.querySelector("input[type=file]"); if (i) i.value = ""; this.listFiles(z) }); if (form.matches("[data-wq-drop]")) { const i = form.querySelector("input[type=file]"); if (i) i.value = ""; this.listFiles(form) } }
 
   // "+ Add" on a project's title bar: show the add form inside that project's block.
   addToProject(e) {
@@ -615,6 +664,7 @@ export default class extends Controller {
   inlineSent(e) {
     if (!e.detail.success) return
     e.target.reset()
+    this.clearFiles(e.target)
     this.closeInlineAdd()
   }
 
@@ -638,7 +688,7 @@ export default class extends Controller {
   composerSent(e) {
     if (!e.detail.success) return
     e.target.reset()
-    this.fileListTarget.textContent = ""
+    this.clearFiles(e.target)
     this.composerTarget.removeAttribute("open")
   }
 

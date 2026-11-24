@@ -78,12 +78,16 @@
   <%# One shared "add a task" form; the Add button on a project's title bar moves it into that project's block. %>
   <div class="hidden" data-work-queue-target="inlineHome">
     <%= form_with url: work_queue_items_path, class: "wq-inline-add", multipart: true,
-                  data: { turbo_stream: true, work_queue_target: "inlineAdd", action: "turbo:submit-end->work-queue#inlineSent keydown.esc->work-queue#closeInlineAdd" } do %>
+                  data: { turbo_stream: true, wq_drop: true, work_queue_target: "inlineAdd",
+                          action: "turbo:submit-end->work-queue#inlineSent keydown.esc->work-queue#closeInlineAdd dragover->work-queue#dragOver dragleave->work-queue#dragLeave drop->work-queue#drop paste->work-queue#paste" } do %>
       <input type="hidden" name="slug" value="">
       <label class="wq-label" for="wq_inline_text">New task in <strong data-work-queue-target="inlineLabel"></strong></label>
-      <textarea id="wq_inline_text" name="text" rows="3" required class="wq-input" placeholder="What should be done? First line becomes the title."></textarea>
+      <textarea id="wq_inline_text" name="text" rows="3" required class="wq-input" placeholder="What should be done? First line becomes the title. Drop or paste files here."></textarea>
+      <input type="file" name="files[]" multiple accept="image/*,application/pdf,text/*,.md,.json,.log" class="hidden" data-action="change->work-queue#filesPicked">
+      <p class="wq-files" data-wq-files></p>
       <div class="flex flex-wrap items-center gap-2">
         <button type="button" class="wq-mic" aria-label="Dictate" data-action="work-queue#dictate">mic</button>
+        <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#pickFiles">Files</button>
         <button type="submit" class="wq-btn wq-btn-ghost">Add</button>
         <button type="submit" name="start" value="1" class="wq-btn wq-btn-primary">Add &amp; run</button>
         <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#closeInlineAdd">Cancel</button>

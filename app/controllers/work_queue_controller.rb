@@ -6,7 +6,8 @@
 # queue JSON (same schema, flock) and bin/work-queue-runner runs the item
 # headlessly (see WorkQueue::Supervisor).
 class WorkQueueController < ApplicationController
-  ATTACH_TYPES = %r{\Aimage/(png|jpe?g|gif|webp)\z}
+  ATTACH_TYPES = %r{\A(image/(png|jpe?g|gif|webp)|application/(pdf|json)|text/[\w.+-]+)\z}
+  ATTACH_NAMES = /\.(md|txt|log|csv|json|ya?ml)\z/i
   MAX_ATTACH = 10
 
   MAX_ENTRIES = 400
@@ -41,7 +42,7 @@ class WorkQueueController < ApplicationController
     title = text.lines.first.to_s.strip.truncate(80)
     item = writer.add(slug, title: title, description: text)
     paths = save_attachments(slug, item["n"])
-    writer.update(slug, item["n"]) { |i| i["description"] += "\n\nAttached images:\n#{paths.join("\n")}" } if paths.any?
+    writer.update(slug, item["n"]) { |i| i["description"] += "\n\nAttached files:\n#{paths.join("\n")}" } if paths.any?
     key = "#{slug}:#{item['n']}"
     WorkQueue::RunState.set(key, { "repo" => WorkQueue::Workspace.repo_for(slug) }.compact)
     start_server(key, relay: params[:relay] == "1") if params[:start] == "1" || params[:relay] == "1"
@@ -156,7 +157,10 @@ class WorkQueueController < ApplicationController
 
   def instruct
     text = params[:text].to_s.strip
-    return toast("Type an instruction first", :error) if text.blank?
+    paths = save_attachments(@item.slug, @item.n)
+    return toast("Type an instruction first", :error) if text.blank? && paths.empty?
+
+    text = [text.presence || "See the attached files.", ("Attached files:\n#{paths.join("\n")}" if paths.any?)].compact.join("\n\n")
 
     text.scan(/\[wq-ref ([A-Za-z0-9-]+:\d+)\]/).flatten.uniq.each { |k| WorkQueue::RunState.relate(@item.key, k) }
 
@@ -284,7 +288,9 @@ class WorkQueueController < ApplicationController
   end
 
   def save_attachments(slug, n)
-    files = Array(params[:files]).select { |f| f.respond_to?(:content_type) && f.content_type.to_s.match?(ATTACH_TYPES) }.first(MAX_ATTACH)
+    files = Array(params[:files]).select do |f|
+      f.respond_to?(:content_type) && (f.content_type.to_s.match?(ATTACH_TYPES) || f.original_filename.to_s.match?(ATTACH_NAMES))
+    end.first(MAX_ATTACH)
     return [] if files.empty?
 
     dir = WorkQueue::Store.dir.join("attachments", slug, n.to_s)
