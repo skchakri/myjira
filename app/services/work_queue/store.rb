@@ -12,7 +12,7 @@ module WorkQueue
 
     Item = Struct.new(:slug, :n, :title, :description, :status, :questions, :log, :created_at,
                       :updated_at, :session, :agent, :branch, :pr, :summary, :parent,
-                      :awaiting_approval, :merged_into, :ready_to_bundle, :bundle, :repo, keyword_init: true) do
+                      :awaiting_approval, :merged_into, :ready_to_bundle, :bundle, :repo, :follow_up, keyword_init: true) do
       def key = "#{slug}:#{n}"
       def dom_id = "wq_item_#{slug}_#{n}"
       def open? = OPEN.include?(status)
@@ -29,6 +29,13 @@ module WorkQueue
       end
 
       def pending? = display_status == "pending"
+      # Follow-up record ("followUp" in the queue JSON): {"priority" => "must"|"nice", "held" => true,
+      # "admitted" => true, "by" => "person"}. See WorkQueue::ChildStarter.
+      def follow_up_info = follow_up.is_a?(Hash) ? follow_up : {}
+      def unstarted? = %w[triage queued].include?(status) && agent.blank?
+      def held? = follow_up_info["held"] == true && unstarted?
+      # A nice-to-have follow-up nobody has started or picked yet: it waits for the person's choice.
+      def to_decide? = parent.present? && follow_up_info["priority"] == "nice" && follow_up_info["admitted"] != true && unstarted?
       def ready_to_bundle? = ready_to_bundle == true
       # Bundle record set by WorkQueue::Bundler: {"root", "branch", "pr"} or {"root", "failed"}.
       def bundle_info = bundle.is_a?(Hash) ? bundle : {}
@@ -126,7 +133,7 @@ module WorkQueue
         session: h["session"], agent: h["agent"], branch: h["branch"], pr: h["pr"].presence,
         summary: h["summary"], parent: h["parent"]&.to_i, awaiting_approval: h["awaitingApproval"] == true,
         merged_into: h["mergedInto"], ready_to_bundle: h["readyToBundle"] == true, bundle: h["bundle"],
-        repo: h["repo"].presence
+        repo: h["repo"].presence, follow_up: h["followUp"]
       )
     end
 

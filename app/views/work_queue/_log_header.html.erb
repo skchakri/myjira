@@ -95,6 +95,13 @@
         </ul>
       </div>
     <% end %>
+    <% batch = WorkQueue::Inbox.batches_for(context.project_items).find { |b| b.parent.n == item.n } %>
+    <% if batch %>
+      <div class="wq-kid-steps" id="wq_follow_up_batch">
+        <span class="wq-eyebrow">Follow-ups to decide</span>
+        <%= render "work_queue/follow_up_batch", batch: batch %>
+      </div>
+    <% end %>
     <%= render "work_queue/actions", item: item, context: context %>
   </section>
 

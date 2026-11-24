@@ -23,6 +23,28 @@ module WorkQueue
       def signature = [section, item.open_questions.size, item.status].join("/")
     end
 
+    # A parent whose suggested (nice-to-have) or held follow-ups wait for the person's pick.
+    Batch = Struct.new(:parent, :suggested, :held, keyword_init: true) do
+      def key = parent.key
+      def dom_id = "inbox_batch_#{parent.slug}_#{parent.n}"
+      def items = suggested + held
+      def since = items.filter_map(&:created_at).min
+    end
+
+    # Items of ONE project that wait on the person right now (the same test the inbox uses).
+    def self.waiting_count(items, store: Store.new)
+      items.count { |i| ItemContext.wanted?(i) && ItemContext.new(i, store: store).flow.tags.include?("you") }
+    end
+
+    # Follow-ups to decide, grouped under their parent.
+    def self.batches_for(items)
+      by_n = items.index_by(&:n)
+      picked = items.select { |i| i.parent.present? && by_n.key?(i.parent) && (i.to_decide? || i.held?) }
+      picked.group_by(&:parent).map do |n, kids|
+        Batch.new(parent: by_n[n], suggested: kids.select(&:to_decide?).sort_by(&:n), held: kids.select(&:held?).sort_by(&:n))
+      end
+    end
+
     def initialize(store: Store.new)
       @store = store
     end
@@ -38,10 +60,18 @@ module WorkQueue
       SECTIONS.filter_map { |key, title, _| [key, title, by[key]] if by[key] }
     end
 
+    def batches
+      @batches ||= @store.projects.values.flat_map { |items| self.class.batches_for(items) }
+                         .sort_by { |b| [b.since || Time.current, b.key] }
+    end
+
+    def to_decide = batches.sum { |b| b.suggested.size }
+    def held = batches.sum { |b| b.held.size }
+
     def counts = @counts ||= SECTIONS.to_h { |key, _, _| [key, entries.count { |e| e.section == key }] }
-    def total = entries.size
+    def total = entries.size + batches.size
     def overdue = entries.count { |e| e.flow.waiting_level == "late" }
-    def empty? = entries.empty?
+    def empty? = entries.empty? && batches.empty?
 
     # Open permission prompts (questions, not items): what the person actually clicks through.
     def permission_prompts
@@ -54,6 +84,8 @@ module WorkQueue
         n = key == "permissions" ? permission_prompts : counts[key]
         [key, "#{n} #{COUNTED.include?(key) ? word.pluralize(n) : word}"] if n.positive?
       end
+      parts << ["followups", "#{to_decide} #{'follow-up'.pluralize(to_decide)} to decide"] if to_decide.positive?
+      parts << ["followups", "#{held} held"] if held.positive?
       parts << ["oldest", "#{overdue} waiting over 3 days"] if overdue.positive?
       parts
     end

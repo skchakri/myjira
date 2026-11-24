@@ -70,7 +70,7 @@ class WorkQueueController < ApplicationController
     title = params[:title].to_s.strip
     return toast("Give the child item a title", :error) if title.blank?
 
-    item = writer.add(@item.slug, title: title, description: params[:description].to_s.strip.presence || title, parent: @item.n)
+    item = writer.add(@item.slug, title: title, description: params[:description].to_s.strip.presence || title, parent: @item.n, by: "person")
     writer.update(@item.slug, item["n"], log: "Added as a child of ##{@item.n} from myjira") do |i|
       i.delete("awaitingApproval")
       i["status"] = "queued"
@@ -83,6 +83,7 @@ class WorkQueueController < ApplicationController
 
   def run
     approve_for_run
+    admit_follow_up
     return respond_with_dispatch(dispatcher.run_now, "Run now sent for ##{@item.n}") if dispatcher.listening?
 
     start_server(@item.key, relay: params[:relay] == "1", force: true) # Run now also overrides a spent daily budget
@@ -137,6 +138,26 @@ class WorkQueueController < ApplicationController
     toast(runner_note("##{@item.n} resumed on the server"), :ok)
   end
 
+  # Batch on a parent: start or drop its suggested (nice-to-have) and held follow-ups
+  # in one request. op: start | drop (the ticked ns[]) or start_all | drop_all.
+  def follow_ups
+    kids = WorkQueue::Store.new.items_for(@item.slug).select { |i| i.parent == @item.n && (i.to_decide? || i.held?) }
+    op = params[:op].to_s
+    ns = Array(params[:ns]).map(&:to_i)
+    picked = op.end_with?("_all") ? kids : kids.select { |k| ns.include?(k.n) }
+    return toast("Tick at least one follow-up first", :error) if picked.empty?
+
+    starter = WorkQueue::ChildStarter.new
+    names = picked.map { |k| "##{k.n}" }.join(", ")
+    if op.start_with?("drop")
+      picked.each { |k| starter.drop(k) }
+      toast("Dropped #{names}", :ok)
+    else
+      picked.each { |k| starter.start_now(k) }
+      toast(runner_note("Started #{names}"), :ok)
+    end
+  end
+
   def stop = runner_action("stop", "Stopping ##{@item.n}")
   def retry_run = runner_action("retry", "Retrying ##{@item.n} with a stronger model")
   def close_relay_tabs = runner_action("continue", "Asked ##{@item.n} to close its Chrome tabs",
@@ -164,6 +185,7 @@ class WorkQueueController < ApplicationController
     @slug = params[:slug].presence if params[:slug].to_s.match?(/\A[A-Za-z0-9-]+\z/)
     @rules = @slug ? WorkQueue::RunState.project(@slug)["always_allow"] : []
     @budget = @slug ? WorkQueue::RunState.daily_budget(@slug) : nil
+    @review_limit = @slug ? WorkQueue::RunState.review_limit(@slug) : nil
     @repo = @slug && WorkQueue::Workspace.repo_for(@slug)
     @packs_detected = WorkQueue::PermissionRules.pack_names(@repo)
     @packs_off = @slug ? Array(WorkQueue::RunState.project(@slug)["packs_off"]) : []
@@ -173,6 +195,11 @@ class WorkQueueController < ApplicationController
     save_routing_table if params.key?(:routing) # the per-project forms below must not reset the table
     slug = params[:slug].to_s
     notice = "Saved"
+    if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:review_limit)
+      limit = params[:review_limit].to_s.strip.to_i
+      WorkQueue::RunState.save_project(slug, "review_limit" => [limit, 0].max)
+      notice = limit.positive? ? "Follow-ups are held once #{limit} tasks wait on you" : "Follow-up limit removed"
+    end
     if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:daily_budget)
       budget = params[:daily_budget].to_s.strip.to_f
       WorkQueue::RunState.save_project(slug, "daily_budget" => budget.positive? ? budget.round(2) : nil)
@@ -326,6 +353,14 @@ class WorkQueueController < ApplicationController
       i["status"] = "queued" if i["status"] == "triage"
     end
     @item.awaiting_approval = false
+  end
+
+  # Run now on a held or suggested follow-up is the person's own call: clear the hold
+  # so neither the limit nor the CLI queue tool stops it.
+  def admit_follow_up
+    return unless @item.held? || @item.to_decide?
+
+    writer.follow_up(@item.slug, @item.n, { held: nil, admitted: true }, log: "Started by you with Run now")
   end
 
   def save_routing_table

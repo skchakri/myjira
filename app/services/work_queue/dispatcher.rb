@@ -9,7 +9,9 @@ module WorkQueue
   class Dispatcher
     Result = Struct.new(:sent, :command, :copy, :reason, :launch, :duplicate, keyword_init: true)
     PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). When filing a " \
-                    "follow-up whose work lives in a different repo, pass repo (its absolute repo path).".freeze
+                    "follow-up whose work lives in a different repo, pass repo (its absolute repo path). Give every follow-up a " \
+                    "priority: \"must\" when the parent is wrong or incomplete without it, \"nice\" for an improvement. Never start " \
+                    "a \"nice\" or a held follow-up yourself: the person decides on those in myjira.".freeze
 
     def initialize(item)
       @item = item

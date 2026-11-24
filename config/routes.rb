@@ -167,6 +167,7 @@ Rails.application.routes.draw do
     post :answer, to: "work_queue#answer"
     post :instruct, to: "work_queue#instruct"
     post :children, to: "work_queue#add_child"
+    post :follow_ups, to: "work_queue#follow_ups"
     post :merge_pr, to: "work_queue#merge_pr"
     post :merge_chain, to: "work_queue#merge_chain"
     post :ship, to: "work_queue#ship"

@@ -28,6 +28,25 @@ module WorkQueue
       { "always_allow" => [], "model" => nil, "effort" => nil, "daily_budget" => nil }.merge(raw ? JSON.parse(raw) : {})
     end
 
+    DEFAULT_REVIEW_LIMIT = 8
+
+    # How many of a project's tasks may wait on the person before agent-filed follow-ups
+    # are held instead of started. nil = no limit (saved blank); unset = the default.
+    def review_limit(slug)
+      settings = project(slug)
+      return DEFAULT_REVIEW_LIMIT unless settings.key?("review_limit")
+
+      settings["review_limit"].to_i.positive? ? settings["review_limit"].to_i : nil
+    end
+
+    # Follow-up limits only apply to follow-ups filed after the feature first ran,
+    # so a deploy never holds the existing backlog.
+    def followup_limits_since
+      key = "#{PREFIX}:followup_limits_since"
+      redis.set(key, Time.current.to_f, nx: true)
+      Time.zone.at(redis.get(key).to_f)
+    end
+
     def save_project(slug, attrs) = redis.set("#{PREFIX}:project:#{slug}", project(slug).merge(attrs.stringify_keys).to_json)
 
     def routing
