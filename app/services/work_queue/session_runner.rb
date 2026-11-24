@@ -19,6 +19,8 @@ module WorkQueue
       to main and never force-push.
       Otherwise finish the phase and end with a one-line summary. Never open a PR: the queue bundles this
       item with its parent and follow-ups and opens one PR for all of them.
+      If you suggest a follow-up whose work lives in a different repo than this one, say so and give that
+      repo's absolute path, so it is filed with repo set (it then ships as its own PR in that repo).
     TXT
 
     PHASE_PROMPTS = {

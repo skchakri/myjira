@@ -8,7 +8,8 @@ module WorkQueue
   # (the mod's own reply command).
   class Dispatcher
     Result = Struct.new(:sent, :command, :copy, :reason, keyword_init: true)
-    PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON).".freeze
+    PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). When filing a " \
+                    "follow-up whose work lives in a different repo, pass repo (its absolute repo path).".freeze
 
     def initialize(item)
       @item = item

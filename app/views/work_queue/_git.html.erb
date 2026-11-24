@@ -1,4 +1,7 @@
 <% git = context&.git %>
+<% if (other_repo = item.foreign_repo) %>
+  <div class="wq-git" title="This task lives in a different repo than its project; it ships as its own PR there">repo <span class="wq-mono"><%= other_repo %></span></div>
+<% end %>
 <% if git %>
   <div class="wq-git <%= 'wq-git-warn' if git.warn? %>" title="worktree <%= git.worktree %>">
     <span class="wq-mono"><%= git.repo %></span>
