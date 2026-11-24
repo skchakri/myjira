@@ -82,6 +82,11 @@ class WorkQueueController < ApplicationController
     return respond_with_dispatch(result, "") unless result.sent
 
     id = result.launch&.session_id.to_s.first(8)
+    # Lost the click race: the other request is still queueing and redraws the control itself.
+    if result.duplicate && result.launch.nil?
+      return toast("##{@item.n} is already being sent to Chrome: not launching a second session", :warn)
+    end
+
     message, level = if result.duplicate
       ["##{@item.n} already has a Claude session with Chrome (session #{id}): not launching a second one", :warn]
     elsif result.launch

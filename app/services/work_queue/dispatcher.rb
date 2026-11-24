@@ -80,7 +80,28 @@ module WorkQueue
     # host launcher daemon in the item's repo. Never silent: with neither path the
     # result carries the reason and a copy command. A launch still starting or
     # running for the item is returned as is (duplicate: true), never queued twice.
+    # The check and the queue run under a short per-item Redis lock, so a second
+    # near-simultaneous click gets the duplicate result too (its launch may be nil
+    # when the first click has not finished queueing yet).
     def run_in_chrome
+      ChromeRun.exclusive(@item) { chrome_run } ||
+        Result.new(sent: true, launch: ChromeRun.active_launch(RunState.get(@item.key)), duplicate: true)
+    end
+
+    CHROME_COPY = "run this item's browser step now in Chrome (myjira-relay controller mode)".freeze
+
+    def chrome_instruction
+      "Run the browser step of work-queue item ##{@item.n} (#{@item.title}) now in Chrome (Run in Chrome from the " \
+        "myjira Work Queue). Use the myjira-relay skill (~/.claude/skills/myjira-relay) in controller mode: drive " \
+        "Claude-in-Chrome yourself with the mcp__claude-in-chrome tools, log progress to a myjira ticket with the relay " \
+        "CLI, run `relay blocked` before asking if a login or approval is needed, and close every tab you opened when " \
+        "done. Then op \"update\" n #{@item.n} with a log line and summary of what happened in the browser." \
+        "\nItem details:\n#{@item.description.to_s.truncate(2000)}"
+    end
+
+    private
+
+    def chrome_run
       active = ChromeRun.active_launch(RunState.get(@item.key))
       return Result.new(sent: true, launch: active, duplicate: true) if active
 
@@ -100,19 +121,6 @@ module WorkQueue
       ChromeRun.remember(@item, launch)
       Result.new(sent: true, launch: launch)
     end
-
-    CHROME_COPY = "run this item's browser step now in Chrome (myjira-relay controller mode)".freeze
-
-    def chrome_instruction
-      "Run the browser step of work-queue item ##{@item.n} (#{@item.title}) now in Chrome (Run in Chrome from the " \
-        "myjira Work Queue). Use the myjira-relay skill (~/.claude/skills/myjira-relay) in controller mode: drive " \
-        "Claude-in-Chrome yourself with the mcp__claude-in-chrome tools, log progress to a myjira ticket with the relay " \
-        "CLI, run `relay blocked` before asking if a login or approval is needed, and close every tab you opened when " \
-        "done. Then op \"update\" n #{@item.n} with a log line and summary of what happened in the browser." \
-        "\nItem details:\n#{@item.description.to_s.truncate(2000)}"
-    end
-
-    private
 
     def listen_reason = conversation ? "CLI session #{@item.session.to_s.first(8)} isn't listening" : "no live CLI session owns this item"
 

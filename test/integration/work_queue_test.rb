@@ -444,6 +444,70 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a failed Run in Chrome launch says so on the item, notes the log once, and clears on the next launch" do
+    chrome_item
+    path = work_queue_item_run_in_chrome_path("home-me-app:1")
+    post path, as: :turbo_stream
+    launch = SessionLaunch.order(:created_at).last
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-chrome-failed", 0
+
+    notes = []
+    error = "tmux: #{'no server running ' * 20}"
+    WorkQueue::Broadcaster.stub(:item_note, ->(item, text) { notes << [item.key, text] }) do
+      Turbo::StreamsChannel.stub(:broadcast_replace_to, nil) do
+        patch api_v1_session_launch_path(launch), params: { status: "failed", error: error }, as: :json
+        assert_response :ok
+        # A re-sent status, or a failed → launching → failed walk, must not note it again.
+        launch.reload.update!(status: "launching")
+        launch.update!(status: "failed")
+        WorkQueue::ChromeRun.launch_changed(launch)
+      end
+    end
+    assert_equal 1, notes.size
+    assert_equal "home-me-app:1", notes.first.first
+    assert_match(/\ARun in Chrome: launch failed: tmux: no server running/, notes.first.last)
+
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
+    assert_select "#wq_chrome_home-me-app_1 .wq-hint.wq-chrome-failed[role=status]", text: /\ALaunch failed: tmux: no server running/ do |els|
+      assert_operator els.first.text.length, :<=, "Launch failed: ".length + WorkQueue::ChromeRun::REASON_LENGTH
+      assert_match(/\.\.\.\z/, els.first.text)
+    end
+
+    launch.update!(error: nil)
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-chrome-failed", text: "Launch failed: #{WorkQueue::ChromeRun::NO_REASON}"
+
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post path, as: :turbo_stream
+    end
+    assert_match(/Starting Claude…/, response.body)
+    assert_no_match(/wq-chrome-failed/, response.body)
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-chrome-failed", 0
+  end
+
+  test "a Run in Chrome click that loses the lock race launches nothing and leaves the control alone" do
+    chrome_item
+    path = work_queue_item_run_in_chrome_path("home-me-app:1")
+    lock = WorkQueue::ChromeRun.lock_key("home-me-app:1")
+    WorkQueue::RunState.redis.set(lock, "other-request", ex: 5)
+    assert_no_difference -> { SessionLaunch.count } do
+      post path, as: :turbo_stream
+    end
+    assert_response :ok
+    assert_match(/already being sent to Chrome/, response.body)
+    assert_select "turbo-stream[action=replace][target=wq_chrome_home-me-app_1]", 0
+    assert_equal "other-request", WorkQueue::RunState.redis.get(lock)
+
+    WorkQueue::RunState.redis.del(lock)
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post path, as: :turbo_stream
+    end
+    assert_not WorkQueue::RunState.redis.exists?(lock)
+  end
+
   test "Run in Chrome sent to a listening CLI is acknowledged on the item" do
     project = chrome_item(session: "s-wqc-listen")
     convo = project.conversations.create!(session_id: "s-wqc-listen", started_at: 1.minute.ago,
