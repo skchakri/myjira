@@ -1,4 +1,4 @@
-<%# "Run in Chrome" control. Idle → the button. A launch in flight → "Starting Claude…",
+<%# "Run in Chrome" control. Idle → the button (plus "Launch failed: …" when the last launch failed). A launch in flight → "Starting Claude…",
     then a link to the session's live terminal, so a click is visibly acknowledged and
     can't queue a duplicate. Replaced in place by the click's turbo stream and by
     WorkQueue::ChromeRun.launch_changed when the daemon reports the launch. %>
@@ -20,6 +20,9 @@
                   form: { data: { turbo_stream: true } } do %>
       <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5h8.2M8.9 13.8 4.8 6.7M15 13.8l-4.1 7.1"/></svg>
       Run in Chrome
+    <% end %>
+    <% if (failed = context.chrome_failure) %>
+      <span class="wq-hint wq-chrome-failed" role="status" title="<%= failed.error.to_s.squish.truncate(500) %>">Launch failed: <%= WorkQueue::ChromeRun.failure_reason(failed) %></span>
     <% end %>
     <% if (sent = context.chrome_sent_at) %>
       <span class="wq-hint" role="status">Sent to the CLI session at <%= sent.strftime("%H:%M") %></span>

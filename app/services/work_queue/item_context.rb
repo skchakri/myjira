@@ -75,6 +75,8 @@ module WorkQueue
     # step last went to the listening CLI instead (see ChromeRun).
     def chrome_launch = defined?(@chrome_launch) ? @chrome_launch : (@chrome_launch = ChromeRun.active_launch(run))
     def chrome_sent_at = ChromeRun.sent_at(run)
+    # The item's last "Run in Chrome" launch when it failed (cleared by the next launch).
+    def chrome_failure = ChromeRun.failed_launch(run)
 
     # Why "Run in Chrome" can't reach a Chrome-capable session right now (nil when it can).
     def chrome_blocker

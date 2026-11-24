@@ -1,0 +1,77 @@
+<%# One thing waiting on the person. The body depends on the section; every button posts to an existing work_queue endpoint. %>
+<% item = entry.item %>
+<% context = entry.context %>
+<% flow = entry.flow %>
+<% pr = context.pr_status %>
+<article class="inbox-entry" id="<%= entry.dom_id %>" tabindex="-1" data-inbox-target="entry"
+         data-key="<%= entry.key %>" data-sig="<%= entry.signature %>" data-section="<%= entry.section %>">
+  <% if local_assigns[:anchor] %><span id="<%= anchor %>"></span><% end %>
+  <header class="inbox-entry-h">
+    <span class="wq-dot wq-t-<%= flow.tone %>" aria-hidden="true"></span>
+    <span class="inbox-entry-t">
+      <span class="inbox-entry-p"><%= WorkQueue::Store.label(item.slug) %></span>
+      <%= link_to work_queue_path(item: item.key), class: "inbox-entry-title", title: "Open task #{item.n} in the Work Queue (o)", data: { inbox_open: true } do %>
+        <span class="wq-n-tag">#<%= item.n %></span> <%= item.title %>
+      <% end %>
+    </span>
+    <span class="inbox-entry-meta">
+      <span class="wq-hint"><%= flow.label %></span>
+      <%= wq_wait_tag(flow) %>
+    </span>
+  </header>
+  <p class="inbox-now"><%= flow.happening.to_s.squish.truncate(240) %></p>
+
+  <div class="inbox-entry-b">
+    <% case entry.section %>
+    <% when "decisions", "permissions" %>
+      <%= render "work_queue/question_box", item: item %>
+    <% when "approve" %>
+      <div class="wq-actions">
+        <%= button_to "Approve & queue", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary",
+                      form: { data: { turbo_stream: true, inbox_done: "Approved and queued" } }, data: { inbox_main: true } %>
+        <%= link_to "Open task", work_queue_path(item: item.key), class: "wq-btn" %>
+      </div>
+    <% when "review" %>
+      <p class="inbox-facts">
+        <% if item.pr.present? %>
+          <a class="wq-ref" href="<%= item.pr %>" target="_blank" rel="noopener">PR<%= " ##{item.pr_number}" if item.pr_number %></a>
+          <% if pr.nil? %><span class="wq-hint">checks not read yet</span>
+          <% elsif pr.conflicts? %><span class="wq-flag">conflicts with <%= pr.base %></span>
+          <% elsif pr.failed_checks? %><span class="wq-flag">failed checks: <%= Array(pr.failed_checks).join(", ") %></span>
+          <% elsif !pr.open? %><span class="wq-hint">PR is <%= pr.state.to_s.downcase %></span>
+          <% else %><span class="inbox-ok">no failed checks</span><% end %>
+          <% if context.dependencies.any? %><span class="wq-hint">linked: <%= context.dependencies.map { |d| "##{d.n}" }.join(", ") %> still open</span><% end %>
+        <% else %>
+          <span class="wq-hint">Built, no PR yet.</span>
+        <% end %>
+        <span class="wq-hint"><%= flow.your_part %></span>
+      </p>
+      <div class="wq-actions">
+        <% if context.chain_merge? %>
+          <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
+                     label: "Merge (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
+        <% elsif context.card_merge? %>
+          <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge", context: context %>
+        <% end %>
+        <%= link_to "Open task", work_queue_path(item: item.key), class: "wq-btn", data: { inbox_main: true } %>
+      </div>
+    <% when "stalled" %>
+      <div class="wq-actions">
+        <%= button_to "Resume", work_queue_item_resume_path(item.key), class: "wq-btn wq-btn-primary",
+                      title: "Hand it back to its CLI session if that is listening, otherwise run it on the server (r)",
+                      form: { data: { turbo_stream: true, inbox_done: "Resumed" } }, data: { inbox_main: true, inbox_resume: true } %>
+        <%= link_to "Open task", work_queue_path(item: item.key), class: "wq-btn" %>
+      </div>
+    <% else %>
+      <p class="inbox-facts">
+        <% if flow.failed_checks.any? %><span class="wq-flag">failed checks: <%= flow.failed_checks.join(", ") %></span><% end %>
+        <% if flow.delivery_note %><span class="wq-hint"><%= flow.delivery_note %></span><% end %>
+        <span class="wq-hint"><%= flow.your_part %></span>
+      </p>
+      <div class="wq-actions">
+        <%= link_to "Open task", work_queue_path(item: item.key), class: "wq-btn wq-btn-primary", data: { inbox_main: true } %>
+      </div>
+    <% end %>
+  </div>
+  <p class="inbox-done hidden" role="status"><span data-inbox-done-text>Answered</span> · <span class="wq-hint">#<%= item.n %> <%= item.title.truncate(70) %></span></p>
+</article>

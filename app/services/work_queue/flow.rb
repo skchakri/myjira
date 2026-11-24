@@ -60,6 +60,40 @@ module WorkQueue
     end
     def your_part = YOUR_PART.fetch(@part)
 
+    WAIT_WARN = 1.day
+    WAIT_LATE = 3.days
+
+    # When the item started waiting on the person (nil when it is not): the oldest open
+    # question, the moment a run went quiet, else when it entered its current status.
+    def waiting_since
+      return @waiting_since if defined?(@waiting_since)
+
+      @waiting_since = if tags.include?("you")
+        asked = item.open_questions.filter_map { |q| epoch_ms(q.at) }.min
+        asked || (Time.current - stalled_for if stalled?) || status_since || item.updated_at || item.created_at
+      end
+    end
+
+    def waiting_for = waiting_since && [Time.current - waiting_since, 0].max
+
+    # "12m", "5h 12m", "4d 3h".
+    def waiting_words
+      seconds = waiting_for or return
+      minutes = (seconds / 60).floor
+      return "#{minutes}m" if minutes < 60
+      return "#{minutes / 60}h #{minutes % 60}m" if minutes < 1440
+
+      "#{minutes / 1440}d #{(minutes % 1440) / 60}h"
+    end
+
+    # nil (fresh), "warn" (over a day) or "late" (over three days).
+    def waiting_level
+      seconds = waiting_for or return
+      return "late" if seconds >= WAIT_LATE
+
+      "warn" if seconds >= WAIT_WARN
+    end
+
     # Queue log lines that say nothing to a person: status arrows, routing picks, worktree paths.
     NOISE = %r{\A(?:→ |Worktree |(?:plan|implement|review|trivial|relay): \S+ / )}
     NOW = { "Planning" => "Planning now.", "Building" => "Building now.", "Testing" => "Testing now." }.freeze
@@ -199,6 +233,17 @@ module WorkQueue
     end
 
     RUN_STEP = { "plan" => 1, "review" => 4 }.freeze
+
+    # Time of the last "→ status" line in the queue log.
+    def status_since
+      line = item.log.reverse.find { |l| l["text"].to_s.start_with?("→ ") }
+      epoch_ms(line && line["at"])
+    end
+
+    def epoch_ms(value)
+      ms = value.to_i
+      Time.zone.at(ms / 1000.0) if ms > 1_000_000_000_000 # anything smaller is not a real timestamp
+    end
 
     def idle_words(seconds)
       minutes = (seconds / 60).floor

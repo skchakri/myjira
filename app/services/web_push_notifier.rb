@@ -9,20 +9,30 @@ class WebPushNotifier
     title = task.needs_input? ? "Needs your input" : "Plan awaiting approval"
     body  = "#{task.project.name}: #{task.title}"
     url   = "#{base_url}/projects/#{task.project.slug}/tasks/#{task.id}"
-    message = { title: title, body: body, url: url }.to_json
+    deliver(title: title, body: body, url: url)
+  rescue StandardError => e
+    Rails.logger.warn("[webpush] notify_waiting failed: #{e.class}: #{e.message}")
+  end
 
+  # One notification to every registered browser. Returns how many were sent
+  # (0 without VAPID keys); dead subscriptions are pruned.
+  def self.deliver(title:, body:, url:)
+    return 0 unless vapid_configured?
+
+    message = { title: title, body: body, url: url }.to_json
+    sent = 0
     PushSubscription.find_each do |sub|
       WebPush.payload_send(
         message: message, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth,
         vapid: vapid, ttl: 600
       )
+      sent += 1
     rescue WebPush::ExpiredSubscription, WebPush::InvalidSubscription
       sub.destroy
     rescue WebPush::Error => e
       Rails.logger.warn("[webpush] #{sub.endpoint}: #{e.class}: #{e.message}")
     end
-  rescue StandardError => e
-    Rails.logger.warn("[webpush] notify_waiting failed: #{e.class}: #{e.message}")
+    sent
   end
 
   def self.vapid
