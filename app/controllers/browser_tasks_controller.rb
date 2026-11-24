@@ -1,14 +1,28 @@
 class BrowserTasksController < ApplicationController
   before_action :set_task, only: [:show, :kickoff, :run_in_chrome, :complete, :cancel, :humanize]
 
+  # Stale tickets (waiting on someone, silent for a day) are hidden unless ?stale=show,
+  # and then sort below the live ones.
   def index
     if params[:project_id]
       @project = find_project(params[:project_id])
-      @tasks = @project.browser_tasks.recent
+      scope = @project.browser_tasks
     else
       @project = Project.find_by(slug: "general")
-      @tasks = BrowserTask.recent.includes(:project)
+      scope = BrowserTask.includes(:project)
     end
+    @stale_count = scope.stale.count
+    @show_stale = params[:stale] == "show"
+    @tasks = @show_stale ? scope.stale_last : scope.fresh.recent
+  end
+
+  # "Cancel stale": the ordinary cancel transition for every stale ticket in view.
+  def cancel_stale
+    scope = params[:project_id].present? ? find_project(params[:project_id]).browser_tasks : BrowserTask.all
+    tasks = scope.stale.to_a
+    tasks.each(&:cancel_as_stale!)
+    back = params[:project_id].present? ? project_browser_tasks_path(params[:project_id]) : browser_tasks_path
+    redirect_to back, notice: "Cancelled #{helpers.pluralize(tasks.size, 'stale ticket')}."
   end
 
   def show

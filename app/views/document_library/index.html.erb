@@ -1,0 +1,64 @@
+<% content_for :title, "Documents · myjira" %>
+<% chip_on = "border-[color:var(--color-ink)] bg-[color:var(--color-ink)] text-[color:var(--color-paper)]" %>
+<% chip_off = "border-[color:var(--color-hair)] text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %>
+<% here = { project: @project&.slug, kind: @kind }.compact %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div class="min-w-0">
+    <div class="eyebrow">All projects</div>
+    <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Documents</h1>
+    <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">Plans, specs, reports and notes filed by Claude sessions or written here, newest first.</p>
+  </div>
+  <%= form_with url: documents_path, method: :get, class: "flex items-center gap-2 shrink-0" do %>
+    <% if @kind %><%= hidden_field_tag :kind, @kind %><% end %>
+    <label class="text-xs text-[color:var(--color-ink-soft)]" for="doc_project">Project</label>
+    <%= select_tag :project, options_for_select([["All projects", ""]] + @projects.map { |p| [p.name, p.slug] }, @project&.slug),
+          id: "doc_project",
+          class: "text-sm bg-[color:var(--color-paper-raised)] hair-all rounded-md px-2 py-1.5 text-[color:var(--color-ink)]" %>
+    <button class="text-sm px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]">Show</button>
+  <% end %>
+</div>
+
+<nav class="mt-5 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Filter by kind">
+  <%= link_to documents_path(here.except(:kind)), class: "px-2.5 py-1 rounded-md border #{@kind ? chip_off : chip_on}", "aria-current": (@kind ? nil : "page") do %>All <span class="tabular opacity-70"><%= @counts.values.sum %></span><% end %>
+  <% Document::KINDS.each do |k| %>
+    <%= link_to documents_path(here.merge(kind: k)), class: "px-2.5 py-1 rounded-md border #{@kind == k ? chip_on : chip_off}", "aria-current": (@kind == k ? "page" : nil) do %><%= k.pluralize.capitalize %> <span class="tabular opacity-70"><%= @counts[k].to_i %></span><% end %>
+  <% end %>
+</nav>
+
+<div class="mt-4">
+  <%= card do %>
+    <% if @documents.empty? %>
+      <div class="text-center py-10">
+        <p class="text-sm font-medium text-[color:var(--color-ink)]">No documents <%= @page > 1 ? "on this page" : "yet" %></p>
+        <p class="text-sm text-[color:var(--color-ink-soft)] mt-1">Any Claude session can file one in a single line:</p>
+        <pre class="mt-3 inline-block text-left font-mono text-xs bg-[color:var(--color-paper-sunk)] px-3 py-2 rounded-md text-[color:var(--color-ink)]">relay doc "Rollout plan" plan.md --kind plan</pre>
+      </div>
+    <% else %>
+      <ul class="divide-y divide-[color:var(--color-hair)] -my-2" id="document_library">
+        <% @documents.each do |d| %>
+          <li class="py-2.5 flex items-center justify-between gap-4">
+            <div class="min-w-0">
+              <%= link_to d.title, project_document_path(d.project, d), class: "text-sm font-medium text-[color:var(--color-ink)] hover:text-[color:var(--color-amber-ink)] block truncate" %>
+              <div class="mt-0.5 flex items-center gap-2 text-xs text-[color:var(--color-ink-soft)]">
+                <%= document_kind_pill(d.kind) %>
+                <%= link_to d.project.name, documents_path(here.merge(project: d.project.slug)), class: "font-medium hover:text-[color:var(--color-ink)]", title: "Only #{d.project.name}" %>
+                <span class="font-mono">v<%= d.version %></span>
+                <span><%= d.author %></span>
+              </div>
+            </div>
+            <time class="text-xs text-[color:var(--color-ink-faint)] shrink-0" datetime="<%= d.updated_at.iso8601 %>" title="<%= d.updated_at %>"><%= time_ago_in_words(d.updated_at) %> ago</time>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% end %>
+  <% if @page > 1 || @more %>
+    <% pg = "px-3 py-1.5 border border-[color:var(--color-hair)] rounded-md text-[color:var(--color-ink-soft)] hover:text-[color:var(--color-ink)]" %>
+    <nav class="mt-3 flex items-center justify-between text-sm" aria-label="Pages">
+      <span><%= link_to "← Newer", documents_path(here.merge(page: (@page - 1 if @page > 2)).compact), class: pg, rel: "prev" if @page > 1 %></span>
+      <span class="text-xs text-[color:var(--color-ink-faint)]">Page <%= @page %></span>
+      <span><%= link_to "Older →", documents_path(here.merge(page: @page + 1)), class: pg, rel: "next" if @more %></span>
+    </nav>
+  <% end %>
+</div>

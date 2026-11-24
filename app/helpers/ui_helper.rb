@@ -548,8 +548,8 @@ module UiHelper
   #   :waiting — tickets needing a CLI/human turn (needs_input/responded)
   def browser_relay_stats
     @browser_relay_stats ||= {
-      open: BrowserTask.open.count,
-      waiting: BrowserTask.for_cli.count
+      open: BrowserTask.open.fresh.count,
+      waiting: BrowserTask.for_cli.fresh.count
     }
   end
 
