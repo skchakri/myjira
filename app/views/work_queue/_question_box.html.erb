@@ -6,6 +6,19 @@
            data-action="input->work-queue#saveDraft change->work-queue#saveDraft turbo:submit-end->work-queue#clearDraft">
     <h3 id="wq_qbox_h" class="wq-qbox-h"><%= open.size == 1 ? "1 question for you" : "#{open.size} questions for you" %></h3>
     <%= form_with url: work_queue_item_answer_path(item.key), data: { turbo_stream: true }, class: "wq-qbox-form" do %>
+      <%# Several permission prompts stacked up: one click answers them all. %>
+      <% perms = open.select { |q, _| WorkQueue::PermissionRules.permission_question?(q.q) && q.options.include?("Allow once") } %>
+      <% if perms.size > 1 %>
+        <div class="wq-allow-all" role="group" aria-label="Answer every permission prompt at once">
+          <span class="wq-allow-all-t"><%= perms.size %> of these are permission prompts.</span>
+          <% if perms.all? { |q, _| WorkQueue::PermissionRules.safe_question?(q.q) } %>
+            <button type="submit" name="allow_all" value="always" class="wq-btn wq-btn-primary" data-allow-all title="Read, test and lint commands only (a)">Always allow all <%= perms.size %> in this project <kbd>a</kbd></button>
+            <button type="submit" name="allow_all" value="once" class="wq-btn">Allow all <%= perms.size %> once</button>
+          <% else %>
+            <button type="submit" name="allow_all" value="once" class="wq-btn wq-btn-primary" data-allow-all title="Allow each of them for this run (a)">Allow all <%= perms.size %> <kbd>a</kbd></button>
+          <% end %>
+        </div>
+      <% end %>
       <% open.each do |q, idx| %>
         <fieldset class="wq-question">
           <legend class="wq-q-text"><%= q.q %></legend>

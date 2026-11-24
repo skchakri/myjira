@@ -349,6 +349,51 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal ids.first, ids.last
   end
 
+  test "stacked permission prompts get Allow all; one submit answers every one of them" do
+    once = ["Allow once", "Always allow in this project", "Deny"]
+    File.write(File.join(@dir, "home-me-perm.json"), { items: [
+      { n: 1, title: "Asks a lot", status: "blocked", log: [], questions: [
+        { q: "Permission: Bash bundle exec rspec spec/a_spec.rb?", options: once },
+        { q: "Permission: Bash ls -la app?", options: once },
+        { q: "Which colour?", options: %w[red blue] }
+      ] },
+      { n: 2, title: "Asks something risky", status: "blocked", log: [], questions: [
+        { q: "Permission: Bash rm -rf tmp/cache?", options: once },
+        { q: "Permission: Bash ls?", options: once }
+      ] }
+    ] }.to_json)
+
+    get work_queue_item_detail_path("home-me-perm:1")
+    assert_select ".wq-allow-all button[name=allow_all][value=always][data-allow-all]", text: /Always allow all 2 in this project/
+    assert_select ".wq-allow-all button[name=allow_all][value=once]", text: /Allow all 2 once/
+
+    get work_queue_item_detail_path("home-me-perm:2")
+    assert_select ".wq-allow-all button[name=allow_all][value=once][data-allow-all]", text: /Allow all 2/
+    assert_select ".wq-allow-all button[value=always]", 0
+
+    post work_queue_item_answer_path("home-me-perm:1"), params: { allow_all: "always", answers: { "2" => "blue" } }, as: :turbo_stream
+    assert_response :ok
+    item = WorkQueue::Store.new.find("home-me-perm:1")
+    assert_equal ["Always allow in this project", "Always allow in this project", "blue"], item.questions.map(&:a)
+
+    post work_queue_item_answer_path("home-me-perm:2"), params: { allow_all: "once" }, as: :turbo_stream
+    assert_equal ["Allow once", "Allow once"], WorkQueue::Store.new.find("home-me-perm:2").questions.map(&:a)
+  end
+
+  test "settings show the allow packs and save which are switched off" do
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select ".wq-packs input[name='packs[]']", 3
+    assert_select ".wq-packs input[name='packs[]'][checked]", 3
+
+    patch work_queue_settings_path, params: { slug: "home-me-app", rules: [""], packs_shown: "1", packs: %w[base] }
+    assert_equal %w[ruby node], WorkQueue::RunState.project("home-me-app")["packs_off"]
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select ".wq-packs input[name='packs[]'][checked]", 1
+
+    patch work_queue_settings_path, params: { slug: "home-me-app", rules: ["Bash(make:*)"] }
+    assert_equal %w[ruby node], WorkQueue::RunState.project("home-me-app")["packs_off"], "a save without the pack toggles leaves them alone"
+  end
+
   test "settings edit a project's always-allow rules" do
     WorkQueue::RunState.save_project("home-me-app", "always_allow" => ["Bash(ls:*)", "WebFetch"])
     get work_queue_settings_path(slug: "home-me-app")
