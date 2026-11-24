@@ -8,11 +8,11 @@ class NavigationTest < ActionDispatch::IntegrationTest
                                repo_path: "/tmp/nav-test-#{SecureRandom.hex(3)}")
   end
 
-  test "sidebar shows the five primary links in order and folds the rest under More" do
+  test "sidebar shows the primary links in order and folds the rest under More" do
     get documents_path
     assert_response :success
     labels = css_select("#app-sidebar nav[aria-label='Main'] a.clink span.truncate:not(.clink-slug)").map { |n| n.text.strip }
-    assert_equal ["Work Queue", "Conversations", "Documents", "Relay", "Calendar"], labels
+    assert_equal ["Inbox", "Work Queue", "Conversations", "Documents", "Relay", "Calendar"], labels
     assert_select "#app-sidebar nav[aria-label='Main'] a.clink-active span.truncate:not(.clink-slug)", text: "Documents"
 
     assert_select "#app-sidebar details#sidebar_more[data-controller='disclosure']" do

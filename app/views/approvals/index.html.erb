@@ -7,6 +7,7 @@
   </div>
   <h1 class="font-display text-[44px] leading-[1.05] tracking-tight mt-1">Approvals</h1>
   <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">Plans and questions waiting on you.</p>
+  <p class="text-[color:var(--color-ink-faint)] text-xs mt-1">Board items only. Work Queue questions, reviews and stalled tasks are in the <%= link_to "Inbox", inbox_path, class: "underline" %>.</p>
 </div>
 
 <% sections = [["Needs your input", @needs_input], ["Awaiting approval", @awaiting_approval]] %>

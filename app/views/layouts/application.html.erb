@@ -104,10 +104,26 @@
         </div>
 
         <%# Primary nav: the five places in daily use. Everything else sits under More. %>
-        <% primary_controllers = %w[work_queue conversations conversation_messages session_commands document_library documents
+        <% primary_controllers = %w[inbox work_queue conversations conversation_messages session_commands document_library documents
                                     browser_tasks browser_messages calendar calendar_jobs search] %>
         <% more_here = primary_controllers.exclude?(controller_name) %>
         <nav class="px-2 pb-2 shrink-0" aria-label="Main">
+          <%# Inbox: what is waiting on the person across every project's queue (the home page) %>
+          <% waiting = WorkQueue::Inbox.counts
+             inbox_dot, inbox_label = if waiting["overdue"].positive? then ["dot-fail", "#{waiting['overdue']} waiting over 3 days"]
+                         elsif waiting["total"].positive? then ["dot-pass", "#{waiting['total']} waiting on you"]
+                         else ["dot-idle", "nothing waiting"]
+                         end %>
+          <%= link_to inbox_path, class: "clink #{controller_name == 'inbox' ? 'clink-active' : ''}" do %>
+            <span class="dot <%= inbox_dot %>" role="img" aria-label="Inbox: <%= inbox_label %>" title="Inbox: <%= inbox_label %>"></span>
+            <span class="truncate">Inbox</span>
+            <% if waiting["total"].positive? %>
+              <span id="sidebar_inbox_count" class="ml-auto text-[10.5px] tabular font-mono <%= waiting['overdue'].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>"><%= waiting["total"] %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">clear</span>
+            <% end %>
+          <% end %>
+
           <%# Conversations hub — every CLI session, grouped by project %>
           <%= link_to work_queue_path, class: "clink #{controller_name == 'work_queue' ? 'clink-active' : ''}" do %>
             <span class="dot dot-idle" aria-hidden="true"></span>

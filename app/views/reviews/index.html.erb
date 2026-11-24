@@ -13,6 +13,7 @@
   <p class="text-[color:var(--color-ink-soft)] text-sm mt-0.5">
     <%= total.zero? ? "Nothing awaiting review" : "#{total} #{'item'.pluralize(total)} awaiting review across #{@groups.size} #{'project'.pluralize(@groups.size)}" %>
   </p>
+  <p class="text-[color:var(--color-ink-faint)] text-xs mt-1">Board items only. Work Queue tasks ready to review or merge are in the <%= link_to "Inbox", inbox_path, class: "underline" %>.</p>
 </div>
 
 <!-- ===== Queue ===== -->
