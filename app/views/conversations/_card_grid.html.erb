@@ -1,0 +1,8 @@
+<%# One page of session cards (flat list or a single project), then the next page's lazy frame.
+    Inside one project every card is the same folder, so its name and colour gear sit once in the page header. %>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+  <% @conversations.each do |c| %>
+    <%= render "conversation_card", c: c, show_folder: !@project, show_gear: !@project %>
+  <% end %>
+</div>
+<%= render "more" %>

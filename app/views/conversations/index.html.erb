@@ -10,6 +10,7 @@
   </div>
   <div class="flex items-center gap-3">
     <% if @project %>
+      <span class="conv-group-head relative inline-flex items-center"><%= render "folder_gear", project: @project %></span>
       <%= render "session_launches/new_button", project: @project %>
     <% else %>
       <div class="flex gap-1">
@@ -54,56 +55,16 @@
 <%= turbo_frame_tag "active_mcp_installs", src: active_mcp_installs_path,
       data: { controller: "auto-reload", auto_reload_interval_value: 5000 } %>
 
-<% if @grouped %>
-  <%# ---- Default: grouped by folder ---- %>
-  <% if @grouped.empty? %>
+<% if @view == :grouped %>
+  <%# ---- Default: grouped by folder, a page of folders at a time ---- %>
+  <% if @groups.empty? %>
     <%= card do %>
       <div class="py-10 text-center text-sm text-[color:var(--color-ink-faint)]">
         No conversations captured yet. They appear here automatically as you work in any project.
       </div>
     <% end %>
   <% else %>
-    <div class="space-y-6">
-      <% @grouped.each do |project, sessions| %>
-        <% color = project_color(project)
-           preview = sessions.first(ConversationsController::PER_PROJECT_PREVIEW) %>
-        <section class="conv-group">
-          <div class="conv-group-head relative flex items-center gap-2 mb-2 pb-1.5 hair-b">
-            <span class="h-3 w-3 rounded-full shrink-0" style="background:<%= color %>;"></span>
-            <%= link_to project.name, project_conversations_path(project),
-                  class: "text-sm font-semibold hover:underline", style: "color:#{color};" %>
-            <span class="text-[11px] text-[color:var(--color-ink-faint)] tabular"><%= sessions.size %></span>
-            <%= render "session_launches/new_button", project: project %>
-            <%= render "agents/new_button", project: project, compact: true %>
-            <%= render "folder_gear", project: project %>
-          </div>
-          <% if project.branches.present? %>
-            <div class="flex items-center flex-wrap gap-1.5 mb-2.5 -mt-0.5">
-              <span class="text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]">branches</span>
-              <% project.branches.first(6).each do |b| %>
-                <span class="pill pill-quiet !py-0 !px-1.5 font-mono" title="<%= [b['subject'], b['rel']].compact.join(' · ') %>">⎇ <%= b["name"] %></span>
-              <% end %>
-              <%= link_to "all →", project_conversations_path(project),
-                    class: "text-[10.5px] text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]" %>
-            </div>
-          <% end %>
-          <%= render "agents/strip", project: project, collapsed: true %>
-          <%= render "mcp_servers/strip", project: project, collapsed: true %>
-          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
-            <% preview.each do |c| %>
-              <%= render "conversation_card", c: c, show_folder: false, show_gear: false %>
-            <% end %>
-          </div>
-          <% if sessions.size > preview.size %>
-            <div class="mt-2 text-xs">
-              <%= link_to "View all #{sessions.size} sessions in #{project.name} →",
-                    project_conversations_path(project),
-                    class: "text-[color:var(--color-ink-faint)] hover:text-[color:var(--color-ink)]" %>
-            </div>
-          <% end %>
-        </section>
-      <% end %>
-    </div>
+    <%= render "group_sections" %>
   <% end %>
 <% elsif @conversations.empty? %>
   <%= card do %>
@@ -131,9 +92,5 @@
       <% end %>
     </div>
   <% end %>
-  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
-    <% @conversations.each do |c| %>
-      <%= render "conversation_card", c: c, show_folder: true, show_gear: true %>
-    <% end %>
-  </div>
+  <%= render "card_grid" %>
 <% end %>

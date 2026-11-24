@@ -1,0 +1,9 @@
+<%# The next page: a lazy turbo-frame that fetches itself when scrolled into view.
+    It has a real box (.conv-more is display:block with a min-height) because a
+    0x0 lazy frame never trips its IntersectionObserver. The link is the fallback. %>
+<% if @more %>
+  <% next_url = url_for(page: @page + 1, view: params[:view].presence, only_path: true) %>
+  <%= turbo_frame_tag "conv_more_#{@page + 1}", src: next_url, loading: "lazy", class: "conv-more", target: "_top" do %>
+    <%= link_to "Load more", next_url, class: "conv-more-link", data: { turbo_frame: "conv_more_#{@page + 1}" } %>
+  <% end %>
+<% end %>

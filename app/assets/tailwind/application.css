@@ -205,6 +205,13 @@ details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 .conv-card:has(details[open]), .conv-group-head:has(details[open]) { position: relative; z-index: 40; }
 
+/* Conversations paging: the next page is a lazy turbo-frame. It needs a real
+   box (block + min-height) or its IntersectionObserver never fires. */
+.conv-more { display: block; min-height: 2.5rem; margin-top: 1.5rem; }
+.conv-more-link { display: block; padding: 0.6rem; text-align: center; font-size: 12px; font-weight: 500; border-radius: 8px; color: var(--color-ink-soft); border: 1px dashed var(--color-hair); }
+.conv-more-link:hover { color: var(--color-ink); border-color: var(--color-ink-faint); }
+.conv-agents-frame { display: block; min-height: 1.5rem; }
+
 /* ---------------------------------------------------------------
    Conversation cards — a left "spine" in the folder's colour (set via
    --folder inline) so every card carries its folder identity even when

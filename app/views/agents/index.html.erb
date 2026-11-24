@@ -1,0 +1,8 @@
+<%# Lazy body of a folder's collapsed "agents" disclosure in the Conversations hub. %>
+<%= turbo_frame_tag "agents_strip_#{@project.id}", class: "conv-agents-frame", target: "_top" do %>
+  <div class="flex flex-wrap gap-1.5 mt-1.5">
+    <% @agents.each do |agent| %>
+      <%= render "agents/agent", agent: agent, project: @project, metrics: @metrics[agent.id] %>
+    <% end %>
+  </div>
+<% end %>

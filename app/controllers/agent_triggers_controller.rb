@@ -3,6 +3,15 @@
 # repo. From there it's the exact same pipeline as the "+ New session" button —
 # the host daemon spawns `claude --session-id` and the live conversation folds in.
 class AgentTriggersController < ApplicationController
+  # The agent pills for one folder, fetched when its collapsed "agents"
+  # disclosure is opened in the Conversations hub.
+  def index
+    @project = find_project!
+    @agents = @project.available_agents.to_a
+    @metrics = Agent.metrics_for(@agents)
+    render "agents/index", layout: false
+  end
+
   def trigger
     project = find_project!
     # Agent id usually comes from the path (:id); the "Run an agent on this item"

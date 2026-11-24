@@ -1,19 +1,27 @@
 class ConversationsController < ApplicationController
   PER_PROJECT_PREVIEW = 8
 
+  # Folders per page in the grouped hub, and cards per page in the flat / single
+  # project lists. Later pages load into a lazy turbo-frame as you scroll.
+  GROUPS_PER_PAGE = 12
+  PER_PAGE = 48
+
   def index
+    @page = [params[:page].to_i, 1].max
     if params[:project_id].present?
       @project = Project.where(slug: params[:project_id]).or(Project.where(id: params[:project_id])).first!
-      @conversations = @project.conversations.recent.limit(500)
+      page_cards(@project.conversations.recent)
+      @conversations.each { |c| c.association(:project).target = @project }
     elsif params[:view] == "flat"
       # Flat: every session as a card, newest first.
       @view = :flat
-      @conversations = Conversation.recent.includes(:project).limit(300)
+      page_cards(Conversation.recent.includes(:project))
     else
       # Default: grouped by folder (client), folders ordered by latest activity.
       @view = :grouped
-      @grouped = Conversation.recent.includes(:project).group_by(&:project)
+      page_groups
     end
+    render :page, layout: false if @page > 1
   end
 
   # Auto-refreshing "Live now" strip (loaded into a Turbo Frame on the index).
@@ -129,5 +137,42 @@ class ConversationsController < ApplicationController
     convo = Conversation.find(params[:id])
     convo.update(name: params[:name].to_s.strip.presence)
     redirect_to conversation_path(convo)
+  end
+
+  private
+
+  # One page of cards plus whether another page follows (fetch one extra row).
+  def page_cards(scope)
+    rows = scope.offset((@page - 1) * PER_PAGE).limit(PER_PAGE + 1).to_a
+    @more = rows.size > PER_PAGE
+    @conversations = rows.first(PER_PAGE)
+    Conversation.preload_first_user_bodies(@conversations)
+  end
+
+  # One page of folders: [project, session count, newest sessions]. Three queries
+  # for the page (folders by latest activity, their projects, a ranked preview)
+  # instead of loading every conversation and grouping in Ruby.
+  def page_groups
+    latest = "MAX(COALESCE(last_message_at, created_at))"
+    rows = Conversation.group(:project_id).order(Arel.sql("#{latest} DESC"), :project_id)
+                       .offset((@page - 1) * GROUPS_PER_PAGE).limit(GROUPS_PER_PAGE + 1)
+                       .pluck(:project_id, Arel.sql("COUNT(*)"))
+    @more = rows.size > GROUPS_PER_PAGE
+    rows = rows.first(GROUPS_PER_PAGE)
+    ids = rows.map(&:first)
+    projects = Project.where(id: ids).index_by(&:id)
+    ranked = Conversation.where(project_id: ids).select(
+      "conversations.*, ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY COALESCE(last_message_at, created_at) DESC) AS rn"
+    )
+    previews = Conversation.from(ranked, :conversations).where("rn <= ?", PER_PROJECT_PREVIEW).recent.group_by(&:project_id)
+    Conversation.preload_first_user_bodies(previews.values.flatten)
+    @groups = rows.filter_map do |id, count|
+      project = projects[id] or next
+      sessions = previews[id].to_a.each { |c| c.association(:project).target = project }
+      [project, count, sessions]
+    end
+    global = Agent.enabled.where(scope: "global").count
+    own = Agent.enabled.where(project_id: ids).where.not(scope: "global").group(:project_id).count
+    @agent_counts = ids.index_with { |id| global + own[id].to_i }
   end
 end

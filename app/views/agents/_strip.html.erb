@@ -6,12 +6,30 @@
                         controls (the focused project page).
       collapsed=true  → a discreet "◆ agents N" disclosure (the grouped hub,
                         where every folder gets one and space is tight). %>
-<% agents    = local_assigns.fetch(:agents) { project.available_agents.to_a } %>
-<% collapsed = local_assigns.fetch(:collapsed, false) %>
+<% collapsed  = local_assigns.fetch(:collapsed, false) %>
+<% lazy_count = local_assigns[:lazy_count] %>
+<%# lazy_count (collapsed only): the hub passes just the number of agents; the
+    pills load into the frame when the disclosure is opened. %>
+<% agents    = lazy_count ? [] : local_assigns.fetch(:agents) { project.available_agents.to_a } %>
 <%# One bulk query for the whole strip's launcher metrics — never per pill. %>
-<% metrics   = Agent.metrics_for(agents) %>
+<% metrics   = lazy_count ? {} : Agent.metrics_for(agents) %>
 
-<% if collapsed %>
+<% if collapsed && lazy_count %>
+  <% if lazy_count.positive? %>
+    <details class="mb-2.5 -mt-0.5 group/agents">
+      <summary class="inline-flex items-center gap-1.5 cursor-pointer list-none
+                      text-[10px] uppercase tracking-wide text-[color:var(--color-ink-faint)]
+                      hover:text-[color:var(--color-ink)]">
+        <span class="font-mono text-[11px] text-[color:var(--color-amber-ink)]">◆</span> agents
+        <span class="tabular"><%= lazy_count %></span>
+        <span class="group-open/agents:hidden">— click to run</span>
+      </summary>
+      <%= turbo_frame_tag "agents_strip_#{project.id}", src: project_agents_path(project), loading: "lazy", class: "conv-agents-frame", target: "_top" do %>
+        <span class="text-[11px] text-[color:var(--color-ink-faint)]">Loading agents…</span>
+      <% end %>
+    </details>
+  <% end %>
+<% elsif collapsed %>
   <% if agents.any? %>
     <details class="mb-2.5 -mt-0.5 group/agents">
       <summary class="inline-flex items-center gap-1.5 cursor-pointer list-none
