@@ -39,7 +39,7 @@
 
   <section class="mt-10" aria-labelledby="wq-rules-h">
     <h2 id="wq-rules-h" class="text-lg font-semibold">Always-allowed tools</h2>
-    <p class="wq-hint mt-1">Claude Code allowedTools rules the server runner passes for this project, e.g. <code>Bash(bin/rails test:*)</code>, <code>Bash(git push:*)</code>, <code>WebFetch</code>. Edits are auto-accepted (acceptEdits); anything else is denied and shown as Allow once / Always allow / Deny chips.</p>
+    <p class="wq-hint mt-1">Claude Code allowedTools rules the server runner passes for this project, e.g. <code>Bash(bin/rails test:*)</code>, <code>Bash(git push:*)</code>, <code>WebFetch</code>. Edits are auto-accepted (acceptEdits); anything else is denied and shown as Allow once / Always allow / Deny chips. A command you allow once twice becomes a rule here by itself.</p>
     <%= form_with url: work_queue_settings_path, method: :get, class: "mt-3 flex items-center gap-2", data: { controller: "auto-submit" } do %>
       <label class="wq-label" for="rules-slug">Project</label>
       <select id="rules-slug" name="slug" class="wq-input" data-action="change->auto-submit#submit">
@@ -52,6 +52,23 @@
       <%= form_with url: work_queue_settings_path, method: :patch, class: "mt-4" do %>
         <%= hidden_field_tag :slug, @slug %>
         <%= hidden_field_tag "rules[]", "", id: nil %>
+        <%= hidden_field_tag :packs_shown, "1" %>
+        <fieldset class="wq-packs">
+          <legend class="wq-label">Default allow packs</legend>
+          <p class="wq-hint">Commands in a pack run without asking, including wrapped forms such as <code>PATH=… rvm 3.3.6 do bundle exec rspec</code>. Stack packs apply when the repo has the marker file.</p>
+          <% WorkQueue::PermissionRules::PACKS.each do |name, pack| %>
+            <% detected = @packs_detected.include?(name) %>
+            <label class="wq-pack <%= 'wq-pack-off' unless detected %>">
+              <%= check_box_tag "packs[]", name, @packs_off.exclude?(name), id: "pack-#{name}" %>
+              <span>
+                <strong><%= pack[:label] %></strong>
+                <% if pack[:marker] %><span class="wq-hint"><%= detected ? "#{pack[:marker]} found" : "no #{pack[:marker]} in this repo, not applied" %></span><% end %>
+                <span class="wq-pack-cmds wq-mono"><%= pack[:prefixes].join(" · ") %></span>
+              </span>
+            </label>
+          <% end %>
+        </fieldset>
+        <h3 class="wq-label mt-4">Your rules</h3>
         <% if @rules.empty? %><p class="wq-hint">No rules yet for this project.</p><% end %>
         <% @rules.each_with_index do |rule, i| %>
           <div class="wq-rule-row">

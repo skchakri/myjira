@@ -9,6 +9,12 @@ module WorkQueue
     MAX_ATTEMPTS = 2
     NEXT_PHASE = { "plan" => "implement", "implement" => "review", "trivial" => nil, "review" => nil, "relay" => nil }.freeze
     PERMISSION_OPTIONS = ["Allow once", "Always allow in this project", "Deny"].freeze
+    # Safe-shaped commands (read / test / lint) suggest the lasting answer first.
+    SAFE_PERMISSION_OPTIONS = ["Always allow in this project", "Allow once", "Deny"].freeze
+    # A command allowed once this many times in a project becomes a rule by itself.
+    AUTO_RULE_AFTER = 2
+    # Resumes in a row that were granted without asking, before the person is asked anyway.
+    MAX_AUTO_GRANTS = 4
 
     BUNDLE_EVERY = 30.seconds
 
@@ -167,7 +173,7 @@ module WorkQueue
       phase = run["phase"].presence || "plan"
       cwd = ensure_worktree(item, run) or return
       choice = @router.choose(item, phase, run: run, attempts: run["attempts"].to_i)
-      allowed = RunState.project(item.slug)["always_allow"] + Array(JSON.parse(run["allow_once"].presence || "[]"))
+      allowed = PermissionRules.allowed_for(item.slug, run["repo"].presence || cwd) + Array(JSON.parse(run["allow_once"].presence || "[]"))
       RunState.del_fields(key, "allow_once")
       @writer.update(item.slug, item.n, log: "#{phase}: #{choice.model} / #{choice.effort} (#{choice.source})") do |i|
         i["status"] = "running"
@@ -198,9 +204,9 @@ module WorkQueue
         @writer.update(item.slug, item.n, log: "PR #{pr}") { |i| i["pr"] = pr }
       end
 
+      RunState.del_fields(key, "auto_grants") if result.denials.empty?
       if result.denials.any?
-        RunState.set(key, { "pending_permissions" => result.denials.first(4).to_json })
-        @writer.ask(item.slug, item.n, result.denials.first(4).map { |d| { q: "Permission: #{describe(d)}?", options: PERMISSION_OPTIONS } })
+        handle_denials(item, key, result.denials.first(4))
       elsif (qs = SessionRunner.questions_in(result.text)).any?
         @writer.ask(item.slug, item.n, qs)
       elsif result.error || !result.exit_ok || result.text.include?("VERDICT: FAIL")
@@ -229,6 +235,49 @@ module WorkQueue
       else
         @writer.set_status(item.slug, item.n, "blocked", log: "Stopped after #{attempts - 1} retries: #{result.text.to_s.last(120)}")
       end
+    end
+
+    # Denied commands the project's packs and rules already cover are granted
+    # without asking (by the exact text Claude ran, wrappers included); only the
+    # rest become questions. All covered: the session resumes straight away.
+    def handle_denials(item, key, denials)
+      run = RunState.get(key)
+      cover = PermissionRules.cover_for(item.slug, run["repo"].presence || run["worktree"])
+      streak = run["auto_grants"].to_i
+      granted, ask = denials.partition { |d| streak < MAX_AUTO_GRANTS && auto_grantable?(d, cover) }
+      notes = granted.map { |d| auto_grant(item, d) }
+
+      if ask.empty?
+        RunState.set(key, { "auto_grants" => streak + 1 })
+        return run_phase(key, "#{notes.join("\n")}\nRetry the steps that were denied.")
+      end
+
+      RunState.set(key, { "pending_permissions" => ask.to_json, "permission_notes" => notes.to_json, "auto_grants" => 0 })
+      @writer.ask(item.slug, item.n, ask.map { |d| { q: "Permission: #{describe(d)}?", options: permission_options(d) } })
+    end
+
+    def auto_grantable?(denial, cover)
+      return false unless denial["tool_name"] == "Bash"
+
+      cmd = denial.dig("tool_input", "command").to_s
+      PermissionRules.covered?(cmd, cover) && PermissionRules.literal_rules(cmd).present?
+    end
+
+    def auto_grant(item, denial)
+      rules = PermissionRules.literal_rules(denial.dig("tool_input", "command").to_s)
+      remember_literal(item.slug, rules)
+      @writer.update(item.slug, item.n, log: "Allowed without asking (covered by this project's rules): #{describe(denial).truncate(100)}")
+      "Permission granted for #{rules.join(', ')}."
+    end
+
+    # Exact-text rules for wrapped forms of commands the project already allows.
+    def remember_literal(slug, rules)
+      RunState.save_project(slug, "auto_allow" => (Array(RunState.project(slug)["auto_allow"]) + rules).uniq.last(300))
+    end
+
+    def permission_options(denial)
+      safe = denial["tool_name"] == "Bash" && PermissionRules.safe?(denial.dig("tool_input", "command").to_s)
+      safe ? SAFE_PERMISSION_OPTIONS : PERMISSION_OPTIONS
     end
 
     def describe(denial)
@@ -261,14 +310,36 @@ module WorkQueue
       rule = PermissionRules.for_denial(denial)
       return "The person denied #{rule}." if text == "Deny"
 
+      slug = key.split(":").first
+      cmd = denial["tool_name"] == "Bash" ? denial.dig("tool_input", "command").to_s : nil
+      # The rule as Claude Code will match it: the raw text, wrappers included.
+      literal = cmd && !PermissionRules.destructive?(cmd) ? Array(PermissionRules.literal_rules(cmd)) : []
       if text.start_with?("Always")
-        slug = key.split(":").first
         RunState.save_project(slug, "always_allow" => (RunState.project(slug)["always_allow"] + [rule]).uniq)
+        remember_literal(slug, literal) if literal.any?
       else
         once = JSON.parse(RunState.get(key)["allow_once"].presence || "[]")
-        RunState.set(key, { "allow_once" => (once + [rule]).uniq.to_json })
+        RunState.set(key, { "allow_once" => (once + [rule] + literal).uniq.to_json })
+        count_allow_once(key, slug, rule, cmd)
       end
       "Permission granted for #{rule}."
+    end
+
+    # The same command allowed once twice in a project: stop asking.
+    def count_allow_once(key, slug, rule, cmd)
+      return if cmd.nil? || PermissionRules.destructive?(cmd)
+
+      project = RunState.project(slug)
+      return if project["always_allow"].include?(rule)
+
+      counts = (project["allow_counts"] || {}).merge(rule => (project["allow_counts"] || {})[rule].to_i + 1)
+      if counts[rule] >= AUTO_RULE_AFTER
+        counts.delete(rule)
+        RunState.save_project(slug, "always_allow" => (project["always_allow"] + [rule]).uniq, "allow_counts" => counts)
+        @writer.update(slug, key.split(":").last.to_i, log: "Now always allowed in this project: #{rule}")
+      else
+        RunState.save_project(slug, "allow_counts" => counts)
+      end
     end
 
     def suggest(key, job)

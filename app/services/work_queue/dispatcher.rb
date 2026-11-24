@@ -7,7 +7,7 @@ module WorkQueue
   # a `/itemN …` line the person can paste into any CLI session in that project
   # (the mod's own reply command).
   class Dispatcher
-    Result = Struct.new(:sent, :command, :copy, :reason, :launch, keyword_init: true)
+    Result = Struct.new(:sent, :command, :copy, :reason, :launch, :duplicate, keyword_init: true)
     PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). When filing a " \
                     "follow-up whose work lives in a different repo, pass repo (its absolute repo path).".freeze
 
@@ -78,11 +78,15 @@ module WorkQueue
     # runner has no Claude-in-Chrome tools, so this goes to the owning CLI when it
     # listens, else to a fresh interactive `claude --chrome` session spawned by the
     # host launcher daemon in the item's repo. Never silent: with neither path the
-    # result carries the reason and a copy command.
+    # result carries the reason and a copy command. A launch still starting or
+    # running for the item is returned as is (duplicate: true), never queued twice.
     def run_in_chrome
+      active = ChromeRun.active_launch(RunState.get(@item.key))
+      return Result.new(sent: true, launch: active, duplicate: true) if active
+
       body = chrome_instruction
       copy = "/item#{@item.n} #{CHROME_COPY}"
-      return deliver(body, copy: copy) if listening?
+      return deliver(body, copy: copy).tap { |r| ChromeRun.sent!(@item) if r.sent } if listening?
 
       repo = @item.repo.presence || Workspace.repo_for(@item.slug)
       project = Project.find_by(repo_path: repo) if repo
@@ -93,6 +97,7 @@ module WorkQueue
 
       launch = SessionLaunch.queue!(project: project, prompt: body, repo_path: repo, chrome: true, permission_mode: "auto",
                                     source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}")
+      ChromeRun.remember(@item, launch)
       Result.new(sent: true, launch: launch)
     end
 

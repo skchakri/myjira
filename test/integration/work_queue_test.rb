@@ -388,6 +388,51 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal ids.first, ids.last
   end
 
+  test "stacked permission prompts get Allow all; one submit answers every one of them" do
+    once = ["Allow once", "Always allow in this project", "Deny"]
+    File.write(File.join(@dir, "home-me-perm.json"), { items: [
+      { n: 1, title: "Asks a lot", status: "blocked", log: [], questions: [
+        { q: "Permission: Bash bundle exec rspec spec/a_spec.rb?", options: once },
+        { q: "Permission: Bash ls -la app?", options: once },
+        { q: "Which colour?", options: %w[red blue] }
+      ] },
+      { n: 2, title: "Asks something risky", status: "blocked", log: [], questions: [
+        { q: "Permission: Bash rm -rf tmp/cache?", options: once },
+        { q: "Permission: Bash ls?", options: once }
+      ] }
+    ] }.to_json)
+
+    get work_queue_item_detail_path("home-me-perm:1")
+    assert_select ".wq-allow-all button[name=allow_all][value=always][data-allow-all]", text: /Always allow all 2 in this project/
+    assert_select ".wq-allow-all button[name=allow_all][value=once]", text: /Allow all 2 once/
+
+    get work_queue_item_detail_path("home-me-perm:2")
+    assert_select ".wq-allow-all button[name=allow_all][value=once][data-allow-all]", text: /Allow all 2/
+    assert_select ".wq-allow-all button[value=always]", 0
+
+    post work_queue_item_answer_path("home-me-perm:1"), params: { allow_all: "always", answers: { "2" => "blue" } }, as: :turbo_stream
+    assert_response :ok
+    item = WorkQueue::Store.new.find("home-me-perm:1")
+    assert_equal ["Always allow in this project", "Always allow in this project", "blue"], item.questions.map(&:a)
+
+    post work_queue_item_answer_path("home-me-perm:2"), params: { allow_all: "once" }, as: :turbo_stream
+    assert_equal ["Allow once", "Allow once"], WorkQueue::Store.new.find("home-me-perm:2").questions.map(&:a)
+  end
+
+  test "settings show the allow packs and save which are switched off" do
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select ".wq-packs input[name='packs[]']", 3
+    assert_select ".wq-packs input[name='packs[]'][checked]", 3
+
+    patch work_queue_settings_path, params: { slug: "home-me-app", rules: [""], packs_shown: "1", packs: %w[base] }
+    assert_equal %w[ruby node], WorkQueue::RunState.project("home-me-app")["packs_off"]
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select ".wq-packs input[name='packs[]'][checked]", 1
+
+    patch work_queue_settings_path, params: { slug: "home-me-app", rules: ["Bash(make:*)"] }
+    assert_equal %w[ruby node], WorkQueue::RunState.project("home-me-app")["packs_off"], "a save without the pack toggles leaves them alone"
+  end
+
   test "settings edit a project's always-allow rules" do
     WorkQueue::RunState.save_project("home-me-app", "always_allow" => ["Bash(ls:*)", "WebFetch"])
     get work_queue_settings_path(slug: "home-me-app")
@@ -412,5 +457,88 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     end
   ensure
     WorkQueue::RunState.del_fields("home-me-app:1", "browser")
+  end
+
+  # An item flagged as a browser step whose repo belongs to a myjira project, daemon polling.
+  def chrome_item(session: nil)
+    repo = "/tmp/wqc-#{SecureRandom.hex(3)}"
+    project = Project.create!(name: "WQ Chrome", slug: "wqc-#{SecureRandom.hex(3)}", repo_path: repo)
+    WorkQueue::QueueWriter.new(dir: @dir).update("home-me-app", 1) do |i|
+      i["repo"] = repo
+      i["session"] = session if session
+    end
+    WorkQueue::RunState.set("home-me-app:1", WorkQueue::BrowserStep::FLAG => "1")
+    SessionLaunch.launcher_seen!
+    project
+  end
+
+  test "Run in Chrome swaps the button for Starting, then Running with a Watch link, and never queues twice" do
+    chrome_item
+    path = work_queue_item_run_in_chrome_path("home-me-app:1")
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post path, as: :turbo_stream
+    end
+    launch = SessionLaunch.order(:created_at).last
+    assert launch.chrome
+    assert_equal launch.id, WorkQueue::RunState.get("home-me-app:1")[WorkQueue::ChromeRun::FIELD]
+    assert_select "turbo-stream[action=append][target=wq_toasts]", 1
+    assert_select "turbo-stream[action=replace][target=wq_chrome_home-me-app_1]", 1
+    assert_match(/Starting Claude…/, response.body)
+    assert_no_match(/wq-btn-chrome/, response.body)
+
+    assert_no_difference -> { SessionLaunch.count } do
+      post path, as: :turbo_stream
+    end
+    assert_match(/already has a Claude session with Chrome/, response.body)
+    assert_match(/Starting Claude…/, response.body)
+
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 [role=status]", text: /Starting Claude…/
+    assert_select "form[action=?]", path, 0
+
+    streams = []
+    Turbo::StreamsChannel.stub(:broadcast_replace_to, ->(*args, **opts) { streams << [args, opts] }) do
+      patch api_v1_session_launch_path(launch), params: { status: "launched", tmux_target: "myjira:app-1" }, as: :json
+    end
+    assert_response :ok
+    assert_equal [[WorkQueue::Broadcaster.item_stream("home-me-app:1")], "wq_chrome_home-me-app_1", "work_queue/chrome_run"],
+                 streams.map { |args, opts| [args, opts[:target], opts[:partial]] }.first
+
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 a.wq-chrome-live[target=_blank][href=?]", launch.reload.live_terminal_url,
+                  text: /Running in Chrome · Watch/
+    assert_select "form[action=?]", path, 0
+    assert_no_match(/window\.open/, response.body)
+  end
+
+  test "Run in Chrome offers the button again once the launch failed or aged out" do
+    chrome_item
+    path = work_queue_item_run_in_chrome_path("home-me-app:1")
+    post path, as: :turbo_stream
+    launch = SessionLaunch.order(:created_at).last
+    launch.update!(status: "failed", error: "tmux missing")
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
+
+    launch.update!(status: "launched", tmux_target: "myjira:app-1", launched_at: (WorkQueue::ChromeRun::WINDOW + 1.minute).ago)
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
+    assert_difference -> { SessionLaunch.count }, 1 do
+      post path, as: :turbo_stream
+    end
+  end
+
+  test "Run in Chrome sent to a listening CLI is acknowledged on the item" do
+    project = chrome_item(session: "s-wqc-listen")
+    convo = project.conversations.create!(session_id: "s-wqc-listen", started_at: 1.minute.ago,
+                                          last_message_at: 1.minute.ago, listener_seen_at: 5.seconds.ago)
+    assert_no_difference -> { SessionLaunch.count } do
+      post work_queue_item_run_in_chrome_path("home-me-app:1"), as: :turbo_stream
+    end
+    assert_equal 1, convo.session_commands.count
+    assert_match(/Browser step sent to the CLI session/, response.body)
+    assert_select "turbo-stream[action=replace][target=wq_chrome_home-me-app_1]", 1
+    assert_match(/Sent to the CLI session at \d\d:\d\d/, response.body)
+    assert_match(/wq-btn-chrome/, response.body)
   end
 end
