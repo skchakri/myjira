@@ -1,0 +1,49 @@
+<% content_for :title, "Inbox · myjira" %>
+<% content_for :full_bleed, "1" %>
+<%= turbo_stream_from WorkQueue::Broadcaster::LIST_STREAM %>
+<div class="wq inbox" data-controller="inbox" data-inbox-url-value="<%= inbox_path %>">
+  <header class="wq-top">
+    <div class="flex items-center gap-3 min-w-0">
+      <h1 class="text-[15px] font-semibold tracking-tight">Inbox</h1>
+      <span class="wq-live" title="Updates by itself when a task changes"><span class="wq-live-dot"></span>live</span>
+      <span class="wq-hint">Everything that is waiting on you, oldest first.</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <%= link_to "Work Queue", work_queue_path, class: "wq-btn wq-btn-ghost" %>
+      <button type="button" class="wq-btn wq-btn-ghost" data-action="inbox#toggleHelp" aria-label="Keyboard shortcuts">?</button>
+    </div>
+  </header>
+
+  <div class="wq-help hidden" data-inbox-target="help">
+    <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>1</kbd>-<kbd>4</kbd> pick an option · <kbd>a</kbd> allow all · <kbd>Enter</kbd> send / do the main action ·
+    <kbd>r</kbd> resume · <kbd>o</kbd> open the task · <kbd>/</kbd> write your own answer · <kbd>Esc</kbd> leave a text box
+  </div>
+
+  <%= turbo_frame_tag "inbox_frame", target: "_top", class: "inbox-body", data: { inbox_target: "frame" } do %>
+    <% if @inbox.empty? %>
+      <div class="inbox-clear" role="status">
+        <p class="inbox-clear-t">Nothing needs you.</p>
+        <p class="wq-hint">Questions, approvals, reviews and stalled tasks from every project show up here.</p>
+      </div>
+    <% else %>
+      <nav class="inbox-strip" aria-label="What is waiting">
+        <% @inbox.summary.each do |anchor, text| %>
+          <% late = anchor == "oldest" %>
+          <a class="inbox-strip-i <%= 'inbox-strip-late' if late %>" href="#<%= late ? 'inbox_oldest' : "inbox_s_#{anchor}" %>" data-turbo="false"><%= text %></a>
+        <% end %>
+      </nav>
+
+      <% oldest = @inbox.entries.find { |e| e.flow.waiting_level == "late" } %>
+      <% @inbox.sections.each do |key, title, entries| %>
+        <section class="inbox-section" id="inbox_s_<%= key %>" aria-labelledby="inbox_h_<%= key %>">
+          <h2 class="wq-eyebrow inbox-section-h" id="inbox_h_<%= key %>"><%= title %> <span class="inbox-section-n"><%= entries.size %></span></h2>
+          <% entries.each do |entry| %>
+            <%= render "inbox/entry", entry: entry, anchor: (entry == oldest ? "inbox_oldest" : nil) %>
+          <% end %>
+        </section>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <div id="wq_toasts" class="wq-toasts" aria-live="polite"></div>
+</div>

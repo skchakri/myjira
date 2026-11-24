@@ -54,6 +54,14 @@ module WorkQueueHelper
     roll.need_you.any? ? "#{text} · #{roll.need_you.size} need you" : text
   end
 
+  # "waiting 4d 3h" for an item that needs the person: amber after a day, red after three.
+  def wq_wait_tag(flow, prefix: "waiting ")
+    words = flow.waiting_words or return
+    since = flow.waiting_since
+    tag.span("#{prefix}#{words}", class: ["wq-wait", ("wq-wait-#{flow.waiting_level}" if flow.waiting_level)],
+                                  title: "Waiting on you since #{since.strftime('%b %-d %H:%M')}")
+  end
+
   # A finished parent with child steps still going must not read as plain "Live".
   def wq_flow_label(flow, roll)
     return flow.label unless roll.left.positive? && (flow.finished? || flow.closed?)

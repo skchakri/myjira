@@ -16,6 +16,7 @@
   <div class="wq-flow-head">
     <div class="flex flex-wrap items-center gap-2">
       <span class="wq-pill wq-pill-<%= flow.tone %>"><%= flow.label %></span>
+      <%= wq_wait_tag(flow) unless flow.stalled? %>
       <% if roll.left.positive? && (flow.finished? || flow.closed?) %>
         <span class="wq-pill wq-pill-run"><%= pluralize(roll.left, "child step") %> still in progress</span>
       <% end %>

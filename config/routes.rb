@@ -1,7 +1,10 @@
 Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
-  root "projects#index"
+  # Home is the inbox: everything in the Work Queue that is waiting on the person.
+  # The projects list stays at /projects ("All projects" under More in the sidebar).
+  root "inbox#show"
+  get "inbox", to: "inbox#show", as: :inbox
 
   # Global full-text search across tasks, follow-ups, captured conversations and
   # test results. Optional ?project_id=<slug|uuid> scopes it to one folder.
