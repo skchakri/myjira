@@ -39,7 +39,33 @@ module WorkQueue
 
     def closed? = tags.include?("closed")
     def your_part = YOUR_PART.fetch(@part)
-    def happening = item.summary.presence || item.log.last&.dig("text").presence || "Nothing recorded yet."
+
+    # Queue log lines that say nothing to a person: status arrows, routing picks, worktree paths.
+    NOISE = %r{\A(?:→ |Worktree |(?:plan|implement|review|trivial|relay): \S+ / )}
+    NOW = { "Planning" => "Planning now.", "Building" => "Building now.", "Testing" => "Testing now." }.freeze
+
+    # One plain line for "What's happening": the summary, else the latest log line a
+    # person can read, else what the current phase is doing.
+    def happening
+      return item.summary if item.summary.present?
+
+      lines = item.log.map { |l| l["text"].to_s.strip }.compact_blank
+      now = NOW[label] if item.status == "running"
+      return now if now && (lines.empty? || lines.last.match?(NOISE))
+
+      lines.reverse.find { |t| !t.match?(NOISE) } || now || "Nothing recorded yet."
+    end
+
+    # How far this item itself is, 0..100: finished phases out of six, plus half a
+    # phase while one is running. nil for dropped / folded items (they count nowhere).
+    def percent
+      return nil if closed?
+      return 100 if phase >= PHASES.size
+
+      ((phase + (item.status == "running" ? 0.5 : 0)).fdiv(PHASES.size) * 100).round
+    end
+
+    def finished? = percent == 100
 
     # Failed checks / deploy problem and the CI or deploy step it is on, for "What's happening".
     def failed_checks
@@ -68,7 +94,7 @@ module WorkQueue
       when "done" then delivery&.state.in?(%w[testing deploying not_live deploy_failed]) ? 5 : 6
       when "merged", "dropped" then 0
       when "review" then item.pr.present? ? 4 : 3
-      when "running", "blocked" then RUN_PHASE.fetch(@context&.run&.dig("phase").to_s, item.status == "blocked" ? 1 : 0)
+      when "running", "blocked" then RUN_PHASE.fetch(@context&.run&.dig("phase").to_s, 1)
       else 0
       end
     end

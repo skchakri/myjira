@@ -2,7 +2,8 @@
 <% active = local_assigns[:selected] == item.key %>
 <% flow = local_assigns[:flow] || context&.flow || WorkQueue::Flow.new(item, context) %>
 <% follow_up = local_assigns.key?(:depth) ? depth.to_i.positive? : item.parent.present? %>
-<% kids = local_assigns[:kids] || context&.children || [] %>
+<% progress = local_assigns[:progress] || WorkQueue::Progress.new(context&.project_items || WorkQueue::Store.new.items_for(item.slug), store: WorkQueue::Store.new, flows: { item.key => flow }) %>
+<% roll = progress.for(item) %>
 <% qs = item.open_questions.size %>
 <article id="<%= item.dom_id %>" class="wq-card wq-node <%= 'wq-card-active' if active %> <%= follow_up ? 'wq-node-child' : 'wq-node-root' %>"
          data-work-queue-target="card" data-key="<%= item.key %>" data-slug="<%= item.slug %>" data-n="<%= item.n %>"
@@ -16,9 +17,17 @@
     <span class="wq-dot wq-t-<%= flow.tone %>" aria-hidden="true"></span>
     <span class="wq-node-body">
       <span class="wq-node-t"><span class="wq-title" title="#<%= item.n %> <%= item.title %>"><span class="wq-n-tag">#<%= item.n %></span> <%= item.title %></span></span>
-      <span class="wq-node-s"><%= flow.label %></span>
-      <% if (other_repo = item.foreign_repo) %><span class="wq-mono wq-repo" title="Lives in another repo: <%= other_repo %>"><%= File.basename(other_repo) %></span><% end %>
-      <% if kids.any? %><span class="wq-kid-sum" title="Follow-ups of this task"><%= wq_kid_summary(kids) %></span><% end %>
+      <span class="wq-node-s">
+        <span class="wq-node-l"><%= wq_flow_label(flow, roll) %></span>
+        <% if (other_repo = item.foreign_repo) %><span class="wq-mono wq-repo" title="Lives in another repo: <%= other_repo %>"><%= File.basename(other_repo) %></span><% end %>
+      </span>
+      <% if roll.percent && (roll.parent? || !flow.closed?) %>
+        <span class="wq-node-p">
+          <%= wq_progress(roll.percent, tone: wq_progress_tone(flow, roll),
+                          label: roll.parent? ? "Task #{item.n} with its child steps" : "Task #{item.n}") %>
+          <% if roll.parent? %><span class="wq-kid-sum" title="This task and every child step below it"><%= wq_kid_summary(roll) %></span><% end %>
+        </span>
+      <% end %>
     </span>
     <% if qs.positive? %><span class="wq-node-q" title="<%= pluralize(qs, 'open question') %>"><%= qs %> ?</span><% end %>
   <% end %>

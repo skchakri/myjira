@@ -27,17 +27,37 @@ module WorkQueue
     end
 
     # Replace just these cards (status/git/PR change) instead of the whole project.
+    # Their parents are re-rendered too: a parent's progress rolls up its child steps.
     def cards_changed(items)
       store = Store.new
-      items.each do |item|
-        Turbo::StreamsChannel.broadcast_replace_to(
-          LIST_STREAM, target: item.dom_id, partial: "work_queue/card",
-          locals: { item: item, context: item.open? ? ItemContext.new(item, store: store) : nil }
-        )
-        Turbo::StreamsChannel.broadcast_replace_to(
-          item_stream(item.key), target: "wq_log_header", partial: "work_queue/log_header", locals: { item: item }
-        )
+      items.group_by(&:slug).each do |slug, changed|
+        all = store.items_for(slug)
+        progress = Progress.new(all, store: store)
+        with_ancestors(changed, all).each do |item|
+          context = ItemContext.wanted?(item) ? ItemContext.new(item, store: store) : nil
+          Turbo::StreamsChannel.broadcast_replace_to(
+            LIST_STREAM, target: item.dom_id, partial: "work_queue/card",
+            locals: { item: item, context: context, flow: progress.flow(item), progress: progress }
+          )
+          Turbo::StreamsChannel.broadcast_replace_to(
+            item_stream(item.key), target: "wq_log_header", partial: "work_queue/log_header", locals: { item: item }
+          )
+        end
       end
+    end
+
+    # The given items plus every parent above them (each once; cycle-safe).
+    def with_ancestors(changed, all)
+      by_n = all.index_by(&:n)
+      seen = {}
+      changed.each do |item|
+        cur = item
+        while cur && !seen.key?(cur.n)
+          seen[cur.n] = cur
+          cur = by_n[cur.parent]
+        end
+      end
+      seen.values
     end
 
     # A CLI session's listener went online/offline: update every badge for it.

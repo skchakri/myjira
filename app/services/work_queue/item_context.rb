@@ -4,6 +4,12 @@ module WorkQueue
   class ItemContext
     attr_reader :item
 
+    # Items whose label depends on cached run / PR / deploy state: open ones, and
+    # recently merged ones that may not be live yet. Older done items read "Live".
+    def self.wanted?(item)
+      item.open? || (item.status == "done" && item.pr.present? && item.updated_at.present? && item.updated_at > 14.days.ago)
+    end
+
     def initialize(item, store:, prs: PullRequests.new)
       @item = item
       @store = store
@@ -23,6 +29,8 @@ module WorkQueue
     def dependencies = @dependencies ||= @store.dependencies(item)
     def flow = @flow ||= Flow.new(item, self)
     def project_items = @project_items ||= @store.items_for(item.slug)
+    def progress = @progress ||= Progress.new(project_items, store: @store, flows: { item.key => flow })
+    def roll = progress.for(item)
 
     # Parent chain, root first (breadcrumb).
     def ancestors

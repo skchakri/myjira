@@ -31,13 +31,34 @@ module WorkQueueHelper
     lines.join("\n")
   end
 
-  KID_GROUPS = { "run" => "running", "you" => "need you", "bad" => "failed", "wait" => "waiting", "ok" => "done" }.freeze
+  # Bar colour: green when everything is finished, the item's own tone otherwise
+  # (a finished parent whose child steps are still going reads "in progress").
+  def wq_progress_tone(flow, roll)
+    return "ok" if roll.complete?
 
-  # "3 follow-ups: 1 running, 2 done" for a parent row.
-  def wq_kid_summary(kids)
-    counts = kids.map { |k| (f = WorkQueue::Flow.new(k)).closed? ? "ok" : f.tone }.tally
-    parts = KID_GROUPS.filter_map { |tone, word| "#{counts[tone]} #{word}" if counts[tone] }
-    "#{pluralize(kids.size, 'follow-up')}: #{parts.join(', ')}"
+    flow.tone.in?(%w[ok wait]) && roll.active ? "run" : flow.tone
+  end
+
+  # Thin bar + "NN%". label: is what a screen reader hears for the bar.
+  def wq_progress(percent, tone:, label:, css: nil)
+    tag.span(class: ["wq-prog", "wq-prog-#{tone}", css]) do
+      tag.span(tag.i(style: "width: #{percent}%"), class: "wq-prog-bar", role: "progressbar",
+               aria: { valuenow: percent, valuemin: 0, valuemax: 100, label: label }) +
+        tag.span("#{percent}%", class: "wq-prog-n")
+    end
+  end
+
+  # "3 of 6 child steps done" for a parent (every level below it).
+  def wq_kid_summary(roll)
+    text = "#{roll.done} of #{pluralize(roll.total, 'child step')} done"
+    roll.need_you.any? ? "#{text} · #{roll.need_you.size} need you" : text
+  end
+
+  # A finished parent with child steps still going must not read as plain "Live".
+  def wq_flow_label(flow, roll)
+    return flow.label unless roll.left.positive? && (flow.finished? || flow.closed?)
+
+    "#{flow.label} · #{pluralize(roll.left, 'child step')} still in progress"
   end
 
   def wq_copy_menu(item, context)
