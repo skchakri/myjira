@@ -5,7 +5,7 @@ module WorkQueue
   # web view performs itself; queue status updates still go through the session.
   class PullRequests
     Status = Struct.new(:url, :number, :state, :base, :head, :mergeable, :merge_state,
-                        :head_sha, :merge_sha, :failed_checks, keyword_init: true) do
+                        :head_sha, :merge_sha, :failed_checks, :merged_at, keyword_init: true) do
       def conflicts? = mergeable == "CONFLICTING"
       def merged? = state == "MERGED"
       def failed_checks? = Array(failed_checks).any?
@@ -16,7 +16,7 @@ module WorkQueue
     end
     Result = Struct.new(:ok, :steps, keyword_init: true)
 
-    FIELDS = "number,state,baseRefName,headRefName,mergeable,mergeStateStatus,url,headRefOid,mergeCommit,statusCheckRollup".freeze
+    FIELDS = "number,state,baseRefName,headRefName,mergeable,mergeStateStatus,url,headRefOid,mergeCommit,mergedAt,statusCheckRollup".freeze
     # Check-run conclusions / status-context states that count as red.
     FAILED = %w[FAILURE TIMED_OUT CANCELLED ERROR STARTUP_FAILURE].freeze
 
@@ -45,7 +45,8 @@ module WorkQueue
       j = JSON.parse(out)
       Status.new(url: j["url"], number: j["number"], state: j["state"], base: j["baseRefName"],
                  head: j["headRefName"], mergeable: j["mergeable"], merge_state: j["mergeStateStatus"],
-                 head_sha: j["headRefOid"], merge_sha: j.dig("mergeCommit", "oid"), failed_checks: failed_checks(j))
+                 head_sha: j["headRefOid"], merge_sha: j.dig("mergeCommit", "oid"), failed_checks: failed_checks(j),
+                 merged_at: j["mergedAt"])
     rescue JSON::ParserError
       nil
     end

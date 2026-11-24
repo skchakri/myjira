@@ -18,6 +18,7 @@
         <input type="checkbox" data-work-queue-target="speakToggle" data-action="work-queue#toggleSpeak"> Announce
       </label>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#enableNotifications" data-work-queue-target="notifyBtn">Notify me</button>
+      <%= link_to "Releases", work_queue_releases_path, class: "wq-btn wq-btn-ghost" %>
       <%= link_to "Costs", work_queue_costs_path, class: "wq-btn wq-btn-ghost" %>
       <%= link_to "Routing", work_queue_settings_path, class: "wq-btn wq-btn-ghost" %>
       <button type="button" class="wq-btn wq-btn-ghost" data-action="work-queue#toggleHelp" aria-label="Keyboard shortcuts">?</button>
