@@ -247,6 +247,28 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_select ".wq-log-h .wq-copy-item", 2
   end
 
+  test "an instruction carries dropped or pasted files as saved paths" do
+    Tempfile.create(["notes", ".md"]) do |f|
+      f.write("# notes")
+      f.flush
+      upload = Rack::Test::UploadedFile.new(f.path, "text/markdown", original_filename: "notes.md")
+      post work_queue_item_instruct_path("home-me-app:1"), params: { text: "use these", files: [upload] }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    end
+    assert_response :ok
+    saved = File.join(@dir, "attachments", "home-me-app", "1", "notes.md")
+    assert File.exist?(saved)
+    assert_includes WorkQueue::Store.new.find("home-me-app:1").description, "Attached files:\n#{saved}"
+  end
+
+  test "a new item rejects file types that are not images, PDFs or text" do
+    Tempfile.create(["tool", ".exe"]) do |f|
+      upload = Rack::Test::UploadedFile.new(f.path, "application/octet-stream", original_filename: "tool.exe")
+      post work_queue_items_path, params: { slug: "home-me-app", text: "With a binary", files: [upload] }, headers: { "Accept" => "text/vnd.turbo-stream.html" }
+    end
+    assert_response :ok
+    assert_not Dir.exist?(File.join(@dir, "attachments", "home-me-app", "2"))
+  end
+
   test "settings save a validated routing table" do
     patch work_queue_settings_path, params: { routing: { plan: { model: "claude-sonnet-5-5", effort: "max" }, implement: { model: "nope", effort: "low" } } }
     assert_redirected_to work_queue_settings_path

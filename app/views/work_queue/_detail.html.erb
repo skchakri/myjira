@@ -19,11 +19,15 @@
     </ol>
     <button type="button" class="wq-jump hidden" data-work-queue-target="jump" data-action="work-queue#jumpToEnd">Jump to latest</button>
   </div>
-  <%= form_with url: work_queue_item_instruct_path(item.key), data: { turbo_stream: true, action: "turbo:submit-end->work-queue#resetForm" }, class: "wq-instruct" do %>
+  <%= form_with url: work_queue_item_instruct_path(item.key), multipart: true, class: "wq-instruct",
+                data: { turbo_stream: true, wq_drop: true, action: "turbo:submit-end->work-queue#resetForm dragover->work-queue#dragOver dragleave->work-queue#dragLeave drop->work-queue#drop paste->work-queue#paste" } do %>
+    <input type="file" name="files[]" multiple accept="image/*,application/pdf,text/*,.md,.json,.log" class="hidden" data-action="change->work-queue#filesPicked">
+    <p class="wq-files wq-files-row" data-wq-files></p>
     <span class="wq-n">task <%= item.n %></span>
     <span class="wq-ref-chips" data-work-queue-target="refChips"></span>
-    <%= text_area_tag :text, nil, rows: 1, placeholder: "Tell the agent on this task what to do… (Enter to send)", class: "wq-input wq-instruct-input", "aria-label": "Instruction", data: { work_queue_target: "instruct", action: "input->work-queue#scanRefs keydown->work-queue#instructKey" } %>
+    <%= text_area_tag :text, nil, rows: 1, placeholder: "Tell the agent on this task what to do… (Enter to send; drop or paste files)", class: "wq-input wq-instruct-input", "aria-label": "Instruction", data: { work_queue_target: "instruct", action: "input->work-queue#scanRefs keydown->work-queue#instructKey" } %>
     <button type="button" class="wq-mic" aria-label="Speak instruction" data-action="work-queue#dictate">mic</button>
+    <button type="button" class="wq-mic" aria-label="Attach files" title="Attach files (or drop / paste them here)" data-action="work-queue#pickFiles">file</button>
     <button class="wq-btn wq-btn-primary">Send</button>
   <% end %>
   <details class="wq-add-child">

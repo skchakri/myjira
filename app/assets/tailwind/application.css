@@ -673,7 +673,7 @@ html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 .wq-tool-cmd { font: 11px var(--font-mono); color: var(--color-ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .wq-group > summary { cursor: pointer; font: 12px var(--font-mono); color: var(--color-ink-soft); padding: 3px 6px; }
 .wq-group > ol { margin-left: 10px; border-left: 1px solid var(--color-hair); padding-left: 6px; }
-.wq-instruct { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--color-hair); background: var(--color-paper); }
+.wq-instruct { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--color-hair); background: var(--color-paper); }
 .wq-confirm { position: fixed; z-index: 40; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--wq-rev); background: var(--color-paper-raised); box-shadow: 0 12px 32px rgba(0,0,0,.3); font-size: 13px; }
 .wq-detail-grid.wq-main { display: flex; flex-direction: column; }
 .wq-copy { position: relative; flex-shrink: 0; }
@@ -723,9 +723,23 @@ html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 
 /* Each project/folder is its own block: a title bar that stays in view, tasks inside. */
 .wq-project { margin: 0 0 14px; border: 1.5px solid color-mix(in srgb, var(--color-amber-ink) 55%, var(--color-hair)); border-radius: 10px; background: var(--color-paper-raised); box-shadow: 0 1px 3px color-mix(in srgb, var(--color-ink) 12%, transparent); }
-.wq-proj { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 10px; border-radius: 9px 9px 0 0; border-bottom: 1.5px solid color-mix(in srgb, var(--color-amber-ink) 55%, var(--color-hair)); font-size: 14px; font-weight: 700; text-align: left; color: var(--color-ink); cursor: pointer; background: color-mix(in srgb, var(--color-amber-ink) 9%, var(--color-paper-sunk)); }
-.wq-proj:hover { background: color-mix(in srgb, var(--color-amber-ink) 15%, var(--color-paper-sunk)); }
-.wq-proj[aria-expanded="false"] { border-radius: 9px; border-bottom-color: transparent; }
+.wq-proj-bar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 6px; padding-right: 8px; border-radius: 9px 9px 0 0; border-bottom: 1.5px solid color-mix(in srgb, var(--color-amber-ink) 55%, var(--color-hair)); background: color-mix(in srgb, var(--color-amber-ink) 9%, var(--color-paper-sunk)); }
+.wq-proj-bar:has(.wq-proj[aria-expanded="false"]) { border-radius: 9px; border-bottom-color: transparent; }
+.wq-proj { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 9px 4px 9px 10px; border-radius: 9px; font-size: 14px; font-weight: 700; text-align: left; color: var(--color-ink); cursor: pointer; }
+.wq-proj:hover { background: color-mix(in srgb, var(--color-amber-ink) 10%, transparent); }
+.wq-proj-add { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; padding: 4px 9px; border-radius: 7px; font-size: 11.5px; font-weight: 600; color: var(--color-amber-ink); border: 1px solid color-mix(in srgb, var(--color-amber-ink) 55%, var(--color-hair)); background: var(--color-paper-raised); cursor: pointer; }
+.wq-project { container-type: inline-size; }
+@container (max-width: 460px) { .wq-proj-add-t { display: none; } .wq-proj-add { padding: 5px 6px; } }
+.wq-files { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0; }
+.wq-files:empty { display: none; }
+.wq-files-row { flex-basis: 100%; order: -1; }
+.wq-file-chip { font: 500 10.5px var(--font-mono); padding: 1px 7px; border-radius: 9999px; color: var(--color-ink-soft); border: 1px solid var(--color-hair); background: var(--color-paper-sunk); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wq-file-clear { font-size: 10.5px; color: var(--color-ink-faint); text-decoration: underline; cursor: pointer; }
+[data-wq-drop].wq-drop-over { outline: 2px dashed var(--color-amber-ink); outline-offset: -2px; }
+.wq-inline-add { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-bottom: 1px solid var(--color-hair); background: color-mix(in srgb, var(--color-amber-ink) 5%, var(--color-paper-raised)); }
+.wq-inline-add textarea { width: 100%; resize: vertical; }
+.wq-proj-add:hover { background: var(--color-amber-wash); }
+.wq-proj-add:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 1px; }
 .wq-proj-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
 .wq-proj-title { letter-spacing: -.01em; }
 .wq-proj-sub { font: 500 10.5px var(--font-mono); color: var(--color-ink-soft); }
