@@ -13,9 +13,17 @@ module Api
       # Upsert by slug so Claude CLI can call this idempotently from any project directory.
       def create
         slug = params.dig(:project, :slug) || params[:slug]
+        attrs = project_params
+        # A worktree is not a project of its own: an upsert from inside one lands
+        # on the parent repo's project and never renames or re-points it.
+        if Project.worktree_path?(attrs[:repo_path]) && (parent = Project.for_repo_path(attrs[:repo_path]))
+          return render json: serialize(parent, detailed: true), status: :ok
+        end
+
+        attrs = attrs.merge(repo_path: Project.canonical_repo_path(attrs[:repo_path])) if attrs[:repo_path].present?
         project = Project.find_or_initialize_by(slug: slug) if slug.present?
         project ||= Project.new
-        project.assign_attributes(project_params)
+        project.assign_attributes(attrs)
         project.save!
         render json: serialize(project, detailed: true), status: project.previously_new_record? ? :created : :ok
       end
