@@ -1,0 +1,7 @@
+<%# A project's title-bar badges. Carries the true per-filter totals (every item, drawn or not) for the filter chips.
+    Replaced on its own when a card changes (WorkQueue::Broadcaster.project_counts). %>
+<span id="wq_proj_cnt_<%= listing.slug %>" class="wq-proj-cnt" data-work-queue-target="counts" data-counts="<%= listing.counts.to_json %>">
+  <% if listing.need.positive? %><span class="wq-pbadge wq-pb-you"><%= listing.need %> need you</span><% end %>
+  <% if listing.failed.positive? %><span class="wq-pbadge wq-pb-bad"><%= listing.failed %> failed</span><% end %>
+  <span class="wq-pbadge wq-pb-n" title="Tasks not merged or dropped"><%= listing.live.size %></span>
+</span>

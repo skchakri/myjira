@@ -17,10 +17,22 @@ module WorkQueue
       # The mod sometimes records several agents ("a1, a2"); the newest is last.
       agents = item.agent.to_s.split(/[,\s]+/).grep(/\A[\w-]+\z/).reverse
       agents.each do |agent|
-        hit = Dir.glob(root.join("*", item.session, "subagents", "agent-#{agent}.jsonl")).first
+        hit = found(root, item.session, "subagents", "agent-#{agent}.jsonl")
         return hit if hit
       end
       session_path(item, root: root)
+    end
+
+    # A transcript never moves once written, so a path that was found is remembered
+    # (the glob walks every project folder; a list page asks once per running item).
+    FOUND = {} # rubocop:disable Style/MutableConstant
+
+    def self.found(root, *parts)
+      key = [root.to_s, *parts]
+      hit = FOUND[key]
+      return hit if hit && File.exist?(hit)
+
+      FOUND[key] = Dir.glob(root.join("*", *parts)).first
     end
 
     # The CLI session's own transcript: items a CLI session runs itself (no
@@ -28,7 +40,7 @@ module WorkQueue
     def self.session_path(item, root: self.root)
       return unless item.session.to_s.match?(/\A[\w-]+\z/)
 
-      Dir.glob(root.join("*", "#{item.session}.jsonl")).first
+      found(root, "#{item.session}.jsonl")
     end
 
     # Why an item has no log, in words, for the empty log pane.

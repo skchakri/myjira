@@ -819,6 +819,10 @@ html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 .wq-node-root .wq-node-t { font-weight: 600; }
 .wq-n-tag { font: 500 11px var(--font-mono); color: var(--color-ink-faint); }
 .wq-kid-sum { font-size: 11px; color: var(--color-ink-faint); }
+/* "Show N older finished tasks": the row at the foot of a project block that loads what the default view leaves out. */
+.wq-older { display: block; width: 100%; margin: 4px 0 2px; padding: 6px 8px; border-radius: 7px; border: 1px dashed var(--color-hair); font-size: 11.5px; font-weight: 500; text-align: center; color: var(--color-ink-soft); background: transparent; cursor: pointer; }
+.wq-older:hover { color: var(--color-ink); border-color: var(--color-ink-faint); background: var(--color-paper-sunk); }
+.wq-older:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 1px; }
 /* Detail: labelled next-step buttons and the child-steps list. */
 .wq-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
 .wq-actions .wq-btn[disabled] { opacity: .5; cursor: not-allowed; }

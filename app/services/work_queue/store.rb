@@ -86,13 +86,35 @@ module WorkQueue
 
     private
 
+    # Parsed files, per process: one page render asks for the same project dozens of
+    # times (every card's context), and the watcher re-reads all of them every sweep.
+    # { path => [mtime, size, items] }
+    PARSED = {} # rubocop:disable Style/MutableConstant
+    PARSED_LOCK = Mutex.new
+    # The kernel stamps mtime from a coarse clock, so a file written twice within a few
+    # milliseconds can keep the same mtime. Only reuse a parse of a file that had
+    # already been quiet for this long when it was read.
+    SETTLED = 0.05
+
     def load_file(path)
+      path = path.to_s
+      stat = File.stat(path)
+      hit = PARSED_LOCK.synchronize { PARSED[path] }
+      return hit[2].map(&:dup) if hit && hit[0] == stat.mtime && hit[1] == stat.size
+
+      read_at = Time.current
+      items = parse(path)
+      PARSED_LOCK.synchronize { PARSED[path] = [stat.mtime, stat.size, items] } if read_at - stat.mtime > SETTLED
+      items.map(&:dup)
+    rescue JSON::ParserError, Errno::ENOENT
+      [] # mid-write or vanished; the watcher fires again on the next write
+    end
+
+    def parse(path)
       data = JSON.parse(File.read(path))
       raw = data.is_a?(Hash) ? Array(data["items"]) : Array(data)
       slug = self.class.slug_for(path)
       raw.filter_map { |h| build(slug, h) if h.is_a?(Hash) && h["n"] }
-    rescue JSON::ParserError, Errno::ENOENT
-      [] # mid-write or vanished; the watcher fires again on the next write
     end
 
     def build(slug, h)

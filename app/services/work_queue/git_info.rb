@@ -32,6 +32,15 @@ module WorkQueue
 
     def self.head(dir) = git(dir, "rev-parse", "HEAD").first
 
+    # One cheap git call that changes whenever anything `compute` reads could have
+    # changed: this worktree's HEAD and every local branch tip. nil = not a repo.
+    def self.signature(worktree)
+      return if worktree.blank? || !File.directory?(worktree)
+
+      out, ok = git(worktree, "show-ref", "--head", "--heads")
+      ok ? out.hash : nil
+    end
+
     def self.git(dir, *args)
       out, status = Open3.capture2("git", "-c", "safe.directory=*", "-C", dir.to_s, *args, err: File::NULL)
       [out.strip, status.success?]
@@ -67,6 +76,16 @@ module WorkQueue
     # The local branch whose tip is the closest ancestor-side neighbour: the one
     # HEAD has the fewest commits beyond. Ties go to main.
     def guess_base(branch, main)
+      # git >= 2.41 answers "how far is HEAD beyond each branch" in one call
+      # (two git calls per branch otherwise, which made a full compute ~60 calls).
+      out, ok = git("for-each-ref", "--sort=-committerdate", "--count=40", "--format=%(refname:short)\t%(ahead-behind:HEAD)", "refs/heads")
+      rows = ok ? out.split("\n").filter_map { |l| (name, counts = l.split("\t")) && counts.to_s[/\A\d+ (\d+)\z/, 1] && [name, counts.split.last.to_i] } : []
+      if rows.any?
+        beyond = rows.to_h
+        beyond[main] ||= git("rev-list", "--count", "#{main}..HEAD").first.to_i
+        return (beyond.keys - [branch]).min_by { |b| [beyond[b], b == main ? 0 : 1] } || main
+      end
+
       candidates = git("for-each-ref", "--sort=-committerdate", "--count=40", "--format=%(refname:short)", "refs/heads").first.split("\n")
       candidates = ([main] + candidates).uniq - [branch]
       candidates.min_by do |b|

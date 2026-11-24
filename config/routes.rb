@@ -151,6 +151,7 @@ Rails.application.routes.draw do
   get  "work_queue", to: "work_queue#index", as: :work_queue
   post "work_queue/group", to: "work_queue#group", as: :work_queue_group
   post "work_queue/items", to: "work_queue#create", as: :work_queue_items
+  get  "work_queue/projects/:slug", to: "work_queue#project", as: :work_queue_project
   get  "work_queue/settings", to: "work_queue#settings", as: :work_queue_settings
   patch "work_queue/settings", to: "work_queue#update_settings"
   scope "work_queue/items/:id", constraints: { id: /[^\/]+/ }, as: :work_queue_item do
