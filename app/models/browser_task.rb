@@ -16,6 +16,8 @@ class BrowserTask < ApplicationRecord
   STATUSES = %w[queued dispatched in_progress needs_input responded done failed cancelled].freeze
   OPEN_STATUSES = %w[queued dispatched in_progress needs_input responded].freeze
   PRIORITIES = %w[low normal high urgent].freeze
+  STALE_STATUSES = %w[queued dispatched in_progress needs_input].freeze
+  STALE_AFTER = 24.hours
 
   belongs_to :project
   # The CLI session that filed this relay (matched by cli_session_id). Optional —
@@ -37,6 +39,17 @@ class BrowserTask < ApplicationRecord
 
   scope :recent, -> { order(Arel.sql("COALESCE(last_activity_at, created_at) DESC")) }
   scope :open, -> { where(status: OPEN_STATUSES) }
+  # Stale = still waiting on someone, but nothing has happened for a day: the CLI
+  # session or the Chrome worker that owned it is almost certainly gone.
+  ACTIVITY_SQL = "COALESCE(browser_tasks.last_activity_at, browser_tasks.updated_at)".freeze
+  scope :stale, -> { where(status: STALE_STATUSES).where("#{ACTIVITY_SQL} < ?", STALE_AFTER.ago) }
+  scope :fresh, -> { where.not(id: stale.select(:id)) }
+  # Live tickets first, stale ones after; newest activity first inside each group.
+  scope :stale_last, lambda {
+    stale_sql = sanitize_sql_array(["CASE WHEN browser_tasks.status IN (?) AND #{ACTIVITY_SQL} < ? THEN 1 ELSE 0 END",
+                                    STALE_STATUSES, STALE_AFTER.ago])
+    order(Arel.sql(stale_sql)).recent
+  }
   # Tickets the browser should act on next (something to do, nothing pending on the CLI).
   scope :for_browser, -> { where(status: %w[dispatched in_progress]) }
   # Tickets the CLI should act on next (a fresh answer or a question to address).
@@ -71,6 +84,17 @@ class BrowserTask < ApplicationRecord
 
   def open?
     OPEN_STATUSES.include?(status)
+  end
+
+  def stale?
+    STALE_STATUSES.include?(status) && (last_activity_at || updated_at || Time.current) < STALE_AFTER.ago
+  end
+
+  # Close a stale ticket with the ordinary cancel transition, leaving a note in its thread.
+  def cancel_as_stale!
+    browser_messages.create!(role: "system", kind: "note",
+                             body: "Cancelled as stale: no activity for #{STALE_AFTER.in_hours.to_i} hours.")
+    touch_activity!("cancelled")
   end
 
   # The "Run in Chrome" session currently working this ticket, if any — drives

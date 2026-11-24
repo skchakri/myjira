@@ -103,6 +103,116 @@
           <% end %>
         </div>
 
+        <%# Primary nav: the five places in daily use. Everything else sits under More. %>
+        <% primary_controllers = %w[work_queue conversations conversation_messages session_commands document_library documents
+                                    browser_tasks browser_messages calendar calendar_jobs search] %>
+        <% more_here = primary_controllers.exclude?(controller_name) %>
+        <nav class="px-2 pb-2 shrink-0" aria-label="Main">
+          <%# Conversations hub — every CLI session, grouped by project %>
+          <%= link_to work_queue_path, class: "clink #{controller_name == 'work_queue' ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Work Queue</span>
+            <span class="clink-slug truncate max-w-[90px]">live</span>
+          <% end %>
+
+          <% convo_active = controller_name == "conversations" %>
+          <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Conversations</span>
+            <% if conversations_total.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-ink-faint)]"><%= conversations_total %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">cli</span>
+            <% end %>
+          <% end %>
+
+          <%# Documents: every project's plans, specs, reports and notes %>
+          <% docs_active = %w[document_library documents].include?(controller_name) %>
+          <%= link_to documents_path, class: "clink #{docs_active ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Documents</span>
+            <span class="clink-slug truncate max-w-[90px]">plans</span>
+          <% end %>
+
+          <%# Relay channel %>
+          <% relay = browser_relay_stats
+             relay_active = controller_name == "browser_tasks"
+             relay_dot, relay_label = if relay[:waiting].positive? then ["dot-fail", "waiting on you"]
+                         elsif relay[:open].positive? then ["dot-pass", "active"]
+                         else ["dot-idle", "idle"]
+                         end %>
+          <%= link_to browser_tasks_path, class: "clink #{relay_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= relay_dot %>" role="img" aria-label="Relay status: <%= relay_label %>" title="Relay status: <%= relay_label %>"></span>
+            <span class="truncate">Relay</span>
+            <% if relay[:open].positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono <%= relay[:waiting].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
+                <%= relay[:open] %>
+              </span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">chrome</span>
+            <% end %>
+          <% end %>
+
+          <%# Calendar — every recurring job: myjira/Claude schedules, cron, timers %>
+          <%= link_to calendar_path, class: "clink #{controller_name.start_with?('calendar') ? 'clink-active' : ''}" do %>
+            <span class="dot dot-idle" aria-hidden="true"></span>
+            <span class="truncate">Calendar</span>
+            <span class="clink-slug truncate max-w-[90px]">cron</span>
+          <% end %>
+        </nav>
+
+        <div class="my-1.5 mx-3 h-px shrink-0" style="background:var(--color-hair-soft);"></div>
+
+        <%# More: projects and boards, review, approvals. Remembers whether it was left open;
+            opens by itself when the current page lives inside it. %>
+        <div class="flex-1 min-h-0 overflow-y-auto">
+          <details class="sb-more" id="sidebar_more" <%= "open" if more_here %>
+                   data-controller="disclosure" data-disclosure-key-value="sidebar-more"
+                   data-disclosure-force-value="<%= more_here %>" data-action="toggle->disclosure#save">
+            <summary class="sb-more-sum">
+              <svg class="sb-more-car" viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+              <span class="eyebrow">More</span>
+              <span class="clink-slug">projects · review</span>
+            </summary>
+            <nav class="px-2 pb-1" aria-label="More">
+          <%# Cross-project review queue — every in_review item in one place %>
+          <% review_active = controller_name == "reviews"
+             review_count  = review_queue_count %>
+          <%= link_to review_path, class: "clink #{review_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= review_count.positive? ? 'dot-pass' : 'dot-idle' %>" role="img" aria-label="Items awaiting review: <%= review_count %>" title="Items awaiting review: <%= review_count %>"></span>
+            <span class="truncate">Review queue</span>
+            <% if review_count.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-pass-ink)]"><%= review_count %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">prs</span>
+            <% end %>
+          <% end %>
+
+          <%# Cross-project approvals inbox — items parked waiting on the human %>
+          <% approvals_active = controller_name == "approvals"
+             appr_count = approvals_count %>
+          <%= link_to approvals_path, class: "clink #{approvals_active ? 'clink-active' : ''}" do %>
+            <span class="dot <%= appr_count.positive? ? 'dot-pass' : 'dot-idle' %>" role="img" aria-label="Items awaiting you: <%= appr_count %>" title="Items awaiting you: <%= appr_count %>"></span>
+            <span class="truncate">Approvals</span>
+            <% if appr_count.positive? %>
+              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-amber-ink)]"><%= appr_count %></span>
+            <% else %>
+              <span class="clink-slug truncate max-w-[90px]">inbox</span>
+            <% end %>
+          <% end %>
+
+              <%= link_to projects_path, class: "clink #{controller_name == 'projects' && action_name == 'index' ? 'clink-active' : ''}" do %>
+                <span class="dot dot-idle" aria-hidden="true"></span>
+                <span class="truncate">All projects</span>
+                <span class="clink-slug truncate max-w-[90px]">list</span>
+              <% end %>
+              <a href="/api/v1/spec" target="_blank" rel="noopener" class="clink">
+                <span class="dot dot-idle" aria-hidden="true"></span>
+                <span class="truncate">API spec</span>
+                <span class="clink-slug">json</span>
+              </a>
+            </nav>
+
         <!-- Filter -->
         <div class="px-3 pb-2">
           <label class="relative block">
@@ -124,7 +234,7 @@
           <span class="eyebrow" data-client-filter-target="count"><%= sidebar_clients.size %></span>
         </div>
 
-        <nav class="flex-1 overflow-y-auto px-2 pb-3">
+        <nav class="px-2 pb-3" aria-label="Projects">
           <% if sidebar_clients.empty? %>
             <div class="px-3 py-6 text-sm text-[color:var(--color-ink-faint)]">
               No projects yet.<br>
@@ -175,96 +285,11 @@
             No match.
           </div>
         </nav>
-
-        <div class="my-1.5 mx-3 h-px shrink-0" style="background:var(--color-hair-soft);"></div>
-
-        <!-- Channels: Browser Tasks + Conversations, grouped together -->
-        <div class="px-4 pt-1 pb-1.5 shrink-0">
-          <span class="eyebrow">Channels</span>
+          </details>
         </div>
-        <nav class="px-2 pb-3 shrink-0">
-          <%# Relay channel %>
-          <% relay = browser_relay_stats
-             relay_active = controller_name == "browser_tasks"
-             relay_dot, relay_label = if relay[:waiting].positive? then ["dot-fail", "waiting on you"]
-                         elsif relay[:open].positive? then ["dot-pass", "active"]
-                         else ["dot-idle", "idle"]
-                         end %>
-          <%= link_to browser_tasks_path, class: "clink #{relay_active ? 'clink-active' : ''}" do %>
-            <span class="dot <%= relay_dot %>" role="img" aria-label="Relay status: <%= relay_label %>" title="Relay status: <%= relay_label %>"></span>
-            <span class="truncate">Browser Tasks</span>
-            <% if relay[:open].positive? %>
-              <span class="ml-auto text-[10.5px] tabular font-mono <%= relay[:waiting].positive? ? 'text-[color:var(--color-fail-ink)]' : 'text-[color:var(--color-ink-faint)]' %>">
-                <%= relay[:open] %>
-              </span>
-            <% else %>
-              <span class="clink-slug truncate max-w-[90px]">chrome</span>
-            <% end %>
-          <% end %>
-
-          <%# Conversations hub — every CLI session, grouped by project %>
-          <%= link_to work_queue_path, class: "clink #{controller_name == 'work_queue' ? 'clink-active' : ''}" do %>
-            <span class="dot dot-idle" aria-hidden="true"></span>
-            <span class="truncate">Work Queue</span>
-            <span class="clink-slug truncate max-w-[90px]">live</span>
-          <% end %>
-
-          <% convo_active = controller_name == "conversations" %>
-          <%= link_to conversations_path, class: "clink #{convo_active ? 'clink-active' : ''}" do %>
-            <span class="dot dot-idle" aria-hidden="true"></span>
-            <span class="truncate">Conversations</span>
-            <% if conversations_total.positive? %>
-              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-ink-faint)]"><%= conversations_total %></span>
-            <% else %>
-              <span class="clink-slug truncate max-w-[90px]">cli</span>
-            <% end %>
-          <% end %>
-
-          <%# Cross-project review queue — every in_review item in one place %>
-          <% review_active = controller_name == "reviews"
-             review_count  = review_queue_count %>
-          <%= link_to review_path, class: "clink #{review_active ? 'clink-active' : ''}" do %>
-            <span class="dot <%= review_count.positive? ? 'dot-pass' : 'dot-idle' %>" role="img" aria-label="Items awaiting review: <%= review_count %>" title="Items awaiting review: <%= review_count %>"></span>
-            <span class="truncate">Review queue</span>
-            <% if review_count.positive? %>
-              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-pass-ink)]"><%= review_count %></span>
-            <% else %>
-              <span class="clink-slug truncate max-w-[90px]">prs</span>
-            <% end %>
-          <% end %>
-
-          <%# Cross-project approvals inbox — items parked waiting on the human %>
-          <% approvals_active = controller_name == "approvals"
-             appr_count = approvals_count %>
-          <%= link_to approvals_path, class: "clink #{approvals_active ? 'clink-active' : ''}" do %>
-            <span class="dot <%= appr_count.positive? ? 'dot-pass' : 'dot-idle' %>" role="img" aria-label="Items awaiting you: <%= appr_count %>" title="Items awaiting you: <%= appr_count %>"></span>
-            <span class="truncate">Approvals</span>
-            <% if appr_count.positive? %>
-              <span class="ml-auto text-[10.5px] tabular font-mono text-[color:var(--color-amber-ink)]"><%= appr_count %></span>
-            <% else %>
-              <span class="clink-slug truncate max-w-[90px]">inbox</span>
-            <% end %>
-          <% end %>
-
-          <%# Calendar — every recurring job: myjira/Claude schedules, cron, timers %>
-          <%= link_to calendar_path, class: "clink #{controller_name.start_with?('calendar') ? 'clink-active' : ''}" do %>
-            <span class="dot dot-idle" aria-hidden="true"></span>
-            <span class="truncate">Calendar</span>
-            <span class="clink-slug truncate max-w-[90px]">cron</span>
-          <% end %>
-        </nav>
 
         <!-- Footer -->
-        <div class="hair-t px-3 py-3 space-y-1">
-          <%= link_to projects_path, class: "clink text-[12.5px]" do %>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
-            All projects
-          <% end %>
-          <a href="/api/v1/spec" target="_blank" class="clink text-[12.5px]">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 8 5-4 5 4M7 16l5 4 5-4M12 4v16"/></svg>
-            API spec
-            <span class="clink-slug">json</span>
-          </a>
+        <div class="hair-t px-3 py-3 space-y-1 shrink-0">
           <div class="flex items-center justify-between px-[10px] pt-2 text-[10.5px] text-[color:var(--color-ink-faint)]">
             <span class="font-mono">localhost:1200</span>
             <span class="pill pill-quiet">local</span>

@@ -172,6 +172,9 @@ Rails.application.routes.draw do
     get :detail, to: "work_queue#detail"
   end
 
+  # Every project's documents in one list (the per-project pages stay nested above).
+  get "documents", to: "document_library#index", as: :documents
+
   # Captured Claude CLI conversations (one thread per CLI session).
   resources :conversations, only: [:index, :show] do
     collection { get :live }
@@ -193,6 +196,8 @@ Rails.application.routes.draw do
 
   # Shared CLI ⇄ Claude-in-Chrome relay channel (usually under the "general" project).
   resources :browser_tasks, only: [:index, :show] do
+    # Cancel every relay ticket with no activity for a day (optionally ?project_id=).
+    collection { post :cancel_stale }
     member do
       post :kickoff
       post :run_in_chrome

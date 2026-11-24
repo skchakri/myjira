@@ -9,6 +9,8 @@ export default class extends Controller {
     this._onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
+        // The filter lives inside the sidebar's "More" group; open it first.
+        this.inputTarget.closest("details")?.setAttribute("open", "")
         this.inputTarget.focus()
         this.inputTarget.select()
       }
