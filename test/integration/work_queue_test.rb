@@ -298,6 +298,45 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_not Dir.exist?(File.join(@dir, "attachments", "home-me-app", "2"))
   end
 
+  test "cards and the cost page show what the server runner spent" do
+    writer = WorkQueue::QueueWriter.new(dir: @dir)
+    writer.add("home-me-app", title: "Child", parent: 1)
+    writer.add("home-me-app", title: "No cost")
+    WorkQueue::RunState.record_phase("home-me-app:1", { phase: "plan", model: "claude-sonnet-5-5", effort: "high", cost_usd: 0.5 })
+    WorkQueue::RunState.record_phase("home-me-app:2", { phase: "implement", model: "claude-opus-5-5", effort: "high", cost_usd: 0.74 })
+
+    get work_queue_path
+    assert_response :ok
+    assert_select "#wq_item_home-me-app_1 .wq-cost", text: "$1.24"
+    assert_select "#wq_item_home-me-app_2 .wq-cost", text: "$0.74"
+    assert_select "#wq_item_home-me-app_3 .wq-cost", 0
+    assert_select "a[href=?]", work_queue_costs_path
+
+    get work_queue_costs_path
+    assert_response :ok
+    assert_select ".wq-cost-tiles dd", text: "$1.24"
+    assert_select ".wq-cost-days .wq-cost-day", WorkQueue::Costs::DAYS
+    assert_select "td", text: "sonnet-5-5"
+    assert_select "a.wq-link", text: /#2 Child/
+    assert_includes response.body, "CLI sessions is not counted"
+  end
+
+  test "settings show the retry ladder and save a project's daily budget without resetting routing" do
+    WorkQueue::RunState.save_routing("plan" => { "model" => "claude-opus-5-5", "effort" => "medium" })
+    patch work_queue_settings_path, params: { slug: "home-me-app", daily_budget: "7.5" }
+    assert_redirected_to work_queue_settings_path(slug: "home-me-app")
+    assert_in_delta 7.5, WorkQueue::RunState.daily_budget("home-me-app")
+    assert_equal "claude-opus-5-5", WorkQueue::RunState.routing.dig("plan", "model"), "a per-project form leaves the routing table alone"
+
+    get work_queue_settings_path(slug: "home-me-app")
+    assert_select "#daily_budget[value=?]", "7.50"
+    assert_select "#wq-ladder-h"
+    assert_select "td", text: /opus-5-5 · high/
+
+    patch work_queue_settings_path, params: { slug: "home-me-app", daily_budget: "" }
+    assert_nil WorkQueue::RunState.daily_budget("home-me-app")
+  end
+
   test "settings save a validated routing table" do
     patch work_queue_settings_path, params: { routing: { plan: { model: "claude-sonnet-5-5", effort: "max" }, implement: { model: "nope", effort: "low" } } }
     assert_redirected_to work_queue_settings_path

@@ -18,13 +18,14 @@ module WorkQueue
 
     def record_phase(key, row)
       redis.rpush("#{PREFIX}:phases:#{key}", row.merge(at: Time.current.iso8601).to_json)
+      Costs.add(key, row[:cost_usd] || row["cost_usd"], phase: row[:phase] || row["phase"], model: row[:model] || row["model"])
     end
 
     def phases(key) = redis.lrange("#{PREFIX}:phases:#{key}", 0, -1).map { |r| JSON.parse(r) }
 
     def project(slug)
       raw = redis.get("#{PREFIX}:project:#{slug}")
-      { "always_allow" => [], "model" => nil, "effort" => nil }.merge(raw ? JSON.parse(raw) : {})
+      { "always_allow" => [], "model" => nil, "effort" => nil, "daily_budget" => nil }.merge(raw ? JSON.parse(raw) : {})
     end
 
     def save_project(slug, attrs) = redis.set("#{PREFIX}:project:#{slug}", project(slug).merge(attrs.stringify_keys).to_json)
@@ -35,6 +36,15 @@ module WorkQueue
     end
 
     def save_routing(table) = redis.set("#{PREFIX}:routing", table.to_json)
+
+    # Daily budget in dollars for a project's server runs (nil = none). Items that
+    # arrive after it is spent are held, and released when the project is under it again.
+    def daily_budget(slug) = project(slug)["daily_budget"].to_f.then { |b| b.positive? ? b : nil }
+    def over_budget?(slug) = (b = daily_budget(slug)) ? Costs.today(slug) >= b : false
+    def hold(slug, key) = redis.sadd("#{PREFIX}:held:#{slug}", key)
+    def held(slug) = redis.smembers("#{PREFIX}:held:#{slug}")
+    def release(slug, key) = redis.srem("#{PREFIX}:held:#{slug}", key)
+    def held_slugs = redis.scan_each(match: "#{PREFIX}:held:*").map { |k| k.delete_prefix("#{PREFIX}:held:") }
 
     # Commands for the supervisor: start / answer / continue / stop / allow.
     def enqueue(action, key, **extra) = redis.rpush(JOBS, extra.merge(action: action, key: key).to_json)

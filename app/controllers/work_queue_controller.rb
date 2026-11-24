@@ -12,7 +12,7 @@ class WorkQueueController < ApplicationController
 
   MAX_ENTRIES = 400
 
-  before_action :load_item, except: %i[index group create settings update_settings]
+  before_action :load_item, except: %i[index group create settings update_settings costs]
 
   # The list only. Git/PR status comes from WorkQueue::StatusCache (refreshed by
   # the watcher); the selected item's detail loads separately into the frame.
@@ -70,7 +70,7 @@ class WorkQueueController < ApplicationController
     approve_for_run
     return respond_with_dispatch(dispatcher.run_now, "Run now sent for ##{@item.n}") if dispatcher.listening?
 
-    start_server(@item.key, relay: params[:relay] == "1")
+    start_server(@item.key, relay: params[:relay] == "1", force: true) # Run now also overrides a spent daily budget
     toast(runner_note("##{@item.n} queued to run on the server"), :ok)
   end
 
@@ -122,21 +122,30 @@ class WorkQueueController < ApplicationController
     toast(attrs["override_model"].present? ? "##{@item.n}: #{params[:model]} / #{params[:effort]}#{' (locked)' if attrs['lock_model'] == '1'}" : "##{@item.n}: auto routing", :ok)
   end
 
+  # What the server runner has spent: totals, the last 14 days, per project, per phase and model.
+  def costs
+    @costs = WorkQueue::Costs.overview
+    @store = WorkQueue::Store.new
+    @budgets = @costs.projects.to_h { |row| [row[:slug], WorkQueue::RunState.daily_budget(row[:slug])] }
+  end
+
   def settings
     @routing = WorkQueue::RunState.routing
     @projects = WorkQueue::Workspace.choices
     @slug = params[:slug].presence if params[:slug].to_s.match?(/\A[A-Za-z0-9-]+\z/)
     @rules = @slug ? WorkQueue::RunState.project(@slug)["always_allow"] : []
+    @budget = @slug ? WorkQueue::RunState.daily_budget(@slug) : nil
   end
 
   def update_settings
-    table = WorkQueue::Router::PHASES.to_h do |ph|
-      m, e = params.dig(:routing, ph, :model), params.dig(:routing, ph, :effort)
-      [ph, WorkQueue::Router.valid?(m, e) ? { "model" => m, "effort" => e } : WorkQueue::Router::DEFAULTS[ph]]
-    end
-    WorkQueue::RunState.save_routing(table)
+    save_routing_table if params.key?(:routing) # the per-project forms below must not reset the table
     slug = params[:slug].to_s
     notice = "Saved"
+    if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:daily_budget)
+      budget = params[:daily_budget].to_s.strip.to_f
+      WorkQueue::RunState.save_project(slug, "daily_budget" => budget.positive? ? budget.round(2) : nil)
+      notice = budget.positive? ? "Daily budget set to $#{format('%.2f', budget)}" : "Daily budget removed"
+    end
     if slug.match?(/\A[A-Za-z0-9-]+\z/) && params.key?(:rules)
       raw = Array(params[:rules]).map(&:to_s) + params[:new_rules].to_s.split("\n")
       raw -= Array(params[:delete_rules]).map(&:to_s)
@@ -273,11 +282,19 @@ class WorkQueueController < ApplicationController
     @item.awaiting_approval = false
   end
 
+  def save_routing_table
+    table = WorkQueue::Router::PHASES.to_h do |ph|
+      m, e = params.dig(:routing, ph, :model), params.dig(:routing, ph, :effort)
+      [ph, WorkQueue::Router.valid?(m, e) ? { "model" => m, "effort" => e } : WorkQueue::Router::DEFAULTS[ph]]
+    end
+    WorkQueue::RunState.save_routing(table)
+  end
+
   def dispatcher = @dispatcher ||= WorkQueue::Dispatcher.new(@item)
   def writer = @writer ||= WorkQueue::QueueWriter.new
 
-  def start_server(key, relay: false)
-    WorkQueue::RunState.enqueue("start", key, relay: relay)
+  def start_server(key, relay: false, force: false)
+    WorkQueue::RunState.enqueue("start", key, relay: relay, **(force ? { force: true } : {}))
   end
 
   def runner_action(action, message, **extra)

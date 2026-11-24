@@ -30,6 +30,7 @@ module WorkQueue
         reap
         fill_slots
         bundle_tick
+        release_held
         heartbeat
       rescue JSON::ParserError
         next
@@ -84,6 +85,22 @@ module WorkQueue
       end
     end
 
+    # Items held for a project's daily budget start once the project is under it again
+    # (a new day, or a raised budget).
+    def release_held
+      return if @held_at && @held_at > 1.minute.ago
+
+      @held_at = Time.current
+      RunState.held_slugs.each do |slug|
+        next if RunState.over_budget?(slug)
+
+        RunState.held(slug).each do |key|
+          run = RunState.get(key)
+          queue_start(key, { "phase" => run["phase"], "attempts" => run["attempts"], "relay" => run["mode"] == "relay" })
+        end
+      end
+    end
+
     def running_count = @mutex.synchronize { @threads.count { |_, t| t.alive? } }
 
     private
@@ -92,8 +109,26 @@ module WorkQueue
       item = @store.find(key) or return
       RunState.set(key, { "phase" => job["phase"].presence || (job["relay"] ? "relay" : "plan"),
                           "attempts" => job["attempts"].to_i, "mode" => job["relay"] ? "relay" : "build" })
+      return if hold_for_budget(item, key, job)
+
       RunState.redis.rpush("#{RunState::PREFIX}:waiting", key) unless RunState.redis.lrange("#{RunState::PREFIX}:waiting", 0, -1).include?(key)
       @writer.set_status(item.slug, item.n, "queued", log: "Queued to run on the server") if %w[triage blocked].include?(item.status)
+    end
+
+    # True when the project has spent today's budget and this start was not forced (Run now).
+    def hold_for_budget(item, key, job)
+      if job["force"].present? || !RunState.over_budget?(item.slug)
+        RunState.release(item.slug, key)
+        return false
+      end
+
+      RunState.hold(item.slug, key)
+      spent = format("%.2f", Costs.today(item.slug))
+      budget = format("%.2f", RunState.daily_budget(item.slug))
+      @writer.update(item.slug, item.n, log: "Daily budget reached ($#{spent} of $#{budget} today): waits until tomorrow, or press Run now") do |i|
+        i["status"] = "queued" if %w[triage blocked].include?(i["status"])
+      end
+      true
     end
 
     def fill_slots

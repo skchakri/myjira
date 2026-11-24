@@ -846,6 +846,30 @@ html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 .wq-kid-note { color: var(--wq-run); }
 @media (prefers-reduced-motion: reduce) { .wq-prog-bar i { transition: none; } }
 @media (max-width: 720px) { .wq-rel.wq-rel-kid { grid-template-columns: 10px minmax(0, 1fr) auto; } .wq-rel-kid .wq-rel-l { grid-column: 2 / -1; text-align: left; } }
+/* ---- Work Queue costs: the tag on cards, and the /work_queue/costs page ---- */
+.wq-cost { font: 500 10.5px var(--font-mono); color: var(--color-ink-soft); white-space: nowrap; }
+.wq-node-s .wq-cost { margin-left: auto; padding-left: 6px; }
+/* The page sits outside .wq, so it repeats that scope's one series colour (same values as --wq-run there). */
+.wq-costs { max-width: 1100px; --wq-run: #0E7490; }
+html[data-theme="dark"] .wq-costs { --wq-run: #67E8F9; }
+.wq-num { text-align: right !important; white-space: nowrap; }
+.wq-cost-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0 0; }
+.wq-cost-tiles > div { padding: 12px 14px; border: 1px solid var(--color-hair); border-radius: 10px; background: var(--color-paper-raised); }
+.wq-cost-tiles dt { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--color-ink-faint); }
+.wq-cost-tiles dd { margin: 4px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em; color: var(--color-ink); font-variant-numeric: tabular-nums; }
+.wq-cost-days { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; align-items: end; list-style: none; margin: 10px 0 0; padding: 0; }
+.wq-cost-day { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 0 3px; border-radius: 6px; }
+.wq-cost-day:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 2px; }
+.wq-cost-bar { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: 120px; border-bottom: 1px solid var(--color-hair); }
+.wq-cost-bar i { display: block; width: 100%; max-width: 28px; min-height: 0; border-radius: 4px 4px 0 0; background: var(--wq-run); }
+.wq-cost-day-on .wq-cost-bar i { min-height: 2px; }
+.wq-cost-day:hover .wq-cost-bar i, .wq-cost-day:focus-visible .wq-cost-bar i { background: color-mix(in srgb, var(--wq-run) 70%, var(--color-ink)); }
+.wq-cost-val { font: 500 10.5px var(--font-mono); color: var(--color-ink-soft); white-space: nowrap; visibility: hidden; }
+.wq-cost-val-show, .wq-cost-day:hover .wq-cost-val, .wq-cost-day:focus-visible .wq-cost-val { visibility: visible; }
+.wq-cost-date { font: 500 10.5px var(--font-mono); color: var(--color-ink-faint); white-space: nowrap; }
+.wq-cost-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; margin-top: 16px; align-items: start; }
+@media (max-width: 900px) { .wq-cost-grid { grid-template-columns: 1fr; } }
+/* ---- end Work Queue costs ---- */
 .wq-repo { font-size: 10.5px; line-height: 1.5; color: var(--color-ink-soft); border: 1px solid var(--color-hair); border-radius: 4px; padding: 0 5px; white-space: nowrap; }
 .wq-node-q { font-size: 11px; font-weight: 600; color: var(--wq-you); flex-shrink: 0; }
 .wq-leaf-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--color-ink-faint); white-space: nowrap; margin-right: 3px; align-self: center; }
