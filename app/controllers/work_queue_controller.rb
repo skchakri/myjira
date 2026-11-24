@@ -136,6 +136,9 @@ class WorkQueueController < ApplicationController
     @projects = WorkQueue::Workspace.choices
     @slug = params[:slug].presence if params[:slug].to_s.match?(/\A[A-Za-z0-9-]+\z/)
     @rules = @slug ? WorkQueue::RunState.project(@slug)["always_allow"] : []
+    @repo = @slug && WorkQueue::Workspace.repo_for(@slug)
+    @packs_detected = WorkQueue::PermissionRules.pack_names(@repo)
+    @packs_off = @slug ? Array(WorkQueue::RunState.project(@slug)["packs_off"]) : []
   end
 
   def update_settings
@@ -151,7 +154,9 @@ class WorkQueueController < ApplicationController
       raw -= Array(params[:delete_rules]).map(&:to_s)
       allow = WorkQueue::PermissionRules.clean(raw)
       skipped = raw.map(&:strip).compact_blank.uniq.size - allow.size
-      WorkQueue::RunState.save_project(slug, "always_allow" => allow)
+      attrs = { "always_allow" => allow }
+      attrs["packs_off"] = WorkQueue::PermissionRules::PACKS.keys - Array(params[:packs]).map(&:to_s) if params[:packs_shown] == "1"
+      WorkQueue::RunState.save_project(slug, attrs)
       notice = "Saved #{allow.size} rule#{'s' unless allow.size == 1}#{"; skipped #{skipped} invalid" if skipped.positive?}"
     end
     redirect_to work_queue_settings_path(slug: slug.presence), notice: notice
@@ -249,8 +254,20 @@ class WorkQueueController < ApplicationController
     head :not_found unless @item
   end
 
+  ALLOW_ALL = { "once" => "Allow once", "always" => "Always allow in this project" }.freeze
+
+  # "Allow all N": the chosen grant for every open permission question, plus
+  # whatever was picked or typed for the other questions.
+  def allow_all_pairs
+    text = ALLOW_ALL[params[:allow_all].to_s] or return []
+
+    @item.questions.each_with_index.filter_map do |q, i|
+      [i, text] if q.open? && WorkQueue::PermissionRules.permission_question?(q.q) && q.options.include?(text)
+    end
+  end
+
   def answer_pairs
-    return [[params[:index].to_i, params[:text].to_s.strip]].reject { |_, t| t.blank? } unless params.key?(:answers) || params.key?(:custom)
+    return [[params[:index].to_i, params[:text].to_s.strip]].reject { |_, t| t.blank? } unless params.key?(:answers) || params.key?(:custom) || params.key?(:allow_all)
 
     picked = params.permit(answers: {})[:answers].to_h
     custom = params.permit(custom: {})[:custom].to_h
@@ -258,7 +275,7 @@ class WorkQueueController < ApplicationController
       index = Integer(k, exception: false)
       text = custom[k].to_s.strip.presence || picked[k].to_s.strip
       [index, text] if index && text.present? && @item.questions[index]
-    end.sort_by(&:first)
+    end.then { |picked_pairs| (allow_all_pairs + picked_pairs).uniq(&:first) }.sort_by(&:first)
   end
 
   def answer_on_server(index, text)

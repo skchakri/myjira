@@ -128,6 +128,64 @@ class WorkQueueRunnerTest < ActiveSupport::TestCase
     assert_equal ["Bash(git push:*)", "WebFetch"], WorkQueue::PermissionRules.clean(["Bash(git push:*)", "WebFetch", "x y", ""])
   end
 
+  test "a command allowed once twice becomes a project rule and is logged on the item" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    2.times do
+      WorkQueue::RunState.set(key, { "pending_permissions" => [{ tool_name: "Bash", tool_input: { command: "make lint" } }].to_json })
+      sup.send(:answer_prompt, key, { "text" => "Allow once" })
+    end
+    assert_equal ["Bash(make lint:*)"], WorkQueue::RunState.project("home-me-x")["always_allow"]
+    assert(@store.find(key).log.any? { |l| l["text"] == "Now always allowed in this project: Bash(make lint:*)" })
+  end
+
+  test "destructive commands never become a rule by themselves" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    3.times do
+      WorkQueue::RunState.set(key, { "pending_permissions" => [{ tool_name: "Bash", tool_input: { command: "rm -rf tmp/cache" } }].to_json })
+      sup.send(:answer_prompt, key, { "text" => "Allow once" })
+    end
+    assert_empty WorkQueue::RunState.project("home-me-x")["always_allow"]
+  end
+
+  test "denials the project's packs cover are granted without asking; the rest are asked" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    item = @store.find(key)
+    repo = Dir.mktmpdir("repo")
+    File.write(File.join(repo, "Gemfile"), "")
+    WorkQueue::RunState.set(key, { "repo" => repo })
+    wrapped = "PATH=/x/bin:$PATH GEM_HOME=/x /home/u/.rvm/bin/rvm 3.3.6 do bundle exec rspec spec/a_spec.rb -e \"one\""
+    denials = [{ "tool_name" => "Bash", "tool_input" => { "command" => wrapped } },
+               { "tool_name" => "Bash", "tool_input" => { "command" => "bash /tmp/run.sh rspec" } },
+               { "tool_name" => "Bash", "tool_input" => { "command" => "ls -la app" } }]
+    sup.send(:handle_denials, item, key, denials)
+
+    item = @store.find(key)
+    assert_equal ["Permission: Bash bash /tmp/run.sh rspec?"], item.open_questions.map(&:q)
+    assert_equal "Allow once", item.open_questions.first.options.first
+    auto = WorkQueue::RunState.project("home-me-x")["auto_allow"]
+    assert_includes auto, "Bash(PATH=/x/bin:$PATH GEM_HOME=/x /home/u/.rvm/bin/rvm 3.3.6 do bundle exec rspec:*)"
+    assert_includes auto, "Bash(ls:*)"
+    assert_equal 2, JSON.parse(WorkQueue::RunState.get(key)["permission_notes"]).size
+    assert_includes WorkQueue::PermissionRules.allowed_for("home-me-x", repo), "Bash(bundle exec rspec:*)"
+  ensure
+    FileUtils.rm_rf(repo) if repo
+  end
+
+  test "a safe command outside the enabled packs is asked with Always allow first" do
+    @writer.add("home-me-x", title: "T")
+    sup = WorkQueue::Supervisor.new(store: @store, writer: @writer)
+    key = "home-me-x:1"
+    WorkQueue::RunState.save_project("home-me-x", "packs_off" => %w[base ruby node])
+    sup.send(:handle_denials, @store.find(key), key, [{ "tool_name" => "Bash", "tool_input" => { "command" => "git status" } }])
+    assert_equal WorkQueue::Supervisor::SAFE_PERMISSION_OPTIONS, @store.find(key).open_questions.first.options
+  end
+
   test "suggestions are validated, cached and broadcast" do
     item = WorkQueue::Store::Item.new(slug: "home-me-x", n: 3, title: "T", description: "d")
     out = { structured_output: { answers: ["Yes", " Yes ", "No", ""] } }.to_json

@@ -715,6 +715,7 @@ export default class extends Controller {
       case "?": this.toggleHelp(); break
       case "n": this.composerTarget.setAttribute("open", ""); this.composerTextTarget.focus(); break
       case "s": this.element.querySelector(".wq-log-h form[action$='/stop'] button")?.click(); break
+      case "a": this.questionTargets[0]?.querySelector("[data-allow-all]")?.click(); break
       default:
         if (/^[1-4]$/.test(e.key)) this.questionTargets[0]?.querySelector(`[data-option="${e.key}"]`)?.click()
         else return
