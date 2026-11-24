@@ -20,7 +20,11 @@ module WorkQueue
     # Check-run conclusions / status-context states that count as red.
     FAILED = %w[FAILURE TIMED_OUT CANCELLED ERROR STARTUP_FAILURE].freeze
 
-    def self.gh? = system("command -v gh >/dev/null 2>&1")
+    # Asked before every gh call; whether gh is installed does not change while we run.
+    def self.gh?
+      @gh = system("command -v gh >/dev/null 2>&1") if @gh.nil?
+      @gh
+    end
 
     def initialize(runner: method(:gh))
       @runner = runner

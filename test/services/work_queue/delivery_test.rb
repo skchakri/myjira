@@ -49,6 +49,30 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
     assert_equal ["ci_failed", ["CI"]], [s.state, s.failed]
   end
 
+  test "which commit contains which is remembered across restarts, but a failed lookup is not" do
+    redis = WorkQueue::StatusCache.redis
+    redis.scan_each(match: "#{WorkQueue::RunState::PREFIX}:contains:*") { |k| redis.del(k) }
+    ok = { head_sha: "d1", status: "completed", conclusion: "success" }
+    compares = 0
+    runner = lambda do |up|
+      lambda do |_api, path|
+        case path
+        when %r{/workflows/\d+/runs} then [{ workflow_runs: [ok] }.to_json, true]
+        when %r{/actions/workflows\z} then [{ workflows: [DEPLOY] }.to_json, true]
+        when %r{/compare/} then (compares += 1) && (up ? [{ status: "ahead" }.to_json, true] : ["", false])
+        else [{ workflow_runs: [] }.to_json, true]
+        end
+      end
+    end
+    assert_equal "not_live", WorkQueue::Delivery.new(runner: runner.(false), persist: true).compute(pr).state
+    assert_equal "live", WorkQueue::Delivery.new(runner: runner.(true), persist: true).compute(pr).state, "the failed lookup was not kept"
+    asked = compares
+    assert_equal "live", WorkQueue::Delivery.new(runner: runner.(false), persist: true).compute(pr).state
+    assert_equal asked, compares, "a new process does not ask GitHub again"
+  ensure
+    redis.scan_each(match: "#{WorkQueue::RunState::PREFIX}:contains:*") { |k| redis.del(k) }
+  end
+
   test "deploy states from main-branch deploy runs containing the merge commit" do
     ok = { head_sha: "d1", status: "completed", conclusion: "success" }
     running = { head_sha: "d1", status: "in_progress" }
