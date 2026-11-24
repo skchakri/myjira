@@ -50,6 +50,17 @@ module WorkQueue
     end
 
     # Merge PR shows on the card only when nothing linked is still open.
+    # :flag / :detected / nil — see BrowserStep.
+    def browser_step = defined?(@browser_step) ? @browser_step : (@browser_step = BrowserStep.reason(item, run))
+
+    # Why "Run in Chrome" can't reach a Chrome-capable session right now (nil when it can).
+    def chrome_blocker
+      return nil if Dispatcher.new(item).listening? || SessionLaunch.launcher_alive?
+
+      "The owning CLI session isn't listening and the session launcher daemon is down, so nothing with Chrome " \
+        "tools can pick this up. Start myjira-session-launcher.service, or paste the command into a CLI in this project."
+    end
+
     def card_merge? = item.pr.present? && item.status == "review" && dependencies.empty?
 
     # Dependency chain with PRs, parent first, for "Merge both".

@@ -123,6 +123,23 @@ class SessionLaunch < ApplicationRecord
     end
   end
 
+  # The host daemon polls #pending every few seconds; each poll stamps Redis so
+  # the web UI can tell whether a queued launch will actually be picked up.
+  LAUNCHER_SEEN_KEY = (Rails.env.test? ? "myjira:test:launcher:seen" : "myjira:launcher:seen").freeze
+  LAUNCHER_WINDOW = 30.seconds
+
+  def self.launcher_seen!
+    WorkQueue::Broadcaster.redis.set(LAUNCHER_SEEN_KEY, Time.current.to_i, ex: LAUNCHER_WINDOW.to_i)
+  rescue StandardError
+    nil
+  end
+
+  def self.launcher_alive?
+    WorkQueue::Broadcaster.redis.exists?(LAUNCHER_SEEN_KEY)
+  rescue StandardError
+    false
+  end
+
   def done?
     %w[launched failed canceled].include?(status)
   end

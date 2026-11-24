@@ -155,6 +155,8 @@ Rails.application.routes.draw do
   patch "work_queue/settings", to: "work_queue#update_settings"
   scope "work_queue/items/:id", constraints: { id: /[^\/]+/ }, as: :work_queue_item do
     post :run, to: "work_queue#run"
+    post :run_in_chrome, to: "work_queue#run_in_chrome"
+    post :browser, to: "work_queue#browser"
     post :answer, to: "work_queue#answer"
     post :instruct, to: "work_queue#instruct"
     post :children, to: "work_queue#add_child"

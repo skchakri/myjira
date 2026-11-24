@@ -265,4 +265,20 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_redirected_to work_queue_settings_path(slug: "home-me-app")
     assert_equal ["Bash(ls -la:*)", "Bash(git push:*)"], WorkQueue::RunState.project("home-me-app")["always_allow"]
   end
+
+  test "flagging an item as a browser step shows Run in Chrome, and the reason when nothing can run it" do
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "form[action=?]", work_queue_item_run_in_chrome_path("home-me-app:1"), 0
+    post work_queue_item_browser_path("home-me-app:1"), params: { value: "1" }, as: :turbo_stream
+    SessionLaunch.stub(:launcher_alive?, false) do
+      get work_queue_item_detail_path("home-me-app:1")
+      assert_select "form[action=?] button.wq-btn-chrome", work_queue_item_run_in_chrome_path("home-me-app:1"), text: /Run in Chrome/
+      assert_select ".wq-chrome-blocked", text: /launcher daemon is down/
+      post work_queue_item_run_in_chrome_path("home-me-app:1"), as: :turbo_stream
+      assert_match(/Not sent:.*isn&#39;t polling|Not sent:.*isn't polling/, response.body)
+      assert_match(/Copy command/, response.body)
+    end
+  ensure
+    WorkQueue::RunState.del_fields("home-me-app:1", "browser")
+  end
 end
