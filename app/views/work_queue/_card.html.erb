@@ -31,6 +31,12 @@
     </span>
     <% if qs.positive? %><span class="wq-node-q" title="<%= pluralize(qs, 'open question') %>"><%= qs %> ?</span><% end %>
   <% end %>
+  <% if flow.stalled? %>
+    <%= button_to work_queue_item_resume_path(item.key), class: "wq-icon-btn wq-icon-btn-bad", title: "Resume (it stalled)", "aria-label": "Resume task #{item.n}",
+                  form: { data: { turbo_stream: true }, class: "wq-run-form" } do %>
+      <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/></svg>
+    <% end %>
+  <% end %>
   <% if item.pending? %>
     <% run_label = item.awaiting_approval ? "Approve & queue" : "Run now" %>
     <%= button_to work_queue_item_run_path(item.key), class: "wq-icon-btn", title: "#{run_label} (r)", "aria-label": "#{run_label}: task #{item.n}",

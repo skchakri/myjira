@@ -35,6 +35,17 @@ module WorkQueue
       )
     end
 
+    # "Resume" on a stalled item: no activity for a while, its agent has probably ended.
+    def resume
+      deliver(
+        "Item ##{@item.n} (#{@item.title}) is marked running but has shown no activity for a while (Resume from the " \
+        "myjira Work Queue). Check its agent (#{@item.agent || 'none'}): if it is still working, log a one-line status " \
+        "with op \"update\" n #{@item.n}; if it ended, continue the work with SendMessage or a new worktree Agent and " \
+        "update the queue.#{follow_up_note}",
+        copy: "/item#{@item.n} resume — it stalled"
+      )
+    end
+
     def answer(index, text)
       q = @item.questions[index]
       deliver(

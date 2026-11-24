@@ -21,6 +21,7 @@ module WorkQueue
       @offsets = {}
       @parsers = {}
       @listening = {}
+      @stalled = nil
     end
 
     def start
@@ -67,10 +68,23 @@ module WorkQueue
         end.each(&:join)
       end
       list = Array.new(changed.size) { changed.pop }
+      list |= stall_changes(items)
       Broadcaster.cards_changed(list) if list.any?
       refresh_listeners(items.select(&:open?))
     rescue StandardError => e
       @logger.error("[work-queue] status refresh failed: #{e.class}: #{e.message}")
+    end
+
+    # Running items that crossed the stall threshold (or came back to life) since the
+    # last sweep. Their queue file did not change, so nothing else would redraw them.
+    def stall_changes(items)
+      running = items.select { |i| i.status == "running" }
+      now = running.select { |i| ItemContext.new(i, store: @store).flow.stalled? }.to_set(&:key)
+      was = @stalled
+      @stalled = now
+      return [] if was.nil?
+
+      running.select { |i| was.include?(i.key) != now.include?(i.key) }
     end
 
     def refresh_listeners(items)

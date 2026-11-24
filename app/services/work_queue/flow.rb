@@ -20,6 +20,7 @@ module WorkQueue
       "merge" => "Look at the changes and merge the PR.",
       "review" => "Look at the changes; there is no PR to merge yet.",
       "bad" => "Check the log below, then retry or tell the agent what to do.",
+      "stalled" => "Resume it, or tell the agent what to do.",
       "bundle" => "Nothing. It ships in one PR with its parent and follow-ups once they are all built.",
       "run" => "Nothing yet. It moves on by itself.",
       "notlive" => "Nothing. It goes live with the next deploy.",
@@ -27,6 +28,9 @@ module WorkQueue
       "ok" => "Nothing.",
       "closed" => "Nothing."
     }.freeze
+
+    # A running item with no sign of life for this long reads "Stalled" instead of "Building".
+    STALL_AFTER = 30.minutes
 
     attr_reader :item, :tone, :label, :step, :tags
 
@@ -38,6 +42,21 @@ module WorkQueue
     end
 
     def closed? = tags.include?("closed")
+    def stalled? = tags.include?("stalled")
+
+    # Seconds a running item has shown no activity, once past STALL_AFTER; nil otherwise.
+    # Activity is the context's view (queue log, transcript file, live runner process);
+    # without a context only the queue file's own timestamp is known.
+    def stalled_for
+      return @stalled_for if defined?(@stalled_for)
+
+      @stalled_for = begin
+        at = (@context.last_activity if @context.respond_to?(:last_activity)) || item.updated_at
+        idle = at && Time.current - at
+        alive = @context.respond_to?(:live_pid?) && @context.live_pid?
+        idle if item.status == "running" && !alive && idle && idle >= STALL_AFTER
+      end
+    end
     def your_part = YOUR_PART.fetch(@part)
 
     # Queue log lines that say nothing to a person: status arrows, routing picks, worktree paths.
@@ -51,6 +70,7 @@ module WorkQueue
 
       lines = item.log.map { |l| l["text"].to_s.strip }.compact_blank
       now = NOW[label] if item.status == "running"
+      now = "No activity since #{(Time.current - stalled_for).strftime('%b %-d %H:%M')}. The session that ran it has probably ended." if stalled?
       return now if now && (lines.empty? || lines.last.match?(NOISE))
 
       lines.reverse.find { |t| !t.match?(NOISE) } || now || "Nothing recorded yet."
@@ -154,6 +174,9 @@ module WorkQueue
     end
 
     def running_state
+      phase = @context&.run&.dig("phase").to_s
+      return ["bad", "Stalled: no activity for #{idle_words(stalled_for)}", RUN_STEP.fetch(phase, 2), %w[bad you stalled], "stalled"] if stalled_for
+
       case @context&.run&.dig("phase")
       when "plan" then ["run", "Planning", 1, %w[run], "run"]
       when "review" then ["run", "Testing", 4, %w[testing], "run"]
@@ -171,6 +194,16 @@ module WorkQueue
       return ["run", "Testing together", 4, %w[testing], "run"] if delivery&.state == "testing"
 
       ["you", bundled_label || "Ready to merge", 3, %w[you merge], "merge"]
+    end
+
+    RUN_STEP = { "plan" => 1, "review" => 4 }.freeze
+
+    def idle_words(seconds)
+      minutes = (seconds / 60).floor
+      return "#{minutes}m" if minutes < 60
+      return "#{minutes / 60}h" if minutes < 48 * 60
+
+      "#{minutes / 1440}d"
     end
 
     def bundled_label = item.bundle_info["pr"] && item.pr_number ? "Bundled → PR ##{item.pr_number}" : nil

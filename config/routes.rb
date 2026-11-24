@@ -166,6 +166,7 @@ Rails.application.routes.draw do
     post :deploy, to: "work_queue#deploy"
     post :stop, to: "work_queue#stop"
     post :retry, to: "work_queue#retry_run"
+    post :resume, to: "work_queue#resume"
     post :close_relay_tabs, to: "work_queue#close_relay_tabs"
     post :model, to: "work_queue#model"
     get :detail, to: "work_queue#detail"

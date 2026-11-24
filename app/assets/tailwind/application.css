@@ -660,6 +660,9 @@ html[data-theme="dark"] .wq-btn-primary { color: #1a1410; }
 .wq-drop-no { border-color: var(--color-fail-ink); cursor: not-allowed; opacity: .7; }
 .wq-run-form { display: inline; }
 .wq-icon-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: var(--color-amber-ink); border: 1px solid var(--color-hair); cursor: pointer; flex-shrink: 0; transition: background .15s; }
+/* Stalled items (#18): the card's Resume button reads as a problem, not a next step. */
+.wq-icon-btn-bad { color: var(--wq-bad); border-color: color-mix(in srgb, var(--wq-bad) 45%, var(--color-hair)); }
+.wq-icon-btn-bad:hover { background: var(--color-fail-wash); }
 .wq-icon-btn:hover { background: var(--color-amber-wash); }
 .wq-icon-btn:focus-visible { outline: 2px solid var(--color-amber-ink); outline-offset: 1px; }
 .wq-pop { position: relative; }
