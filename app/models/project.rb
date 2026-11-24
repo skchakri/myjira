@@ -69,6 +69,58 @@ class Project < ApplicationRecord
     "other"
   end
 
+  # --- Agent worktrees -------------------------------------------------------
+
+  # An agent's git worktree is a second checkout of a repo, not a project of its
+  # own. Two layouts are recognised, by path alone (no git, no shelling out):
+  #   <repo>/.claude/worktrees/<name>   Claude Code agent worktrees
+  #   <repo>-wq-<n>                     Work Queue runner worktrees
+  WORKTREE_INSIDE  = %r{\A(.+?)/\.claude/worktrees/[^/]+}
+  WORKTREE_SIBLING = %r{\A(.+?)-wq-\d+(?:/.*)?\z}
+
+  # The repo a path really belongs to: a worktree (or any folder inside one) maps
+  # to its parent repo, any other path comes back unchanged (minus a trailing slash). The sibling form is
+  # only trusted when the parent is a repo myjira already knows, or one on disk,
+  # so a real repo that happens to be named "foo-wq-2" is left alone.
+  def self.canonical_repo_path(path)
+    return path if path.blank?
+
+    repo = path.to_s.chomp("/")
+    if (inside = repo.match(WORKTREE_INSIDE))
+      repo = inside[1]
+    end
+    if (sibling = repo.match(WORKTREE_SIBLING)) && known_repo?(sibling[1])
+      repo = sibling[1]
+    end
+    repo
+  end
+
+  def self.worktree_path?(path)
+    path.present? && canonical_repo_path(path) != path.to_s.chomp("/")
+  end
+
+  def self.known_repo?(path)
+    where(repo_path: path).exists? || File.directory?(File.join(path, ".git"))
+  end
+
+  # The project that owns a path (a repo root or one of its worktrees): the
+  # oldest live project on the canonical repo, so a worktree's own leftover
+  # project never wins over its parent.
+  def self.for_repo_path(path)
+    repo = canonical_repo_path(path)
+    return nil if repo.blank?
+
+    where(repo_path: repo).order(Arel.sql("archived_at IS NOT NULL"), :created_at).first
+  end
+
+  def self.slug_for_name(name)
+    name.to_s.downcase.strip.gsub(/[^a-z0-9]+/, "-").squeeze("-").gsub(/\A-|-\z/, "")
+  end
+
+  def worktree?
+    self.class.worktree_path?(repo_path)
+  end
+
   def to_param
     slug
   end
@@ -294,7 +346,7 @@ class Project < ApplicationRecord
 
   def derive_slug
     return if slug.present?
-    self.slug = name.to_s.downcase.strip.gsub(/[^a-z0-9]+/, "-").squeeze("-").gsub(/\A-|-\z/, "")
+    self.slug = self.class.slug_for_name(name)
   end
 
   def assign_category

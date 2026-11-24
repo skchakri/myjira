@@ -54,6 +54,8 @@ module Api
         return @project = Project.where(slug: key).or(Project.where(id: key)).first! if key
 
         path = (params[:repo_path].presence || raw[:repo_path]).to_s.chomp("/")
+        # Inside an agent worktree: the document belongs to the parent repo's project.
+        path = Project.canonical_repo_path(path) if Project.worktree_path?(path)
         @project = Project.where.not(repo_path: [nil, ""]).select { |p|
           root = p.repo_path.chomp("/")
           path == root || path.start_with?("#{root}/")

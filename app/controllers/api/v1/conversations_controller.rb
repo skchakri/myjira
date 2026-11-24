@@ -88,14 +88,25 @@ module Api
       def upsert_project!
         pp = params.require(:project)
         slug = pp[:slug].to_s
-        repo = pp[:repo_path].presence
+        sent = pp[:repo_path].presence
+        # An agent worktree is a second checkout of its parent repo, not a project
+        # of its own: file its conversations under the parent.
+        repo = Project.canonical_repo_path(sent)
+        in_worktree = Project.worktree_path?(sent)
         # Reconcile by repo_path first: the same checkout can arrive under two
         # slug conventions (e.g. a client set up as "pyr-avon" vs. the cwd-derived
         # capture slug "avon-pyr"). Reusing the existing project for this folder
         # keeps conversations from forking a duplicate of an already-known repo.
-        project = (Project.find_by(repo_path: repo) if repo)
+        project = Project.for_repo_path(repo)
+        name = pp[:name].presence || slug
+        # First session ever seen for a repo came from one of its worktrees: name
+        # the project after the repo, not after the worktree folder.
+        if project.nil? && in_worktree
+          name = File.basename(repo)
+          slug = Project.slug_for_name(name)
+        end
         project ||= Project.find_or_create_by!(slug: slug) do |p|
-          p.name      = pp[:name].presence || slug
+          p.name      = name
           p.repo_path = repo
         end
         if repo.present? && project.repo_path != repo
