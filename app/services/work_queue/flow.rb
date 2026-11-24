@@ -19,6 +19,7 @@ module WorkQueue
       "approve" => "Approve the plan or ask for changes.",
       "merge" => "Look at the changes and merge the PR.",
       "review" => "Look at the changes; there is no PR to merge yet.",
+      "children_done" => "Nothing to merge here: every child step shipped in its own PR. Close this task.",
       "bad" => "Check the log below, then retry or tell the agent what to do.",
       "stalled" => "Resume it, or tell the agent what to do.",
       "bundle" => "Nothing. It ships in one PR with its parent and follow-ups once they are all built.",
@@ -261,8 +262,15 @@ module WorkQueue
       end
     end
 
+    # In review with no PR of its own while every child step is finished.
+    def children_done?
+      kids = @context.respond_to?(:children) ? @context.children : []
+      !item.ready_to_bundle? && ParentCloser.children_done?(kids)
+    end
+
     def review_state
       return ["wait", "Ready to bundle", 3, %w[bundle], "bundle"] if item.ready_to_bundle? && item.pr.blank?
+      return ["ok", "All child steps done", 3, %w[children_done], "children_done"] if item.pr.blank? && children_done?
       return ["you", "Ready for review", 3, %w[you], "review"] if item.pr.blank?
 
       pr = @context&.pr_status

@@ -66,6 +66,10 @@
              end %>
     <button type="button" class="wq-btn" disabled title="<%= why %>">Deploy</button>
   <% end %>
+  <% if context.flow.tags.include?("children_done") %>
+    <%= button_to "Close task", work_queue_item_close_path(item.key), class: "wq-btn wq-btn-primary",
+                  title: "Every child step is done and this task has no PR of its own", form: { data: { turbo_stream: true } } %>
+  <% end %>
   <% if item.open? %>
     <%= button_to "Mine to do", work_queue_item_errand_path(item.key), params: { op: "mark" }, class: "wq-btn wq-btn-ghost",
                   title: "This is an errand only you can do: take it out of the agent queue (stops a run in flight)",
