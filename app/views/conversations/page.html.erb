@@ -1,0 +1,4 @@
+<%# Pages 2+ of the index, fetched by the lazy frame the previous page ended with. %>
+<%= turbo_frame_tag "conv_more_#{@page}", class: "conv-more", target: "_top" do %>
+  <%= render(@view == :grouped ? "group_sections" : "card_grid") %>
+<% end %>

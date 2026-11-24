@@ -56,7 +56,7 @@ Rails.application.routes.draw do
     resources :session_launches, only: [:create]
     # Web → trigger a discovered agent/skill/command (becomes a SessionLaunch),
     # or remove one from this folder's strip.
-    resources :agents, only: [:destroy], controller: "agent_triggers" do
+    resources :agents, only: [:index, :destroy], controller: "agent_triggers" do
       member { post :trigger }
     end
     # Web → have Claude author an agent (create) or analyse the repo and propose

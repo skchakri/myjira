@@ -108,9 +108,23 @@ class Conversation < ApplicationRecord
   def display_title
     return name if name.present?
     return title if title.present?
-    first = conversation_messages.where(role: "user").order(:position).first
-    return first.body.to_s.split("\n").first.to_s.truncate(80) if first
-    "Session #{session_id.first(8)}"
+
+    @fallback_title ||= begin
+      body = defined?(@first_user_body) ? @first_user_body : conversation_messages.where(role: "user").order(:position).pick(:body)
+      body ? body.to_s.split("\n").first.to_s.truncate(80) : "Session #{session_id.first(8)}"
+    end
+  end
+
+  # Lists call this once per page so untitled sessions don't each query their
+  # first user message (display_title is read several times per card).
+  def self.preload_first_user_bodies(conversations)
+    untitled = conversations.select { |c| c.name.blank? && c.title.blank? }
+    return if untitled.empty?
+
+    bodies = ConversationMessage.where(conversation_id: untitled.map(&:id), role: "user")
+                                .select("DISTINCT ON (conversation_id) conversation_id, body")
+                                .order(:conversation_id, :position).to_h { |m| [m.conversation_id, m.body] }
+    untitled.each { |c| c.instance_variable_set(:@first_user_body, bodies[c.id]) }
   end
 
   # Unique document files this session created (Write tool → doc extension),

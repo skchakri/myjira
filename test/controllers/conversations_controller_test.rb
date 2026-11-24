@@ -45,4 +45,58 @@ class ConversationsControllerTest < ActionDispatch::IntegrationTest
     get document_conversation_path(@convo, path: "/tmp/never.md")
     assert_redirected_to conversation_path(@convo)
   end
+
+  test "the grouped hub pages folders and loads agent pills lazily" do
+    stamp = 1.minute.from_now
+    (ConversationsController::GROUPS_PER_PAGE + 1).times do |i|
+      p = Project.create!(name: "Paged #{i}", slug: "paged-#{i}-#{SecureRandom.hex(3)}", repo_path: "/tmp/paged#{i}")
+      p.conversations.create!(session_id: SecureRandom.uuid, title: "Session #{i}", last_message_at: stamp + i.seconds)
+    end
+    Agent.create!(name: "helper", kind: "agent", scope: "global", enabled: true) if Agent.enabled.where(scope: "global").none?
+
+    get conversations_path
+    assert_response :success
+    assert_select "section.conv-group", ConversationsController::GROUPS_PER_PAGE
+    assert_select "section.conv-group", text: /Paged #{ConversationsController::GROUPS_PER_PAGE}/
+    assert_select "turbo-frame#conv_more_2[loading=lazy][src*='page=2']"
+    assert_select "turbo-frame[id^=agents_strip_][loading=lazy]"
+    assert_select "form[action*='/agents/']", 0
+
+    get conversations_path(page: 2)
+    assert_response :success
+    assert_select "turbo-frame#conv_more_2 section.conv-group", minimum: 1
+    assert_select "turbo-frame#conv_more_2", text: /Paged 0/
+    assert_select "nav", 0
+  end
+
+  test "the flat view keeps its filter across pages" do
+    project = @convo.project
+    ConversationsController::PER_PAGE.times { |i| project.conversations.create!(session_id: SecureRandom.uuid, title: "Flat #{i}", last_message_at: 1.hour.from_now + i.seconds) }
+
+    get conversations_path(view: "flat")
+    assert_response :success
+    assert_select ".conv-card", ConversationsController::PER_PAGE
+    assert_select "turbo-frame#conv_more_2[src*='view=flat'][src*='page=2']"
+
+    get conversations_path(view: "flat", page: 2)
+    assert_select "turbo-frame#conv_more_2 .conv-card", minimum: 1
+  end
+
+  test "a project's sessions page inside that project" do
+    project = @convo.project
+    ConversationsController::PER_PAGE.times { |i| project.conversations.create!(session_id: SecureRandom.uuid, title: "Mine #{i}", last_message_at: 1.hour.from_now + i.seconds) }
+
+    get project_conversations_path(project)
+    assert_select ".conv-card", ConversationsController::PER_PAGE
+    assert_select "turbo-frame#conv_more_2[src^='/projects/#{project.slug}/conversations'][src*='page=2']"
+
+    get project_conversations_path(project, page: 2)
+    assert_select "turbo-frame#conv_more_2 .conv-card", 1
+  end
+
+  test "a folder's agent pills load from its own endpoint" do
+    get project_agents_path(@convo.project)
+    assert_response :success
+    assert_select "turbo-frame#agents_strip_#{@convo.project.id}"
+  end
 end
