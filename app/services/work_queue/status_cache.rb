@@ -65,9 +65,19 @@ module WorkQueue
       st = prs.fetch(item.pr)
       json = (st&.to_h || {}).to_json
       redis.set(pr_key(item.pr), json, ex: TTL)
-      json += (delivery.compute(st)&.to_h || {}).to_json.tap { |d| redis.set(delivery_key(item.pr), d, ex: TTL) }
+      json += delivery_json(item.pr, st, delivery)
       MEMO[:pr][item.pr] = [now, json]
       json
+    end
+
+    # The PR's delivery state as stored. When GitHub could not be asked (outage, rate limit)
+    # nothing is written: the last known state stays, instead of reading "not live".
+    def delivery_json(pr, status, delivery)
+      json = (delivery.compute(status)&.to_h || {}).to_json
+      redis.set(delivery_key(pr), json, ex: TTL)
+      json
+    rescue Delivery::Unavailable
+      redis.get(delivery_key(pr)).to_s
     end
 
     def git_json(item, store, force)
