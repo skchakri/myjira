@@ -105,4 +105,16 @@ class WorkQueueServicesTest < ActiveSupport::TestCase
     assert_equal "work-queue", cmd.source
     assert_includes cmd.body, "Start item #3"
   end
+
+  test "foreign_repo is set only when the item's repo differs from its project's" do
+    item = WorkQueue::Store::Item.new(slug: "home-me-proj", n: 9, repo: "/home/me/other")
+    assert_equal "/home/me/other", item.foreign_repo("/home/me/proj")
+    assert_nil item.foreign_repo("/home/me/other")
+    assert_nil WorkQueue::Store::Item.new(slug: "home-me-proj", n: 9).foreign_repo("/home/me/proj")
+  end
+
+  test "item sessions are told to pass repo for follow-ups in another repo" do
+    assert_includes WorkQueue::Dispatcher::PROTOCOL_HINT, "pass repo"
+    assert_includes WorkQueue::SessionRunner::QUESTION_PROTOCOL, "different repo"
+  end
 end

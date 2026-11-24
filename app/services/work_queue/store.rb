@@ -33,6 +33,10 @@ module WorkQueue
       # Bundle record set by WorkQueue::Bundler: {"root", "branch", "pr"} or {"root", "failed"}.
       def bundle_info = bundle.is_a?(Hash) ? bundle : {}
       def bundle_failed? = bundle_info["failed"].present?
+      # The item's own repo when it differs from its project's repo (nil otherwise).
+      def foreign_repo(project_repo = Workspace.repo_for(slug))
+        repo.presence unless repo.blank? || repo == project_repo
+      end
       def pr_number = pr.to_s[%r{/pull/(\d+)}, 1] || pr.to_s[/\A#?(\d+)\z/, 1]
     end
 

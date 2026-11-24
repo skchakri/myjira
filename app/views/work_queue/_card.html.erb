@@ -17,6 +17,7 @@
     <span class="wq-node-body">
       <span class="wq-node-t"><span class="wq-title" title="#<%= item.n %> <%= item.title %>"><span class="wq-n-tag">#<%= item.n %></span> <%= item.title %></span></span>
       <span class="wq-node-s"><%= flow.label %></span>
+      <% if (other_repo = item.foreign_repo) %><span class="wq-mono wq-repo" title="Lives in another repo: <%= other_repo %>"><%= File.basename(other_repo) %></span><% end %>
       <% if kids.any? %><span class="wq-kid-sum" title="Follow-ups of this task"><%= wq_kid_summary(kids) %></span><% end %>
     </span>
     <% if qs.positive? %><span class="wq-node-q" title="<%= pluralize(qs, 'open question') %>"><%= qs %> ?</span><% end %>
