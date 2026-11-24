@@ -8,6 +8,11 @@ module WorkQueue
     FIELD = "chrome_launch".freeze
     SENT = "chrome_sent_at".freeze
     WINDOW = BrowserTask::CHROME_RUN_WINDOW
+    # Seconds one "Run in Chrome" click holds the item, so a near-simultaneous
+    # second click can't pass the duplicate check before the first has queued.
+    LOCK_TTL = 5
+    REASON_LENGTH = 120
+    NO_REASON = "the session launcher could not start Claude".freeze
 
     module_function
 
@@ -18,7 +23,25 @@ module WorkQueue
       RunState.redis.set(reverse_key(launch.id), item.key, ex: WINDOW.to_i * 2)
     end
 
-    def sent!(item) = RunState.set(item.key, SENT => Time.current.to_i)
+    # The step went to the listening CLI instead: forget any earlier (failed) launch.
+    def sent!(item)
+      RunState.del_fields(item.key, FIELD)
+      RunState.set(item.key, SENT => Time.current.to_i)
+    end
+
+    # Runs the block while holding the item's short Redis lock (SET NX EX) and
+    # returns its value; returns nil without running it when another request holds it.
+    def exclusive(item)
+      key = lock_key(item.key)
+      token = SecureRandom.hex(8)
+      return nil unless RunState.redis.set(key, token, nx: true, ex: LOCK_TTL)
+
+      begin
+        yield
+      ensure
+        RunState.redis.del(key) if RunState.redis.get(key) == token
+      end
+    end
 
     # The launch still starting, or launched recently enough to count as working the item.
     def active_launch(run)
@@ -30,6 +53,18 @@ module WorkQueue
 
       launch if launch.status == "launched" && launch.launched_at && launch.launched_at >= WINDOW.ago
     end
+
+    # The item's last launch when it ended failed; nil once a new launch is queued
+    # (remember overwrites FIELD) or the step went to the CLI instead.
+    def failed_launch(run)
+      return nil if run[FIELD].blank?
+
+      launch = SessionLaunch.find_by(id: run[FIELD])
+      launch if launch&.status == "failed"
+    end
+
+    # Short, single-line reason for the "Launch failed" hint and the item log.
+    def failure_reason(launch) = (launch.error.to_s.squish.presence || NO_REASON).truncate(REASON_LENGTH)
 
     # When the step last went to the listening CLI, while that is still recent.
     def sent_at(run)
@@ -44,6 +79,7 @@ module WorkQueue
       item = key && Store.new.find(key)
       return unless item
 
+      note_failure(item, launch) if launch.status == "failed"
       Turbo::StreamsChannel.broadcast_replace_to(
         Broadcaster.item_stream(item.key), target: dom_id(item), partial: "work_queue/chrome_run",
         locals: { item: item, context: ItemContext.new(item, store: Store.new) }
@@ -52,6 +88,15 @@ module WorkQueue
       Rails.logger.warn("[work-queue] chrome launch refresh failed: #{e.class}: #{e.message}")
     end
 
+    # One item-log note per failed launch, however often its status is re-sent.
+    def note_failure(item, launch)
+      return unless RunState.redis.set(noted_key(launch.id), "1", nx: true, ex: WINDOW.to_i * 2)
+
+      Broadcaster.item_note(item, "Run in Chrome: launch failed: #{failure_reason(launch)}")
+    end
+
     def reverse_key(id) = "#{RunState::PREFIX}:chrome_launch:#{id}"
+    def noted_key(id) = "#{RunState::PREFIX}:chrome_failed:#{id}"
+    def lock_key(item_key) = "#{RunState::PREFIX}:chrome_lock:#{item_key}"
   end
 end
