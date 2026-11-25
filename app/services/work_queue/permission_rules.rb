@@ -36,8 +36,10 @@ module WorkQueue
       "node" => {
         label: "Node tests, lint and build",
         marker: "package.json",
+        # Repos with plain node:test files and no root package.json (e.g. a browser extension folder).
+        globs: ["*.test.{mjs,js}", "*/*.test.{mjs,js}", "*/*/*.test.{mjs,js}", "*/*/*/*.test.{mjs,js}"],
         prefixes: ["npm test", "npm run lint", "npm run test", "npm run build", "npx jest", "npx vitest", "npx eslint",
-                   "npx tsc", "node --check"]
+                   "npx tsc", "node --check", "node --test"]
       }
     }.freeze
 
@@ -80,7 +82,8 @@ module WorkQueue
       return "Bash" if words.empty?
       return exact_rule(segment) || "Bash(#{words.first}:*)" if words.join(" ").match?(OPAQUE)
 
-      "Bash(#{base_words(words).join(' ')}:*)"
+      # A pack command is ruled by its pack prefix ("node --test", not every "node" script).
+      "Bash(#{words.first(pack_prefix_size(words)).join(' ')}:*)"
     end
 
     def for_denial(denial)
@@ -171,7 +174,28 @@ module WorkQueue
     end
 
     def pack_names(repo)
-      PACKS.select { |_, p| p[:marker].nil? || (repo.present? && File.exist?(File.join(repo, p[:marker]))) }.keys
+      PACKS.select { |_, p| p[:marker].nil? || marked?(repo, p) }.keys
+    end
+
+    def marked?(repo, pack)
+      return false if repo.blank?
+
+      File.exist?(File.join(repo, pack[:marker])) ||
+        Array(pack[:globs]).any? { |g| Dir.glob(g, base: repo).any? { |f| !f.start_with?("node_modules/") } }
+    end
+
+    # "Always allow in this project" on a "Permission: Bash <cmd>?" question: saved from the
+    # question itself, so the rule sticks however the answer reached the agent (the server
+    # runner, a listening CLI session, or after a stall when the runner no longer holds the denial).
+    def remember_answer(slug, question, answer)
+      cmd = command_in(question)
+      return unless answer.to_s.start_with?("Always") && cmd.present? && !destructive?(cmd)
+
+      project = RunState.project(slug)
+      attrs = { "always_allow" => (Array(project["always_allow"]) + [for_command(cmd)]).uniq }
+      literal = Array(literal_rules(cmd))
+      attrs["auto_allow"] = (Array(project["auto_allow"]) + literal).uniq.last(300) if literal.any?
+      RunState.save_project(slug, attrs)
     end
 
     # Pack names in force for a project: detected for its repo and not switched off.

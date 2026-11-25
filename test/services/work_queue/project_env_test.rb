@@ -67,5 +67,17 @@ module WorkQueue
       assert File.symlink?(File.join(tree, "config/master.key"))
       assert_not File.exist?(File.join(tree, ".env.example"))
     end
+
+    test "plain node:test files in a Ruby repo get node --test named and pre-allowed" do
+      touch("Gemfile")
+      touch("bin/rails")
+      touch("chrome_extension/test/fill_menu.test.mjs")
+      touch("node_modules/x/a.test.js")
+      assert_equal "node --test", ProjectEnv.commands(@dir)[:js_test]
+      assert_includes ProjectEnv.allowed(@dir), "Bash(node --test:*)"
+      assert_includes ProjectEnv.briefing(@dir), "`node --test <file>`"
+      assert_includes PermissionRules.pack_names(@dir), "node"
+      assert PermissionRules.safe?("node --test chrome_extension/test/fill_menu.test.mjs")
+    end
   end
 end

@@ -88,4 +88,19 @@ class WorkQueuePermissionRulesTest < ActiveSupport::TestCase
     assert_not R.safe_question?("Permission: WebFetch https://x.test?")
     assert_not R.safe_question?("Permission: Bash ls a/very/long/path...?")
   end
+
+  test "Always allow on a permission question is saved from the question, with no pending denial" do
+    slug = "home-me-y"
+    q = "Permission: Bash node --test chrome_extension/test/fill_menu.test.mjs?"
+    WorkQueue::PermissionRules.remember_answer(slug, q, "Allow once")
+    assert_empty WorkQueue::RunState.project(slug)["always_allow"]
+
+    WorkQueue::PermissionRules.remember_answer(slug, q, "Always allow in this project")
+    project = WorkQueue::RunState.project(slug)
+    assert_equal ["Bash(node --test:*)"], project["always_allow"]
+    assert WorkQueue::PermissionRules.covered?("node --test chrome_extension/test/fill_menu.test.mjs", project["always_allow"])
+
+    WorkQueue::PermissionRules.remember_answer(slug, "Permission: Bash rm -rf tmp?", "Always allow in this project")
+    assert_not WorkQueue::PermissionRules.covered?("rm -rf tmp", WorkQueue::RunState.project(slug)["always_allow"])
+  end
 end

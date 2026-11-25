@@ -274,6 +274,8 @@ class WorkQueueController < ApplicationController
     pairs = answer_pairs
     return toast("Pick an option or type an answer", :error) if pairs.empty?
 
+    pairs.each { |index, text| WorkQueue::PermissionRules.remember_answer(@item.slug, @item.questions[index]&.q, text) }
+
     unless dispatcher.listening?
       pairs.each { |index, text| answer_on_server(index, text) }
       return toast(runner_note("Answered task #{@item.n}"), :ok)

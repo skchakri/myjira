@@ -43,7 +43,13 @@ module WorkQueue
     # Exact commands for the agent, so it never has to discover how tests run.
     # { test: "bundle exec rspec", test_one: "bundle exec rspec spec/x_spec.rb", lint: "bin/rubocop", suite: [...] }
     def commands(path)
-      ruby_tests(path) || node_tests(path) || {}
+      c = ruby_tests(path) || node_tests(path) || {}
+      c[:test] == "npm test" || !node_test_files?(path) ? c : c.merge(js_test: "node --test")
+    end
+
+    # Plain node:test files outside node_modules (a browser extension's tests, say).
+    def node_test_files?(path)
+      PermissionRules::PACKS.dig("node", :globs).any? { |g| Dir.glob(g, base: path).any? { |f| !f.start_with?("node_modules/") } }
     end
 
     def ruby_tests(path)
@@ -73,7 +79,7 @@ module WorkQueue
     # allowedTools rules for exactly those commands.
     def allowed(path)
       c = commands(path)
-      [c[:test], c[:lint]].compact.map { |cmd| "Bash(#{cmd}:*)" }
+      [c[:test], c[:lint], c[:js_test]].compact.map { |cmd| "Bash(#{cmd}:*)" }
     end
 
     # Text appended to the agent's system prompt.
@@ -85,6 +91,7 @@ module WorkQueue
                "RAILS_ENV is unset (test runners default to test), and git-ignored files (.env, keys, node_modules) are linked in."]
       lines << "Run tests with exactly `#{c[:test]} <paths>` (e.g. `#{c[:example] || c[:test]}`)." if c[:test]
       lines << "Lint with exactly `#{c[:lint]} <paths>`." if c[:lint]
+      lines << "Run JavaScript test files with exactly `node --test <file>`." if c[:js_test]
       lines << "Do not probe the environment (no bundle check, printenv, env, rvm, ruby -e, echo $VAR): those need " \
                "permission nobody can give. If the test command itself fails to boot, stop and report its error output."
       lines.join("\n")
