@@ -70,12 +70,17 @@ module WorkQueue
     def command
       cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose", "--model", @choice.model,
              "--effort", @choice.effort, "--permission-mode", "acceptEdits", "--permission-prompts", "none",
-             "--append-system-prompt", QUESTION_PROTOCOL]
-      cmd += ["--allowedTools", *GIT_ALLOWED, *READ_ALLOWED, *@allowed]
+             "--append-system-prompt", system_prompt]
+      cmd += ["--allowedTools", *GIT_ALLOWED, *READ_ALLOWED, *ProjectEnv.allowed(@cwd), *@allowed]
       cmd += ["--disallowedTools", *GIT_DENIED]
       cmd += ["--resume", @resume] if @resume.present?
       cmd
     end
+
+    def system_prompt = [QUESTION_PROTOCOL, ProjectEnv.briefing(@cwd)].compact_blank.join("\n")
+
+    # The project's own Ruby/Bundler env, not the runner's (see ProjectEnv).
+    def env = ProjectEnv.for(@cwd)
 
     def prompt
       return @prompt if @prompt.present? && @resume.present?
@@ -87,7 +92,7 @@ module WorkQueue
     def run(on_spawn: nil)
       emit_note("Phase #{@phase} · #{@choice.model} · effort #{@choice.effort} — #{@choice.reason}", kind: "phase")
       result = Result.new(denials: [], exit_ok: false)
-      Open3.popen2(*command, chdir: @cwd, pgroup: true) do |stdin, stdout, wait|
+      Open3.popen2(env, *command, chdir: @cwd, pgroup: true) do |stdin, stdout, wait|
         @pid = wait.pid
         on_spawn&.call(@pid)
         stdin.write(prompt)

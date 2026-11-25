@@ -23,8 +23,6 @@ module WorkQueue
     WAIT = %w[triage queued running blocked].freeze
     IGNORE = %w[dropped merged].freeze
     Member = Struct.new(:item, :branch)
-    # Git-ignored files a fresh worktree lacks but the suite needs (credentials key, built CSS, deps).
-    SHARED = ["config/*.key", "config/credentials/*.key", "app/assets/builds/*", ".env*", "node_modules"].freeze
     # A base that was red is tried again when it moves, or after this long (the cause may be outside git).
     RECHECK_RED_BASE = 15.minutes
     TAIL_LINES = 8
@@ -191,14 +189,7 @@ module WorkQueue
     # A fresh worktree has none of the repo's git-ignored files, and the suite cannot run without
     # some of them. Links them in from the main checkout; only ignored paths, so a bundle's content never changes.
     def link_shared(repo, path)
-      return unless File.directory?(path)
-
-      SHARED.flat_map { |glob| Dir.glob(glob, base: repo) }.each do |rel|
-        to = File.join(path, rel)
-        next if File.exist?(to) || File.symlink?(to) || !File.directory?(File.dirname(to))
-
-        File.symlink(File.join(repo, rel), to) if git(path, "check-ignore", "-q", rel).last
-      end
+      ProjectEnv.link_shared(repo, path, git: ->(cwd, *args) { git(cwd, *args) })
     rescue SystemCallError => e
       @logger.warn("[work-queue] bundle #{path}: could not link shared files: #{e.message}")
     end
@@ -281,19 +272,7 @@ module WorkQueue
     end
 
     # Full test + lint commands for the bundle's repo.
-    def detect_commands(path)
-      cmds = []
-      if File.exist?(File.join(path, "bin/rails"))
-        cmds << "bin/rails test"
-      elsif File.exist?(File.join(path, "package.json")) && JSON.parse(File.read(File.join(path, "package.json"))).dig("scripts", "test")
-        cmds << "npm test"
-      end
-      cmds << "bin/rubocop" if File.exist?(File.join(path, "bin/rubocop"))
-      cmds << "npm run lint" if File.exist?(File.join(path, "package.json")) && JSON.parse(File.read(File.join(path, "package.json"))).dig("scripts", "lint")
-      cmds
-    rescue JSON::ParserError
-      cmds
-    end
+    def detect_commands(path) = ProjectEnv.suite(path)
 
     def publish(slug, root, path, branch, good, failed, append: false)
       # Appending only adds commits on top of the open PR's branch, so no force-push.
@@ -345,7 +324,8 @@ module WorkQueue
     def git(cwd, *args) = @shell.call(cwd, "git", *args)
 
     def sh(cwd, *cmd)
-      out, status = Open3.capture2e(*cmd, chdir: cwd)
+      # git/gh/claude and the suite all run in the project's env, not the runner's myjira Bundler env.
+      out, status = Open3.capture2e(ProjectEnv.for(cwd), *cmd, chdir: cwd)
       [out, status.success?]
     rescue SystemCallError => e
       [e.message, false]
