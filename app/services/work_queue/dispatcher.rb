@@ -87,7 +87,7 @@ module WorkQueue
     # when the first click has not finished queueing yet).
     def run_in_chrome
       ChromeRun.exclusive(@item) { chrome_run } ||
-        Result.new(sent: true, launch: ChromeRun.active_launch(RunState.get(@item.key)), duplicate: true)
+        Result.new(sent: true, launch: ChromeRun.active_launch(RunState.get(@item.key), key: @item.key), duplicate: true)
     end
 
     CHROME_COPY = "run this item's browser step now in Chrome (myjira-relay controller mode)".freeze
@@ -104,7 +104,7 @@ module WorkQueue
     private
 
     def chrome_run
-      active = ChromeRun.active_launch(RunState.get(@item.key))
+      active = ChromeRun.active_launch(RunState.get(@item.key), key: @item.key)
       return Result.new(sent: true, launch: active, duplicate: true) if active
 
       body = chrome_instruction
@@ -119,7 +119,7 @@ module WorkQueue
       return Result.new(sent: false, copy: copy, reason: reasons.join("; ")) if reasons.size > 1
 
       launch = SessionLaunch.queue!(project: project, prompt: body, repo_path: repo, chrome: true, permission_mode: "auto",
-                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}")
+                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}", work_item_key: @item.key)
       ChromeRun.remember(@item, launch)
       Result.new(sent: true, launch: launch)
     end
