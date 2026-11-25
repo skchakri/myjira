@@ -589,11 +589,11 @@ export default class extends Controller {
 
   // ---- pushed status changes -----------------------------------------------
   eventTargetConnected(el) {
-    const { to, title } = el.dataset
+    const { to, title, key } = el.dataset
     el.remove()
     if (to === "waiting") this.toast(`${title}: new question`, "warn")
     if (NEEDS_YOU.includes(to)) {
-      this.notify(`${title} needs you`, to === "waiting" ? "It has a question waiting." : "It is blocked.")
+      this.notify(`${title} needs you`, to === "waiting" ? "It has a question waiting." : "It is blocked.", key)
       this.chime()
     }
     if (this.speakToggleTarget.checked && (to === "waiting" || to === "review")) {
@@ -608,10 +608,20 @@ export default class extends Controller {
     this.audio ||= new (window.AudioContext || window.webkitAudioContext)()
   }
 
-  notify(title, body) {
+  // Clicking the alert brings this tab forward and opens that item's thread.
+  notify(title, body, key) {
     if ("Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") {
-      new Notification(title, { body, tag: title })
+      const n = new Notification(title, { body, tag: title })
+      n.onclick = () => { window.focus(); n.close(); if (key) this.openItem(key) }
     }
+  }
+
+  // Open an item's thread: in place when its card is on the page, else load the page for it.
+  openItem(key) {
+    const link = this.cardTargets.find((c) => c.dataset.key === key)?.querySelector(".wq-card-link")
+    if (link) return link.click()
+    const url = `/work_queue?item=${encodeURIComponent(key)}`
+    window.Turbo ? window.Turbo.visit(url) : window.location.assign(url)
   }
 
   chime() {
