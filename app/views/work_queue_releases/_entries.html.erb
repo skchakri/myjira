@@ -17,7 +17,7 @@
              when "deploying" %><span class="wq-pill wq-pill-run">Deploying</span>
           <% when "deploy_failed" %><span class="wq-pill wq-pill-bad">Deploy failed</span>
           <% when "testing" %><span class="wq-pill wq-pill-run">Testing on homey</span>
-          <% when "not_live" %><span class="wq-pill wq-pill-wait">Ready to deploy</span>
+          <% when "not_live" %><span class="wq-pill wq-pill-wait" title="<%= entry.delivery.detail if entry.delivery.unknown? %>"><%= entry.delivery.unknown? ? "Deploy result unknown" : "Ready to deploy" %></span>
           <% when "stacked" %><span class="wq-hint"><%= entry.delivery.detail %></span>
           <% else %><span class="wq-hint">not tracked</span>
           <% end %>

@@ -257,7 +257,7 @@ module WorkQueue
       case delivery&.state
       when "testing" then ["run", "Testing on homey", 4, %w[testing], "run"]
       when "deploying" then ["run", "Deploying", 5, %w[testing open unreleased], "run"]
-      when "not_live" then ["wait", "Ready to deploy", 5, %w[open unreleased], "notlive"]
+      when "not_live" then ["wait", delivery.unknown? ? "Deploy result unknown" : "Ready to deploy", 5, %w[open unreleased], "notlive"]
       when "stacked" then ["wait", "Merged into a branch, not on main", 5, %w[open unreleased], "stacked"]
       when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open unreleased], "bad"]
       else ["ok", "Live", 5, %w[ok], "ok"]
