@@ -17,6 +17,9 @@ module WorkQueue
     MAX_AUTO_GRANTS = 4
 
     BUNDLE_EVERY = 30.seconds
+    BACKTRACE_LINES = 5
+    # A phase whose process ended without a final result event has no text to quote.
+    NO_RESULT = "Claude exited without a final result (its output was cut off)".freeze
 
     def initialize(store: Store.new, writer: QueueWriter.new, router: Router.new, logger: Rails.logger, bundler: nil)
       @store = store
@@ -31,7 +34,7 @@ module WorkQueue
     def start
       @logger.info("[work-queue-runner] up, max #{MAX_RUNNING} concurrent")
       loop do
-        _, raw = RunState.redis.blpop(RunState::JOBS, timeout: 1)
+        _, raw = jobs_redis.blpop(RunState::JOBS, timeout: 1)
         handle(JSON.parse(raw)) if raw
         reap
         fill_slots
@@ -41,8 +44,20 @@ module WorkQueue
       rescue JSON::ParserError
         next
       rescue StandardError => e
-        @logger.error("[work-queue-runner] #{e.class}: #{e.message}")
+        log_error("loop", e)
       end
+    end
+
+    # The blocking pop gets a connection of its own. On the shared one it holds the
+    # client's lock for its whole timeout, so every Redis write from the item threads
+    # (each stream line, each run-state change) waits behind it; a session's output
+    # then backs up in its pipe and Claude exits before its final result is read.
+    def jobs_redis = @jobs_redis ||= Redis.new(url: Broadcaster.redis_url)
+
+    # Class, message and the first few backtrace lines, so the error can be located.
+    def log_error(what, error)
+      trace = Array(error.backtrace).first(BACKTRACE_LINES).map { |l| "\n    #{l}" }.join
+      @logger.error("[work-queue-runner] #{what}: #{error.class}: #{error.message}#{trace}")
     end
 
     def handle(job)
@@ -63,7 +78,7 @@ module WorkQueue
       Thread.new do
         Rails.application.executor.wrap { @bundler.ship_now(key) }
       rescue StandardError => e
-        @logger.error("[work-queue-runner] bundle #{key}: #{e.class}: #{e.message}")
+        log_error("bundle #{key}", e)
       end
     end
 
@@ -87,7 +102,7 @@ module WorkQueue
       @bundle_thread = Thread.new do
         Rails.application.executor.wrap { @bundler.tick }
       rescue StandardError => e
-        @logger.error("[work-queue-runner] bundler: #{e.class}: #{e.message}")
+        log_error("bundler", e)
       end
     end
 
@@ -159,7 +174,7 @@ module WorkQueue
       @threads[key] = Thread.new do
         Rails.application.executor.wrap { run_phase(key, resume_prompt) }
       rescue StandardError => e
-        @logger.error("[work-queue-runner] #{key}: #{e.class}: #{e.message}")
+        log_error(key, e)
       end
     end
 
@@ -216,7 +231,7 @@ module WorkQueue
         handle_denials(item, key, result.denials.first(4))
       elsif (qs = SessionRunner.questions_in(result.text)).any?
         @writer.ask(item.slug, item.n, qs)
-      elsif result.error || !result.exit_ok || result.text.include?("VERDICT: FAIL")
+      elsif result.error || !result.exit_ok || result.text.nil? || result.text.include?("VERDICT: FAIL")
         retry_or_block(item, key, phase, result)
       elsif (nxt = NEXT_PHASE[phase])
         RunState.set(key, { "phase" => nxt })
@@ -236,11 +251,12 @@ module WorkQueue
 
     def retry_or_block(item, key, phase, result)
       attempts = RunState.get(key)["attempts"].to_i + 1
+      why = result.text.presence || NO_RESULT
       if attempts <= MAX_ATTEMPTS
         RunState.set(key, { "attempts" => attempts, "phase" => phase == "review" ? "implement" : phase })
-        run_phase(key, "The previous attempt failed: #{result.text.to_s.last(600)}\nFix it and continue.")
+        run_phase(key, "The previous attempt failed: #{why.last(600)}\nFix it and continue.")
       else
-        @writer.set_status(item.slug, item.n, "blocked", log: "Stopped after #{attempts - 1} retries: #{result.text.to_s.last(120)}")
+        @writer.set_status(item.slug, item.n, "blocked", log: "Stopped after #{attempts - 1} retries: #{why.last(120)}")
       end
     end
 
@@ -354,7 +370,7 @@ module WorkQueue
       Thread.new do
         Rails.application.executor.wrap { Suggestions.generate(item, job["index"].to_i, job["q"].to_s) }
       rescue StandardError => e
-        @logger.error("[work-queue-runner] suggest #{key}: #{e.class}: #{e.message}")
+        log_error("suggest #{key}", e)
       end
     end
 

@@ -95,9 +95,18 @@ module WorkQueue
         stdout.each_line { |line| handle(line, result) }
         result.exit_ok = wait.value.success?
       end
-      result
+      missing_result(result)
     rescue SystemCallError => e
       emit_note("Could not start claude: #{e.message}", kind: "error")
+      result.tap { |r| r.error = true }
+    end
+
+    # The process ended with no result event (killed, or it exited before its output
+    # was read): a failed phase, so it is retried instead of passing as finished.
+    def missing_result(result)
+      return result unless result.text.nil?
+
+      emit_note("Claude exited without a final result; treating this phase as failed", kind: "error")
       result.tap { |r| r.error = true }
     end
 
