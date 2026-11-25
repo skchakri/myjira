@@ -85,4 +85,16 @@ class WorkQueueTrainSyncTest < ActiveSupport::TestCase
     assert_empty sync(batched: false)
     assert_equal "review", item(a).status
   end
+
+  test "a train-blocked item goes back to review once its PR has a new commit with nothing failed" do
+    n = add(status: "blocked", bundle: { "train" => { "sha" => "h1", "checks" => ["test"] } })
+    pr_is(head_sha: "h1")
+    sync
+    assert_equal "blocked", item(n).status
+
+    pr_is(head_sha: "h2")
+    sync
+    assert_equal "review", item(n).status
+    assert_nil item(n).bundle_info["train"]
+  end
 end

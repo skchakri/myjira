@@ -33,7 +33,7 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
       when %r{/workflows/\d+/runs} then { workflow_runs: deploy_runs }
       when %r{/actions/workflows\z} then { workflows: workflows }
       when %r{/actions/runs} then { workflow_runs: runs }
-      when %r{/deployments/(\d+)/statuses} then statuses.key?($1.to_i) ? [{ state: statuses[$1.to_i] }] : []
+      when %r{/deployments/(\d+)/statuses} then statuses.key?($1.to_i) ? [{ state: statuses[$1.to_i], log_url: "https://logs.example/#{$1}" }] : []
       when %r{/deployments\?} then deployments
       when %r{/compare/(\w+)\.\.\.(\w+)} then { status: contains.include?([$1, $2]) ? "ahead" : "behind" }
       end
@@ -91,6 +91,12 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
     deploys = [{ id: 1, sha: "d1", created_at: 2.days.ago.iso8601 }]
     2.times { delivery(deployments: deploys, statuses: { 1 => "inactive" }, contains: [%w[m1 d1]]).compute(pr) }
     assert_equal 1, @calls.grep(%r{/deployments/1/statuses}).size
+  end
+
+  test "a finished deployment keeps its log URL for the last-run link" do
+    deploys = [{ id: 1, sha: "d1", created_at: 2.days.ago.iso8601 }]
+    d = delivery(deployments: deploys, statuses: { 1 => "success" }, contains: [%w[m1 d1]])
+    assert_equal "https://logs.example/1", d.send(:deployment_runs, URL[%r{github\.com/([^/]+/[^/]+)/}, 1]).first["html_url"]
   end
 
   test "red batch on an open PR is ci_failed" do

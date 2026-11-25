@@ -23,8 +23,13 @@ module WorkQueue
         pr = StatusCache.pr(item.pr) or next
         if pr.merged?
           merged(item, pr)
-        elsif item.status == "review" && pr.open? && @batched.call(pr.repo) && (failure = failure_for(pr))
-          blocked(item, pr, failure)
+        elsif pr.open? && @batched.call(pr.repo)
+          failure = failure_for(pr)
+          if item.status == "review" && failure
+            blocked(item, pr, failure)
+          elsif train_blocked?(item) && !failure && item.bundle_info.dig("train", "sha") != pr.head_sha
+            unblocked(item, pr)
+          end
         end
       rescue ArgumentError, SystemCallError
         next # the item vanished from its queue file
@@ -39,6 +44,15 @@ module WorkQueue
       by = @batched.call(pr.repo) ? " by homey's release train" : " on GitHub"
       @writer.update(item.slug, item.n, log: "PR ##{pr.number} merged#{by}; ready to deploy") do |i|
         i["status"] = "done"
+        i["bundle"].delete("train") if i["bundle"].is_a?(Hash)
+      end
+      item
+    end
+
+    # A new commit on a PR the train failed, with no failure at that commit: back in line for the next batch.
+    def unblocked(item, pr)
+      @writer.update(item.slug, item.n, log: "PR ##{pr.number} has a new commit (#{pr.head_sha.to_s.first(7)}); back in line for homey's release train") do |i|
+        i["status"] = "review"
         i["bundle"].delete("train") if i["bundle"].is_a?(Hash)
       end
       item

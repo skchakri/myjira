@@ -180,19 +180,26 @@ module WorkQueue
     DEPLOYMENT_DONE = { "success" => "success", "inactive" => "success", "failure" => "failure", "error" => "failure" }.freeze
     DEPLOYMENT_PENDING_FOR = 1.hour
 
+    # The normalised runs are what is cached, so a warm cache asks GitHub nothing, not one
+    # statuses call per unfinished deployment on every refresh.
     def deployment_runs(repo)
-      list = Rails.cache.fetch(["wq-deployments", repo], expires_in: RUNS_TTL) do
-        api("repos/#{repo}/deployments?environment=production&per_page=10") || []
+      Rails.cache.fetch(["wq-deployment-runs", repo], expires_in: RUNS_TTL) do
+        list = api("repos/#{repo}/deployments?environment=production&per_page=10") || []
+        Array(list).map { |d| { "head_sha" => d["sha"], "created_at" => d["created_at"], **deployment_status(repo, d) } }
       end
-      Array(list).map { |d| { "head_sha" => d["sha"], "created_at" => d["created_at"], **deployment_status(repo, d) } }
     end
 
     def deployment_status(repo, deployment)
       key = "#{RunState::PREFIX}:deployment:#{repo}:#{deployment['id']}"
-      done = kept(key) || DEPLOYMENT_DONE[api("repos/#{repo}/deployments/#{deployment['id']}/statuses?per_page=1")&.first&.dig("state")]
+      done, url = kept(key).to_s.split("\t", 2).map(&:presence)
+      unless done
+        status = api("repos/#{repo}/deployments/#{deployment['id']}/statuses?per_page=1")&.first || {}
+        done = DEPLOYMENT_DONE[status["state"]]
+        url = status["log_url"].presence || status["environment_url"].presence
+      end
       if done
-        keep(key, done, CONTAINS_TTL)
-        return { "status" => "completed", "conclusion" => done }
+        keep(key, [done, url].compact.join("\t"), CONTAINS_TTL)
+        return { "status" => "completed", "conclusion" => done, "html_url" => url }.compact
       end
 
       # Queued / in progress, or no status at all: going while young, then given up on.

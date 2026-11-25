@@ -11,7 +11,7 @@
         <% if summary&.run.present? %>
           Last <%= summary.workflow %> run:
           <% label = { "running" => "running", "success" => "succeeded", "failed" => "failed" }[summary.run_state] %>
-          <a class="wq-link" href="<%= summary.run_url %>" target="_blank" rel="noopener"><%= label %> <%= time_ago_in_words(summary.run_at) %> ago</a>.
+          <% if summary.run_url %><a class="wq-link" href="<%= summary.run_url %>" target="_blank" rel="noopener"><%= label %> <%= time_ago_in_words(summary.run_at) %> ago</a><% else %><%= label %> <%= time_ago_in_words(summary.run_at) %> ago<% end %>.
         <% elsif summary&.workflow? %>
           <%= summary.workflow %> has not run on <code>main</code> yet.
         <% end %>
