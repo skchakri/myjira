@@ -79,9 +79,12 @@ module WorkQueue
       @dir = Pathname(dir)
     end
 
-    # { slug => [Item] } for every project file, newest activity first.
+    # { slug => [Item] } for every project file, newest activity first. A queue file
+    # named after a git worktree is never a project: WorktreeQueues folds it into its
+    # parent's file, and until that has run it is simply not listed.
     def projects
-      Dir.glob(@dir.join("*.json")).to_h { |f| [self.class.slug_for(f), load_file(f)] }
+      Dir.glob(@dir.join("*.json")).reject { |f| WorktreeQueues.worktree?(self.class.slug_for(f), dir: @dir) }
+        .to_h { |f| [self.class.slug_for(f), load_file(f)] }
         .reject { |_, items| items.empty? }
         .sort_by { |_, items| -items.map { |i| i.updated_at.to_i }.max }
         .to_h

@@ -13,7 +13,7 @@ module WorkQueue
       from_projects = Project.active.where.not(repo_path: [nil, ""]).pluck(:name, :repo_path)
                              .reject { |_, r| Project.worktree_path?(r) }.map { |n, r| [n, slug_for(r), r] }
       known = from_projects.map(&:second)
-      from_files = Dir.glob(Store.dir.join("*.json")).map { |f| Store.slug_for(f) }.reject { |s| known.include?(s) }
+      from_files = Dir.glob(Store.dir.join("*.json")).map { |f| Store.slug_for(f) }.reject { |s| known.include?(s) || WorktreeQueues.worktree?(s) }
       (from_projects + from_files.map { |s| [Store.label(s), s, nil] }).sort_by(&:first)
     end
 

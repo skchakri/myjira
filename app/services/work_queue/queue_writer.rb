@@ -103,8 +103,7 @@ module WorkQueue
       end
     end
 
-    private
-
+    # Read-modify-write of one queue file under its lock: yields the item hashes.
     def transaction(slug)
       file = path(slug)
       FileUtils.mkdir_p(@dir)
@@ -120,6 +119,8 @@ module WorkQueue
         File.rename(tmp, file)
       end
     end
+
+    private
 
     # In the pyr-myjira container we run as root on /home/kalyan files; keep
     # the queue owned by whoever owns the directory so the CLI can still write it.

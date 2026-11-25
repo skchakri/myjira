@@ -116,7 +116,8 @@ module WorkQueue
       return deliver(body, copy: copy).tap { |r| ChromeRun.sent!(@item) if r.sent } if listening?
 
       repo = @item.repo.presence || Workspace.repo_for(@item.slug)
-      project = Project.find_by(repo_path: repo) if repo
+      # for_repo_path: an item whose repo is a worktree launches under the parent repo's project.
+      project = Project.for_repo_path(repo) if repo
       reasons = [listen_reason]
       reasons << "no myjira project has repo_path #{repo || "for #{@item.slug}"}" unless project
       reasons << "the session launcher daemon isn't polling (start myjira-session-launcher.service)" unless SessionLaunch.launcher_alive?
