@@ -29,10 +29,22 @@ module WorkQueue
   #   * a worktree goes only when it is clean (ignored files excepted), unlocked and
   #     no process has its working directory inside it; `git worktree remove` runs
   #     without --force;
+  #   * a locked worktree is left, with one exception: a lock a Claude agent took
+  #     ("claude agent <id> (pid <n> start <t>)") whose process has ended is released,
+  #     and the worktree is then judged by the same rules. A live pid, or any other
+  #     lock reason, keeps it;
+  #   * a worktree holding files of another user (written as root from a container) is
+  #     not attempted: git would delete half of it and stop. It is reported instead;
   #   * a branch on origin goes only when no open PR uses it as head or base, and the
   #     delete is conditional on the commit that was checked (--force-with-lease).
   # Anything skipped is said on the item's log with the reason, and tried again later.
+  # The outcome is also kept for the task detail and the Releases page (CleanupReport).
+  #
+  # The sweep also looks at leftovers that belong to no task (Orphans): agent worktrees
+  # under <repo>/.claude/worktrees, bundle worktrees and `worktree-agent-*` branches.
   class WorktreeCleaner
+    include Orphans
+
     Step = Struct.new(:kind, :target, :outcome, :reason, :detail, keyword_init: true) do
       def removed? = outcome == :removed
       def skipped? = outcome == :skipped
@@ -40,7 +52,8 @@ module WorkQueue
 
     # waiting: not merged and deployed yet. ignored: not ours to clean, ever (said in the
     # sweep's report, never on the item).
-    Result = Struct.new(:item, :waiting, :ignored, :steps, :dry_run, keyword_init: true) do
+    # An orphan result (leftovers of no task) has a repo and no item.
+    Result = Struct.new(:item, :repo, :waiting, :ignored, :steps, :dry_run, keyword_init: true) do
       def removed = steps.select(&:removed?)
       def skipped = steps.select(&:skipped?)
       # Nothing is left to try again.
@@ -55,12 +68,16 @@ module WorkQueue
       end
     end
 
-    Worktree = Struct.new(:path, :head, :branch, :locked, :main, keyword_init: true)
+    Worktree = Struct.new(:path, :head, :branch, :locked, :lock, :main, keyword_init: true)
 
     LABEL = { worktree: "worktree", local: "local branch", remote: "origin branch" }.freeze
     NOT_DEPLOYED = %w[not_live deploying deploy_failed testing stacked ci_failed].freeze
     BRANCH = %r{\A[A-Za-z0-9_][A-Za-z0-9_./-]*\z}
     ALWAYS_KEPT = %w[main master HEAD].freeze
+    # The lock a Claude agent takes on its worktree: "claude agent agent-ab12 (pid 4242 start 36826)".
+    # "start" is the process start time (/proc/<pid>/stat field 22), so a reused pid is not mistaken for it.
+    AGENT_LOCK = /\Aclaude agent \S+ \(pid (\d+)(?: start (\d+))?\)\z/
+    FOREIGN_FILES = "files owned by another user; remove with sudo".freeze
     TICK_EVERY = 5.minutes
     RETRY_EVERY = 30.minutes
     MARK_TTL = 90.days.to_i
@@ -95,14 +112,58 @@ module WorkQueue
       nil
     end
 
-    # gh: ->(*args) { [stdout, ok] }; busy: ->(path) { pid or nil }; repo_for: ->(slug) { path }
-    def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, repo_for: nil, gh: nil, busy: nil)
+    # Is the process that took an agent lock still running? `start` (may be nil) is the start
+    # time the lock recorded. Anything that cannot be told counts as running.
+    def self.process_alive?(pid, start = nil)
+      return true unless File.directory?("/proc/self") # no procfs to ask: assume it is
+
+      stat = File.read("/proc/#{pid.to_i}/stat")
+      started = stat[(stat.rindex(")") + 2)..].split[19]
+      start.blank? || started.to_s == start.to_s
+    rescue Errno::ENOENT, Errno::ESRCH
+      false
+    rescue SystemCallError, NoMethodError
+      true
+    end
+
+    # The first path inside `path` that another user owns (nil = none, or we are root and
+    # can remove anything). Such a worktree cannot be removed without sudo.
+    def self.foreign_file(path)
+      return if Process.euid.zero? || !File.directory?(path)
+
+      out, = Open3.capture2("find", path.to_s, "!", "-user", Process.euid.to_s, "-print", "-quit", err: File::NULL)
+      out.lines.first&.chomp.presence
+    rescue SystemCallError
+      nil
+    end
+
+    # Why this item is not ready to be cleaned up yet (nil = merged and deployed).
+    # `summary` is the repo's Delivery.summary (nil = the watcher has not looked yet).
+    def self.waiting(pr, delivery, summary)
+      return "its pull request has not been looked up yet" if pr.nil? || pr.repo.blank?
+      return "its pull request is not merged" unless pr.merged?
+      return nil if delivery&.live?
+      return "merged but not deployed yet (#{delivery.state.tr('_', ' ')})" if NOT_DEPLOYED.include?(delivery&.state)
+      return "its deploy state is not known yet" if summary.nil? || summary.workflow?
+
+      nil # no Deploy workflow in this repo: merged is all there is
+    end
+
+    attr_reader :orphan_results
+
+    # gh: ->(*args) { [stdout, ok] }; busy: ->(path) { pid or nil }; repo_for: ->(slug) { path };
+    # alive: ->(pid, start) { bool }; foreign: ->(path) { a path another user owns, or nil }
+    def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, repo_for: nil, gh: nil, busy: nil,
+                   alive: nil, foreign: nil)
       @store = store
       @writer = writer
       @logger = logger
       @repo_for = repo_for || Workspace.method(:repo_for)
       @gh = gh || method(:run_gh)
       @busy = busy || self.class.method(:process_in)
+      @alive = alive || self.class.method(:process_alive?)
+      @foreign = foreign || self.class.method(:foreign_file)
+      @orphan_results = {}
       @open_prs = {}
     end
 
@@ -133,17 +194,7 @@ module WorkQueue
       end
     end
 
-    # Why this item is not ready to be cleaned up yet (nil = merged and deployed).
-    # `summary` is the repo's Delivery.summary (nil = the watcher has not looked yet).
-    def waiting(pr, delivery, summary)
-      return "its pull request has not been looked up yet" if pr.nil? || pr.repo.blank?
-      return "its pull request is not merged" unless pr.merged?
-      return nil if delivery&.live?
-      return "merged but not deployed yet (#{delivery.state.tr('_', ' ')})" if NOT_DEPLOYED.include?(delivery&.state)
-      return "its deploy state is not known yet" if summary.nil? || summary.workflow?
-
-      nil # no Deploy workflow in this repo: merged is all there is
-    end
+    def waiting(pr, delivery, summary) = self.class.waiting(pr, delivery, summary)
 
     # One item whose PR is known to be merged and deployed. Never raises for a git or
     # GitHub failure: that becomes a skipped step.
@@ -181,10 +232,13 @@ module WorkQueue
     # for the items that still have something on disk or on origin.
     #   WorkQueue::WorktreeCleaner.new.sweep                  # dry run: report only
     #   WorkQueue::WorktreeCleaner.new.sweep(dry_run: false)  # remove, and log on each item
-    def sweep(dry_run: true, out: $stdout, verbose: false, prs: PullRequests.new, delivery: Delivery.new)
+    # Then, per repo, the leftovers that belong to no task (see Orphans); `orphans: false` skips them.
+    def sweep(dry_run: true, out: $stdout, verbose: false, prs: PullRequests.new, delivery: Delivery.new, orphans: true)
       @open_prs = {}
       @states = {}
       @handled = Set.new
+      @merged_prs = {}
+      @orphan_results = {}
       open = @store.all.select(&:open?)
       looked = {}
       rows = Hash.new { |h, k| h[k] = [] }
@@ -206,6 +260,7 @@ module WorkQueue
       rescue StandardError => e
         @logger.error("[work-queue] cleanup sweep #{item.key} failed: #{e.class}: #{e.message}")
       end
+      sweep_orphans(dry_run: dry_run) if orphans
       report(rows, dry_run, out, verbose)
       rows
     end
@@ -295,7 +350,8 @@ module WorkQueue
         path = lines.find { |l| l.start_with?("worktree ") }&.delete_prefix("worktree ") or next
         Worktree.new(path: path, main: i.zero?, head: lines.find { |l| l.start_with?("HEAD ") }&.delete_prefix("HEAD "),
                      branch: lines.find { |l| l.start_with?("branch refs/heads/") }&.delete_prefix("branch refs/heads/"),
-                     locked: lines.any? { |l| l == "locked" || l.start_with?("locked ") })
+                     locked: lines.any? { |l| l == "locked" || l.start_with?("locked ") },
+                     lock: lines.find { |l| l.start_with?("locked ") }&.delete_prefix("locked "))
       end
     end
 
@@ -366,19 +422,28 @@ module WorkQueue
       why, detail = worktree_blocker(repo, tree)
       return skip(result, :worktree, tree.path, why, detail) if why
 
+      # Still locked here means the blocker found the lock's agent gone.
+      released = tree.locked ? "the lock of an agent that has ended was released" : nil
       unless result.dry_run
-        _, ok, err = git(repo, "worktree", "remove", tree.path)
-        return skip(result, :worktree, tree.path, "git would not remove it", err.lines.last.to_s.strip.truncate(140)) unless ok
+        git(repo, "worktree", "unlock", tree.path) if tree.locked
+        _, ok, err = File.directory?(tree.path) ? git(repo, "worktree", "remove", tree.path) : ["", true, ""]
+        return skip(result, :worktree, tree.path, *removal_failure(err)) unless ok
       end
       gone << tree.path
       @handled << [repo, :worktree, tree.path]
-      done(result, :worktree, tree.path)
+      done(result, :worktree, tree.path, released)
     end
 
     def worktree_blocker(repo, tree)
       return ["it is the main checkout"] if tree.main || same_dir?(tree.path, repo)
+
+      held = lock_blocker(repo, tree)
+      return held if held
       return nil unless File.directory?(tree.path) # already gone from disk: `worktree prune` drops the entry
-      return ["it is locked"] if tree.locked
+
+      # Before anything else: git would remove what it can and stop at the first such file.
+      foreign = @foreign.call(tree.path)
+      return [FOREIGN_FILES, foreign.delete_prefix("#{tree.path}/").truncate(100)] if foreign
 
       status, ok = git(tree.path, "status", "--porcelain", "--untracked-files=normal")
       return ["its state could not be read"] unless ok
@@ -388,6 +453,41 @@ module WorkQueue
       return ["a session or process is still running in it", "pid #{pid}"] if pid
 
       nil
+    end
+
+    # Why a locked worktree stays (nil = not locked, or locked by a Claude agent whose process
+    # has ended: that lock is released right before the removal).
+    def lock_blocker(repo, tree)
+      return unless tree.locked
+
+      reason = lock_reason(repo, tree)
+      pid, start = reason.match(AGENT_LOCK)&.captures
+      return ["it is locked", reason.presence&.truncate(100)] unless pid
+      return ["it is locked by an agent that is still running", "pid #{pid}"] if @alive.call(pid.to_i, start)
+
+      nil
+    end
+
+    # The text in <git dir>/worktrees/<name>/locked (what `git worktree lock --reason` wrote).
+    def lock_reason(repo, tree)
+      common, ok = git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
+      if ok
+        Dir.glob(File.join(common, "worktrees", "*", "gitdir")).each do |file|
+          next unless File.read(file).strip == File.join(tree.path, ".git")
+
+          return File.read(File.join(File.dirname(file), "locked")).strip
+        end
+      end
+      tree.lock.to_s.strip
+    rescue SystemCallError
+      tree.lock.to_s.strip
+    end
+
+    # A failed `git worktree remove`, as a reason a person can act on.
+    def removal_failure(err)
+      return [FOREIGN_FILES] if err.match?(/permission denied/i)
+
+      ["git would not remove it", err.lines.last.to_s.strip.truncate(140)]
     end
 
     def same_dir?(a, b)
@@ -471,7 +571,8 @@ module WorkQueue
         Broadcaster.item_note(item, note)
       end
       key = self.class.mark_key(item.key)
-      redis.hset(key, { "tried_at" => now.to_f.to_s, "last" => left }.merge(result.complete? ? { "done" => now.iso8601 } : {}))
+      state = CleanupReport.dump(result, now, previous: mark["state"])
+      redis.hset(key, { "tried_at" => now.to_f.to_s, "last" => left, "state" => state }.merge(result.complete? ? { "done" => now.iso8601 } : {}))
       redis.expire(key, MARK_TTL)
     rescue ArgumentError, SystemCallError => e
       @logger.warn("[work-queue] cleanup #{item.key}: could not write the item log: #{e.message}")
@@ -480,18 +581,32 @@ module WorkQueue
     def report(rows, dry_run, out, verbose)
       verb = dry_run ? "would remove" : "removed"
       out.puts(dry_run ? "DRY RUN: nothing was removed. Run with DRY_RUN=0 to remove." : "Removed:")
-      rows.sort.each do |repo, results|
-        steps = results.flat_map(&:steps)
-        count = ->(kind) { steps.count { |s| s.removed? && s.kind == kind } }
-        out.puts "\n#{repo}  (#{results.size} delivered #{'task'.pluralize(results.size)} with leftovers)"
-        out.puts "  #{verb}: #{count.call(:worktree)} worktrees, #{count.call(:local)} local branches, #{count.call(:remote)} origin branches"
-        reasons = steps.select(&:skipped?).map { |s| "#{LABEL[s.kind]}: #{s.reason}" } + results.filter_map { |r| (why = r.waiting || r.ignored) && "task: #{why}" }
-        reasons.tally.sort_by { |why, n| [-n, why] }.each { |why, n| out.puts "  left #{n} - #{why}" }
+      loose = @orphan_results.select { |_, r| r.steps.any? }
+      (rows.keys | loose.keys).sort.each do |repo|
+        results = rows.fetch(repo, [])
+        if results.any?
+          tally(out, verb, results.flat_map(&:steps), results.filter_map { |r| (why = r.waiting || r.ignored) && "task: #{why}" },
+                "\n#{repo}  (#{results.size} delivered #{'task'.pluralize(results.size)} with leftovers)")
+          results.each { |r| out.puts "    ##{r.item.n} #{r.item.title.truncate(50)}: #{r.waiting || r.ignored || r.note || 'nothing to do'}" } if verbose
+        end
+        next unless (orphan = loose[repo])
+
+        tally(out, verb, orphan.steps, [], "\n#{repo}  (leftovers that belong to no task)")
         next unless verbose
 
-        results.each { |r| out.puts "    ##{r.item.n} #{r.item.title.truncate(50)}: #{r.waiting || r.ignored || r.note || 'nothing to do'}" }
+        orphan.steps.each do |s|
+          out.puts "    #{LABEL[s.kind]} #{s.target}: #{s.removed? ? verb : "left, #{s.reason}"}#{" (#{s.detail})" if s.detail}"
+        end
       end
-      out.puts "\nNothing to clean up." if rows.empty?
+      out.puts "\nNothing to clean up." if rows.empty? && loose.empty?
+    end
+
+    def tally(out, verb, steps, extra, heading)
+      count = ->(kind) { steps.count { |s| s.removed? && s.kind == kind } }
+      out.puts heading
+      out.puts "  #{verb}: #{count.call(:worktree)} worktrees, #{count.call(:local)} local branches, #{count.call(:remote)} origin branches"
+      reasons = steps.select(&:skipped?).map { |s| "#{LABEL[s.kind]}: #{s.reason}" } + extra
+      reasons.tally.sort_by { |why, n| [-n, why] }.each { |why, n| out.puts "  left #{n} - #{why}" }
     end
 
     # --- shelling out ---------------------------------------------------------------

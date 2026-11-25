@@ -1,0 +1,58 @@
+<%# After a deploy the runner removes each task's worktree and branches. Here: what it had to leave, and why. %>
+<% if left.any? || orphans.any? %>
+  <section class="wq-box wq-rel-repo mt-4" aria-labelledby="wq_rel_cleanup_h">
+    <h2 id="wq_rel_cleanup_h" class="wq-eyebrow">Cleanup after deploy: what was left, and why</h2>
+    <p class="wq-hint">Once a task is merged and deployed, its worktree, local branch and branch on origin are removed. Anything that could lose work is left and tried again later.</p>
+
+    <% if left.any? %>
+      <table class="wq-table wq-rel-table">
+        <thead><tr><th>Task</th><th>Project</th><th>Left</th><th>Why</th><th>Checked</th></tr></thead>
+        <tbody>
+          <% left.each do |entry| %>
+            <% entry.task.skipped.each_with_index do |line, i| %>
+              <tr>
+                <td><%= link_to "##{entry.item.n} #{entry.item.title}".truncate(90), work_queue_path(item: entry.item.key), class: "wq-link", title: entry.item.title if i.zero? %></td>
+                <td><%= WorkQueue::Store.label(entry.item.slug) if i.zero? %></td>
+                <td><span class="wq-pill wq-pill-bad"><%= line.label %></span> <span class="wq-mono"><%= line.target %></span></td>
+                <td><%= line.reason %><% if line.detail.present? %> <span class="wq-hint">(<%= line.detail %>)</span><% end %></td>
+                <td class="wq-mono" title="<%= entry.task.at&.strftime('%Y-%m-%d %H:%M %Z') %>"><%= entry.task.at ? "#{time_ago_in_words(entry.task.at)} ago" : "" %></td>
+              </tr>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    <% end %>
+
+    <% orphans.each do |group| %>
+      <details class="wq-rel-loose mt-2" <%= "open" if group.skipped.any? && group.skipped.size <= 12 %>>
+        <summary>
+          <span class="wq-mono"><%= group.name.presence || group.repo %></span>
+          <span class="wq-hint">leftovers of no task:
+            <%= group.dry_run ? "would remove" : "removed" %> <%= group.removed.size %>, left <%= group.skipped.size %><% if group.at %> · <%= group.dry_run ? "dry run" : "sweep" %> <%= time_ago_in_words(group.at) %> ago<% end %>
+          </span>
+        </summary>
+        <p class="wq-hint">Agent worktrees under <code>.claude/worktrees</code>, bundle worktrees and <code>worktree-agent-*</code> branches in <span class="wq-mono"><%= group.repo %></span>.
+          <% if group.dry_run && group.removed.any? %>Remove them with <code>bin/rails work_queue:cleanup_worktrees DRY_RUN=0</code>.<% end %></p>
+        <table class="wq-table wq-rel-table">
+          <thead><tr><th>What</th><th>State</th><th>Why</th></tr></thead>
+          <tbody>
+            <% group.skipped.each do |line| %>
+              <tr>
+                <td><%= line.label %> <span class="wq-mono"><%= line.target %></span></td>
+                <td><span class="wq-pill wq-pill-bad">Left</span></td>
+                <td><%= line.reason %><% if line.detail.present? %> <span class="wq-hint">(<%= line.detail %>)</span><% end %></td>
+              </tr>
+            <% end %>
+            <% group.removed.each do |line| %>
+              <tr>
+                <td><%= line.label %> <span class="wq-mono"><%= line.target %></span></td>
+                <td><span class="wq-pill <%= group.dry_run ? 'wq-pill-wait' : 'wq-pill-ok' %>"><%= group.dry_run ? "Would remove" : "Removed" %></span></td>
+                <td><% if line.detail.present? %><span class="wq-hint"><%= line.detail %></span><% end %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </details>
+    <% end %>
+  </section>
+<% end %>

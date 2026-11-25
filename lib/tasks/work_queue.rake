@@ -13,9 +13,18 @@ namespace :work_queue do
   #   bin/rails work_queue:cleanup_worktrees             # dry run: report only
   #   bin/rails work_queue:cleanup_worktrees VERBOSE=1   # dry run, one line per task
   #   bin/rails work_queue:cleanup_worktrees DRY_RUN=0   # remove, and log on each task
-  desc "Remove the worktrees, local and origin branches of tasks whose PR is merged and deployed (DRY_RUN=1 by default). Calls gh."
+  #   bin/rails work_queue:cleanup_worktrees ORPHANS=0   # tasks only
+  #
+  # It also covers leftovers that belong to no task: agent worktrees under
+  # <repo>/.claude/worktrees, bundle worktrees and worktree-agent-* branches, by the same
+  # rules (a branch goes only when its commits are on origin's default branch or in a merged
+  # pull request). A worktree locked by an agent that has ended is unlocked and judged like
+  # any other; one with files of another user is reported ("remove with sudo"), not attempted.
+  desc "Remove the worktrees, local and origin branches of tasks whose PR is merged and deployed, " \
+       "and agent/bundle leftovers of no task (DRY_RUN=1 by default). Calls gh."
   task cleanup_worktrees: :environment do
-    WorkQueue::WorktreeCleaner.new.sweep(dry_run: ENV.fetch("DRY_RUN", "1") != "0", verbose: ENV["VERBOSE"] == "1")
+    WorkQueue::WorktreeCleaner.new.sweep(dry_run: ENV.fetch("DRY_RUN", "1") != "0", verbose: ENV["VERBOSE"] == "1",
+                                         orphans: ENV["ORPHANS"] != "0")
   end
 
   desc "Refresh PR, delivery and repo deploy status for every done task with a PR (the Releases page reads it). " \

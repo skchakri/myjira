@@ -87,6 +87,12 @@ module WorkQueue
       @unknown
     end
 
+    # Delivered tasks whose cleanup (worktree, local and origin branch) left something, with the reason.
+    def cleanup_left = @cleanup_left ||= CleanupReport.left(candidates).sort_by { |l| [l.item.slug, l.item.n] }
+
+    # Per repo, the leftovers of no task that the last cleanup sweep reported.
+    def cleanup_orphans = @cleanup_orphans ||= CleanupReport.orphans(slug: @slug)
+
     def pending_count = repos.sum { |r| r.entries.size }
 
     def repo(name) = repos.find { |r| r.name == name }

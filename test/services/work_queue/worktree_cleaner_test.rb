@@ -29,7 +29,10 @@ class WorkQueueWorktreeCleanerTest < ActiveSupport::TestCase
     @redis.scan_each(match: "#{WorkQueue::RunState::PREFIX}:*") { |k| @redis.del(k) }
     @redis.set("#{WorkQueue::RunState::PREFIX}:cleanup_since", 1.hour.ago.to_f)
     @open_prs = []
+    @merged_prs = []
     @busy = {}
+    @alive = {}
+    @foreign = {}
     @gh_calls = []
   end
 
@@ -97,11 +100,32 @@ class WorkQueueWorktreeCleanerTest < ActiveSupport::TestCase
   def cleaner
     gh = lambda do |*args|
       @gh_calls << args
-      [@open_prs.to_json, true]
+      next [@open_prs.to_json, true] unless args.include?("merged")
+
+      [@merged_prs.select { |p| p["headRefName"] == args[args.index("--head") + 1] }.to_json, true]
     end
     WorkQueue::WorktreeCleaner.new(store: @store, writer: @writer, logger: Logger.new(File::NULL), repo_for: ->(_) { @repo },
-                                   gh: gh, busy: ->(path) { @busy[path] })
+                                   gh: gh, busy: ->(path) { @busy[path] }, alive: ->(pid, _start) { @alive.fetch(pid, false) },
+                                   foreign: ->(path) { @foreign[path] })
   end
+
+  def agent_tree(id) = File.join(@repo, ".claude", "worktrees", "agent-#{id}")
+
+  # What an isolated Claude agent leaves: a worktree under .claude/worktrees on its own branch.
+  # Returns the head SHA (one commit past main unless commits: false).
+  def agent(id, branch: "worktree-agent-#{id}", commits: true, push: false)
+    sh(@repo, "git", "worktree", "add", "-q", "-b", branch, agent_tree(id), "main")
+    sha = commits ? commit(agent_tree(id), "agent-#{id}.txt", "work") : sh(@repo, "git", "rev-parse", "main")
+    sh(agent_tree(id), "git", "push", "-q", "origin", branch) if push
+    sha
+  end
+
+  def merged_pr(branch, sha, number: 70)
+    @merged_prs << { "number" => number, "url" => pr_url(number), "baseRefName" => "main", "headRefName" => branch,
+                     "headRefOid" => sha, "mergeCommit" => nil, "mergedAt" => 1.hour.ago.iso8601 }
+  end
+
+  def orphan_steps(clean) = clean.orphan_results.values.flat_map(&:steps)
 
   # A delivered item: worktree + pushed branch + squash merge.
   def delivered(branch = nil)
@@ -404,5 +428,256 @@ class WorkQueueWorktreeCleanerTest < ActiveSupport::TestCase
     out = StringIO.new
     cleaner.sweep(dry_run: true, out: out)
     assert_no_match(/#{Regexp.escape(it.branch)}/, out.string)
+  end
+
+  # --- leftovers that belong to no task ------------------------------------------------
+
+  test "the sweep removes an agent worktree and its branches once a merged pull request holds every commit" do
+    item(branch: "wq/1-anchor", status: "queued") # the queue knows the repo
+    sha = agent("a1", push: true)
+    merged_pr("worktree-agent-a1", sha)
+    out = StringIO.new
+
+    cleaner.sweep(dry_run: true, out: out)
+    assert File.exist?(agent_tree("a1"))
+    assert local?("worktree-agent-a1")
+    assert remote?("worktree-agent-a1")
+    assert_match(/leftovers that belong to no task/, out.string)
+    assert_match(/would remove: 1 worktrees, 1 local branches, 1 origin branches/, out.string)
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: StringIO.new)
+    assert_equal %i[worktree local remote], orphan_steps(clean).select(&:removed?).map(&:kind)
+    assert_not File.exist?(agent_tree("a1"))
+    assert_not local?("worktree-agent-a1")
+    assert_not remote?("worktree-agent-a1")
+    assert local?("main")
+    assert remote?("main")
+  end
+
+  test "an orphan branch that is already on origin's default branch goes without asking GitHub" do
+    item(branch: "wq/1-anchor", status: "queued")
+    sh(@repo, "git", "branch", "worktree-agent-b1", "main")
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: StringIO.new)
+
+    assert_not local?("worktree-agent-b1")
+    assert_empty @gh_calls
+    assert_equal [[:local, "worktree-agent-b1"]], orphan_steps(clean).map { |s| [s.kind, s.target] }
+  end
+
+  test "an orphan branch with commits no merged pull request contains is left, with its worktree, and the reason is said" do
+    item(branch: "wq/1-anchor", status: "queued")
+    agent("c1")
+    sha = agent("c2", push: true)
+    merged_pr("worktree-agent-c2", sha)
+    commit(agent_tree("c2"), "more.txt", "after the merge")
+    sh(@repo, "git", "branch", "worktree-agent-c3", "worktree-agent-c1")
+    out = StringIO.new
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: out, verbose: true)
+
+    assert File.exist?(agent_tree("c1"))
+    assert File.exist?(agent_tree("c2"))
+    assert local?("worktree-agent-c1")
+    assert local?("worktree-agent-c3")
+    assert remote?("worktree-agent-c2"), "origin's copy is what was merged, but the local one moved on: both worktree and local stay"
+    reasons = orphan_steps(clean).select(&:skipped?).to_h { |s| [[s.kind, File.basename(s.target)], s.reason] }
+    assert_equal WorkQueue::WorktreeCleaner::Orphans::UNPROVEN, reasons[[:worktree, "agent-c1"]]
+    assert_equal WorkQueue::WorktreeCleaner::Orphans::UNPROVEN, reasons[[:local, "worktree-agent-c3"]]
+    assert_equal "it has commits its merged pull request never contained", reasons[[:worktree, "agent-c2"]]
+    assert_match(/left, it has commits that are neither on origin's default branch nor in a merged pull request/, out.string)
+  end
+
+  test "an orphan's branch on origin is never deleted while a pull request is open on it" do
+    item(branch: "wq/1-anchor", status: "queued")
+    sha = agent("d1", push: true)
+    merged_pr("worktree-agent-d1", sha)
+    @open_prs = [{ "number" => 71, "headRefName" => "worktree-agent-d1", "baseRefName" => "main" }]
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: StringIO.new)
+
+    assert remote?("worktree-agent-d1")
+    assert_not local?("worktree-agent-d1")
+    assert_equal ["pull request #71 is still open on it"], orphan_steps(clean).select(&:skipped?).map(&:reason)
+  end
+
+  test "an agent worktree on a branch a task still uses is none of the orphan sweep's business" do
+    it = item(branch: "wq/2-in-agent-tree", status: "running")
+    agent("e1", branch: it.branch, commits: false)
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: StringIO.new)
+
+    assert File.exist?(agent_tree("e1"))
+    assert local?(it.branch)
+    assert_empty orphan_steps(clean)
+  end
+
+  test "a dirty or in-use agent worktree is left, and the default branch and main checkout are never candidates" do
+    item(branch: "wq/1-anchor", status: "queued")
+    agent("f1", commits: false)
+    agent("f2", commits: false)
+    File.write(File.join(agent_tree("f1"), "notes.txt"), "not committed")
+    @busy[agent_tree("f2")] = 77
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: StringIO.new)
+
+    assert File.exist?(agent_tree("f1"))
+    assert File.exist?(agent_tree("f2"))
+    assert local?("worktree-agent-f1")
+    assert local?("main")
+    assert File.exist?(File.join(@repo, "README"))
+    assert_equal ["a session or process is still running in it", "it has uncommitted or untracked changes"],
+                 orphan_steps(clean).map(&:reason).sort
+  end
+
+  test "a stale bundle worktree goes; one whose task is still open stays" do
+    open = item(branch: "wq/1-anchor", status: "queued")
+    stale = "#{@repo}-bundle-99"
+    live = "#{@repo}-bundle-#{open.n}"
+    [stale, live].each { |path| sh(@repo, "git", "worktree", "add", "-q", "--detach", path, "main") }
+
+    cleaner.sweep(dry_run: false, out: StringIO.new)
+
+    assert_not File.exist?(stale)
+    assert File.exist?(live)
+  end
+
+  test "a leftover directory git no longer knows as a worktree is reported, never deleted" do
+    item(branch: "wq/1-anchor", status: "queued")
+    FileUtils.mkdir_p(File.join(agent_tree("g1"), "app"))
+    FileUtils.mkdir_p(agent_tree("g2"))
+    @foreign[agent_tree("g2")] = File.join(agent_tree("g2"), "log/test.log")
+
+    clean = cleaner
+    clean.sweep(dry_run: false, out: StringIO.new)
+
+    assert File.exist?(File.join(agent_tree("g1"), "app"))
+    steps = orphan_steps(clean).to_h { |s| [File.basename(s.target), s] }
+    assert_match(/git no longer knows it as a worktree/, steps["agent-g1"].reason)
+    assert_equal "files owned by another user; remove with sudo", steps["agent-g2"].reason
+    assert_equal "log/test.log", steps["agent-g2"].detail
+  end
+
+  # --- locks and other users' files ----------------------------------------------------
+
+  test "a worktree locked by an agent that has ended is unlocked and cleaned; a live agent's lock is kept" do
+    item(branch: "wq/1-anchor", status: "queued")
+    agent("h1", commits: false)
+    agent("h2", commits: false)
+    sh(@repo, "git", "worktree", "lock", "--reason", "claude agent agent-h1 (pid 4001 start 123)", agent_tree("h1"))
+    sh(@repo, "git", "worktree", "lock", "--reason", "claude agent agent-h2 (pid 4002 start 456)", agent_tree("h2"))
+    @alive[4002] = true
+
+    clean = cleaner
+    clean.sweep(dry_run: true, out: StringIO.new)
+    assert_match(/locked/, sh(@repo, "git", "worktree", "list", "--porcelain").split("\n\n").find { |b| b.include?("agent-h1") },
+                 "a dry run does not release the lock")
+
+    clean.sweep(dry_run: false, out: StringIO.new)
+
+    assert_not File.exist?(agent_tree("h1"))
+    assert_not local?("worktree-agent-h1")
+    assert File.exist?(agent_tree("h2"))
+    assert local?("worktree-agent-h2")
+    steps = orphan_steps(clean)
+    assert_equal "the lock of an agent that has ended was released", steps.find { |s| s.removed? && s.kind == :worktree }.detail
+    kept = steps.find { |s| s.skipped? && s.kind == :worktree }
+    assert_equal ["it is locked by an agent that is still running", "pid 4002"], [kept.reason, kept.detail]
+  end
+
+  test "a lock with an unknown reason, or none, is always kept, and a dead agent's lock does not excuse a dirty worktree" do
+    it, status = delivered
+    sh(@repo, "git", "worktree", "lock", "--reason", "on a usb stick", tree(it.n))
+    result = cleaner.clean(it, status)
+    assert File.exist?(tree(it.n))
+    assert_equal ["it is locked", "on a usb stick"], [result.skipped.first.reason, result.skipped.first.detail]
+
+    sh(@repo, "git", "worktree", "unlock", tree(it.n))
+    sh(@repo, "git", "worktree", "lock", tree(it.n))
+    assert_equal "it is locked", cleaner.clean(it, status).skipped.first.reason
+
+    sh(@repo, "git", "worktree", "unlock", tree(it.n))
+    sh(@repo, "git", "worktree", "lock", "--reason", "claude agent agent-x (pid 4003 start 9)", tree(it.n))
+    File.write(File.join(tree(it.n), "notes.txt"), "not committed")
+    result = cleaner.clean(it, status)
+    assert_equal "it has uncommitted or untracked changes", result.skipped.first.reason
+    assert_match(/locked/, sh(@repo, "git", "worktree", "list", "--porcelain"), "nothing was removed, so the lock stays")
+  end
+
+  test "the real liveness check knows this process, a reused pid and a pid that is gone" do
+    start = File.read("/proc/#{Process.pid}/stat").then { |s| s[(s.rindex(")") + 2)..].split[19] }
+    assert WorkQueue::WorktreeCleaner.process_alive?(Process.pid, start)
+    assert WorkQueue::WorktreeCleaner.process_alive?(Process.pid)
+    assert_not WorkQueue::WorktreeCleaner.process_alive?(Process.pid, start.to_i + 1), "same pid, another process"
+    pid = spawn("true")
+    Process.wait(pid)
+    assert_not WorkQueue::WorktreeCleaner.process_alive?(pid)
+  end
+
+  test "a worktree with files of another user is not attempted and says to use sudo" do
+    it, status = delivered
+    @foreign[tree(it.n)] = File.join(tree(it.n), "log/development.log")
+
+    result = cleaner.clean(it, status)
+
+    assert File.exist?(tree(it.n))
+    assert_equal ["files owned by another user; remove with sudo", "log/development.log"], [result.skipped.first.reason, result.skipped.first.detail]
+    assert_match(/files owned by another user; remove with sudo/, result.note)
+    assert_nil WorkQueue::WorktreeCleaner.foreign_file(tree(it.n)), "the real check: everything here is ours"
+    assert_equal ["files owned by another user; remove with sudo"],
+                 cleaner.send(:removal_failure, "error: failed to delete '/x/log': Permission denied")
+  end
+
+  # --- what the task detail and the Releases page read -----------------------------------
+
+  test "the outcome of a cleanup is kept for the task detail and the Releases page" do
+    it, status = delivered
+    dirty, dirty_status = delivered
+    File.write(File.join(tree(dirty.n), "notes.txt"), "not committed")
+    waiting = item(branch: "wq/9-waiting")
+    workflow("Deploy")
+    [status, dirty_status].each { |s| cache(s, "live") }
+    cache(pr(waiting, "abc"), "not_live")
+
+    cleaner.tick
+
+    cleaned = WorkQueue::CleanupReport.for(it)
+    assert_equal ["cleaned", 3, 0], [cleaned.state, cleaned.removed.size, cleaned.skipped.size]
+    left = WorkQueue::CleanupReport.for(dirty)
+    assert_equal "left", left.state
+    assert_equal ["it has uncommitted or untracked changes", "it is still checked out in a worktree"], left.skipped.map(&:reason)
+    assert_equal ["origin branch #{dirty.branch}"], left.removed.map(&:to_s)
+    assert_equal ["waiting", "merged but not deployed yet (not live)"], WorkQueue::CleanupReport.for(waiting).then { |t| [t.state, t.reason] }
+    assert_nil WorkQueue::CleanupReport.for(item(branch: "wq/10-open", status: "running"))
+    assert_equal [dirty.n], WorkQueue::CleanupReport.left(@store.all).map { |l| l.item.n }
+
+    File.delete(File.join(tree(dirty.n), "notes.txt"))
+    cleaner.tick(now: 31.minutes.from_now)
+    again = WorkQueue::CleanupReport.for(dirty)
+    assert_equal ["cleaned", 3], [again.state, again.removed.size], "what the first attempt removed is still listed"
+  end
+
+  test "the sweep keeps what it found that belongs to no task, per repo, and forgets it once nothing is left" do
+    item(branch: "wq/1-anchor", status: "queued")
+    agent("k1")
+
+    cleaner.sweep(dry_run: true, out: StringIO.new)
+
+    report = WorkQueue::CleanupReport.orphans.sole
+    assert_equal [@repo, "me/app", [SLUG], true], [report.repo, report.name, report.slugs, report.dry_run]
+    assert_equal ["worktree"], report.skipped.map(&:label)
+    assert_empty WorkQueue::CleanupReport.orphans(slug: "another-project")
+
+    sh(@repo, "git", "worktree", "remove", "--force", agent_tree("k1"))
+    sh(@repo, "git", "branch", "-D", "worktree-agent-k1")
+    FileUtils.rm_rf(File.join(@repo, ".claude"))
+    cleaner.sweep(dry_run: true, out: StringIO.new)
+    assert_empty WorkQueue::CleanupReport.orphans
   end
 end
