@@ -10,8 +10,9 @@ module WorkQueue
     REFRESH_EVERY = ENV.fetch("WORK_QUEUE_REFRESH_SECONDS", 20).to_i
     TRANSCRIPT = /(?:agent-[\w-]+|\A[0-9a-f-]{36})\.jsonl\z/
 
-    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new, parent_closer: ParentCloser.new)
+    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new, parent_closer: ParentCloser.new, worktrees: nil)
       @store = store
+      @worktrees = worktrees || WorktreeQueues.new(dir: queues, logger: logger)
       @child_starter = child_starter
       @parent_closer = parent_closer
       @queues = queues.to_s
@@ -27,6 +28,7 @@ module WorkQueue
     end
 
     def start
+      fold_worktrees
       prime
       listeners = [
         Listen.to(@queues, only: /\.json\z/, latency: 0.05, wait_for_delay: 0.02) { |m, a, _| queue_changed(m + a) },
@@ -53,7 +55,10 @@ module WorkQueue
 
     def refresh_loop
       loop do
-        Rails.application.executor.wrap { refresh_status }
+        Rails.application.executor.wrap do
+          fold_worktrees
+          refresh_status
+        end
         sleep REFRESH_EVERY
       end
     end
@@ -101,9 +106,20 @@ module WorkQueue
       end
     end
 
+    # Queue files named after a git worktree move into their parent repo's queue.
+    def fold_worktrees
+      @worktrees.call
+    rescue StandardError => e
+      @logger.error("[work-queue] worktree fold failed: #{e.class}: #{e.message}")
+    end
+
     def queue_changed(paths)
       paths.uniq.each do |path|
         slug = Store.slug_for(path)
+        # A worktree's queue file is never a project: fold it into its parent's
+        # file (that write comes back here as the parent's change).
+        next fold_worktrees if WorktreeQueues.worktree?(slug, dir: @queues)
+
         items = @store.items_for(slug)
         # Follow-ups start by themselves; the write re-triggers this with the cleared flag.
         next if @child_starter.call(items).any?

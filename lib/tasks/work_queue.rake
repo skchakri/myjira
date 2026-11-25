@@ -16,4 +16,15 @@ namespace :work_queue do
     puts "Refreshed #{items.size} pull requests: #{releases.pending_count} merged tasks not live in #{releases.repos.size} repos; " \
          "#{releases.no_workflow.size} repos without a Deploy workflow"
   end
+
+  desc "Fold queue files named after a git worktree (<repo>-wq-<n>, <repo>/.claude/worktrees/<name>) into their " \
+       "parent repo's queue; the stray file moves to <queues>/archive/. The watcher does this by itself; safe to re-run."
+  task fold_worktrees: :environment do
+    folds = WorkQueue::WorktreeQueues.new.call
+    puts "No worktree queue files to fold in #{WorkQueue::Store.dir}" if folds.empty?
+    folds.each do |f|
+      under = f.under ? " as follow-ups of ##{f.under}" : ""
+      puts "#{f.slug} -> #{f.parent}: #{f.moved} moved#{under}, #{f.skipped} already there; archived at #{f.archive}"
+    end
+  end
 end
