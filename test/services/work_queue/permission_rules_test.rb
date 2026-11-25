@@ -100,6 +100,8 @@ class WorkQueuePermissionRulesTest < ActiveSupport::TestCase
     assert_equal ["Bash(node --test:*)"], project["always_allow"]
     assert WorkQueue::PermissionRules.covered?("node --test chrome_extension/test/fill_menu.test.mjs", project["always_allow"])
 
+    WorkQueue::PermissionRules.remember_answer(slug, "Permission: Bash cd tmp?", "Always allow in this project")
+    assert_not_includes WorkQueue::RunState.project(slug)["always_allow"], "Bash"
     WorkQueue::PermissionRules.remember_answer(slug, "Permission: Bash rm -rf tmp?", "Always allow in this project")
     assert_not WorkQueue::PermissionRules.covered?("rm -rf tmp", WorkQueue::RunState.project(slug)["always_allow"])
   end

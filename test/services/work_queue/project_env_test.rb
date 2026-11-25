@@ -73,6 +73,7 @@ module WorkQueue
       touch("bin/rails")
       touch("chrome_extension/test/fill_menu.test.mjs")
       touch("node_modules/x/a.test.js")
+      touch("chrome_extension/node_modules/y/b.test.js")
       assert_equal "node --test", ProjectEnv.commands(@dir)[:js_test]
       assert_includes ProjectEnv.allowed(@dir), "Bash(node --test:*)"
       assert_includes ProjectEnv.briefing(@dir), "`node --test <file>`"

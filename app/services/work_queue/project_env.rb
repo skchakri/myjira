@@ -49,7 +49,7 @@ module WorkQueue
 
     # Plain node:test files outside node_modules (a browser extension's tests, say).
     def node_test_files?(path)
-      PermissionRules::PACKS.dig("node", :globs).any? { |g| Dir.glob(g, base: path).any? { |f| !f.start_with?("node_modules/") } }
+      PermissionRules::PACKS.dig("node", :globs).any? { |g| Dir.glob(g, base: path).any? { |f| !f.split("/").include?("node_modules") } }
     end
 
     def ruby_tests(path)

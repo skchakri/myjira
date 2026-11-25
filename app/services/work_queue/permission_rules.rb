@@ -181,7 +181,7 @@ module WorkQueue
       return false if repo.blank?
 
       File.exist?(File.join(repo, pack[:marker])) ||
-        Array(pack[:globs]).any? { |g| Dir.glob(g, base: repo).any? { |f| !f.start_with?("node_modules/") } }
+        Array(pack[:globs]).any? { |g| Dir.glob(g, base: repo).any? { |f| !f.split("/").include?("node_modules") } }
     end
 
     # "Always allow in this project" on a "Permission: Bash <cmd>?" question: saved from the
@@ -191,8 +191,11 @@ module WorkQueue
       cmd = command_in(question)
       return unless answer.to_s.start_with?("Always") && cmd.present? && !destructive?(cmd)
 
+      rule = for_command(cmd)
+      return if rule == "Bash" # nothing but `cd`: never a rule that allows every command
+
       project = RunState.project(slug)
-      attrs = { "always_allow" => (Array(project["always_allow"]) + [for_command(cmd)]).uniq }
+      attrs = { "always_allow" => (Array(project["always_allow"]) + [rule]).uniq }
       literal = Array(literal_rules(cmd))
       attrs["auto_allow"] = (Array(project["auto_allow"]) + literal).uniq.last(300) if literal.any?
       RunState.save_project(slug, attrs)
