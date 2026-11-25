@@ -15,32 +15,14 @@ class WorkQueueParentCloserTest < ActiveSupport::TestCase
 
   teardown { FileUtils.rm_rf(@dir) }
 
-  def close = WorkQueue::ParentCloser.new(writer: @writer).call(@store.items_for(SLUG)).map(&:n)
   def parent = @store.items_for(SLUG).find { |i| i.n == 1 }
 
-  test "closes a grouping parent once every child step is finished" do
+  test "children_done? needs every legacy child finished and one actually done" do
+    kids = -> { @store.items_for(SLUG).reject { |i| i.n == 1 } }
     @writer.set_status(SLUG, 2, "done")
-    assert_empty close, "one child step is still open"
+    assert_not WorkQueue::ParentCloser.children_done?(kids.call)
     @writer.set_status(SLUG, 3, "dropped")
-    assert_equal [1], close
-    assert_equal "done", parent.status
-    assert(parent.log.any? { |l| l["text"].match?(/Closed by itself/) })
-  end
-
-  test "leaves a parent with its own branch, PR or open question alone" do
-    @writer.set_status(SLUG, 2, "done")
-    @writer.set_status(SLUG, 3, "done")
-    @writer.update(SLUG, 1) { |i| i["branch"] = "wq/1-parent" }
-    assert_empty close
-    @writer.update(SLUG, 1) { |i| i.delete("branch"); i["pr"] = "https://github.com/o/r/pull/3" }
-    assert_empty close
-    assert_equal "review", parent.status
-  end
-
-  test "does not close when every child was dropped or folded" do
-    @writer.set_status(SLUG, 2, "dropped")
-    @writer.set_status(SLUG, 3, "merged")
-    assert_empty close
+    assert WorkQueue::ParentCloser.children_done?(kids.call)
   end
 
   test "flow says there is nothing to merge instead of asking for a review" do

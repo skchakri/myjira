@@ -70,21 +70,6 @@ class WorkQueueController < ApplicationController
 
   # "＋ Add child item" in the detail pane: a typed-in follow-up of this item,
   # queued straight away (no approval) and bundled with its parent.
-  def add_child
-    title = params[:title].to_s.strip
-    return toast("Give the child item a title", :error) if title.blank?
-
-    item = writer.add(@item.slug, title: title, description: params[:description].to_s.strip.presence || title, parent: @item.n, by: "person")
-    writer.update(@item.slug, item["n"], log: "Added as a child of ##{@item.n} from myjira") do |i|
-      i.delete("awaitingApproval")
-      i["status"] = "queued"
-    end
-    key = "#{@item.slug}:#{item['n']}"
-    WorkQueue::RunState.set(key, { "repo" => WorkQueue::Workspace.repo_for(@item.slug) }.compact)
-    start_server(key)
-    toast("Added ##{item['n']} under ##{@item.n}", :ok)
-  end
-
   def run
     return toast("##{@item.n} is an errand for you. Hand it to an agent first if one should do it.", :error) if @item.errand?
 
@@ -156,24 +141,19 @@ class WorkQueueController < ApplicationController
     toast("Closed ##{@item.n}", :ok)
   end
 
-  # Batch on a parent: start or drop its suggested (nice-to-have) and held follow-ups
-  # in one request. op: start | drop (the ticked ns[]) or start_all | drop_all.
+  # Legacy follow-ups on a parent (from before one-item-per-task): they can only be
+  # dropped now; myjira never starts child items. op: drop (the ticked ns[]) or drop_all.
   def follow_ups
     kids = WorkQueue::Store.new.items_for(@item.slug).select { |i| i.parent == @item.n && (i.to_decide? || i.held?) }
     op = params[:op].to_s
+    return toast("Child items are no longer started from myjira: one task, one item", :error) unless op.start_with?("drop")
+
     ns = Array(params[:ns]).map(&:to_i)
-    picked = op.end_with?("_all") ? kids : kids.select { |k| ns.include?(k.n) }
+    picked = op == "drop_all" ? kids : kids.select { |k| ns.include?(k.n) }
     return toast("Tick at least one follow-up first", :error) if picked.empty?
 
-    starter = WorkQueue::ChildStarter.new
-    names = picked.map { |k| "##{k.n}" }.join(", ")
-    if op.start_with?("drop")
-      picked.each { |k| starter.drop(k) }
-      toast("Dropped #{names}", :ok)
-    else
-      picked.each { |k| starter.start_now(k) }
-      toast(runner_note("Started #{names}"), :ok)
-    end
+    picked.each { |k| writer.follow_up(k.slug, k.n, { held: nil }, log: "Dropped by you from myjira") { |i| i["status"] = "dropped" } }
+    toast("Dropped #{picked.map { |k| "##{k.n}" }.join(', ')}", :ok)
   end
 
   # Errands ("Yours"): one endpoint, op = mark | unmark | hand | done | snooze | wake | due | dismiss_hint.

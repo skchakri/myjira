@@ -102,7 +102,7 @@ class WorkQueueErrandsTest < ActiveSupport::TestCase
     assert_match(/Not started: this is an errand for you/, found.log.last["text"])
   end
 
-  test "errands never count toward the follow-up limit and the child starter leaves them alone" do
+  test "errands never count toward the follow-up limit" do
     write([
       { n: 1, title: "Parent", status: "review" },
       { n: 2, title: "Confirm with the practice", status: "blocked", kind: "yours" },
@@ -111,12 +111,6 @@ class WorkQueueErrandsTest < ActiveSupport::TestCase
     ])
     items = @store.items_for(SLUG)
     assert_equal 1, WorkQueue::Inbox.waiting_count(items, store: @store), "only the parent in review waits on the person"
-
-    jobs = []
-    starter = WorkQueue::ChildStarter.new(writer: @writer, enqueue: ->(action, key) { jobs << [action, key] },
-                                          limit: ->(_) { }, waiting: ->(_) { 0 }, since: 1.hour.ago)
-    assert_empty starter.call(items)
-    assert_empty jobs
   end
 
   test "the inbox lists errands after decisions: overdue and due first, then by age, snoozed folded away" do

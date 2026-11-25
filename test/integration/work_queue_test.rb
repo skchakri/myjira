@@ -182,13 +182,35 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
   end
 
-  test "add child item queues a follow-up under this item without approval" do
-    post work_queue_item_children_path("home-me-app:1"), params: { title: "Child bit", description: "details" }, as: :turbo_stream
-    assert_response :ok
-    item = WorkQueue::Store.new.find("home-me-app:2")
-    assert_equal [1, "queued", false, "details"], [item.parent, item.status, item.awaiting_approval, item.description]
-    job = JSON.parse(WorkQueue::RunState.redis.lpop(WorkQueue::RunState::JOBS))
-    assert_equal %w[start home-me-app:2], [job["action"], job["key"]]
+  test "myjira no longer adds child items" do
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "details.wq-add-child", 0
+  end
+
+  test "a planned item shows its steps as a checklist, a Chrome step gets Run in Chrome, and progress follows the steps" do
+    writer = WorkQueue::QueueWriter.new(dir: @dir)
+    writer.update("home-me-app", 1) do |i|
+      i["status"] = "running"
+      i["steps"] = [{ "title" => "Backend", "status" => "done" }, { "title" => "UI", "status" => "doing" },
+                    { "title" => "Chrome: submit app review", "status" => "todo", "browser" => true }]
+    end
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-plan-steps .wq-plan-step", 3
+    assert_select ".wq-plan-steps", text: /1 of 3 steps done/
+    assert_select ".wq-plan-step.wq-plan-todo .wq-plan-chrome", text: /Chrome/
+    assert_select ".wq-plan-step.wq-plan-todo .wq-btn-chrome", text: /Run in Chrome/
+    assert_select ".wq-actions .wq-btn-chrome", 0
+    item = WorkQueue::Store.new.find("home-me-app:1")
+    assert_equal 25, WorkQueue::Flow.new(item).percent
+    assert_match "Chrome: submit app review", WorkQueue::Dispatcher.new(item).chrome_instruction
+  end
+
+  test "an item in review with a PR puts Merge at the top, after any questions" do
+    writer = WorkQueue::QueueWriter.new(dir: @dir)
+    writer.update("home-me-app", 1) { |i| i["status"] = "review"; i["pr"] = "https://github.com/o/r/pull/7" }
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-merge-top .wq-btn-merge", text: "Merge"
+    assert_select ".wq-actions .wq-btn-merge", 0
   end
 
   test "a stalled running item reads Stalled, counts as failed, and Resume hands it to the runner" do
@@ -337,37 +359,21 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_nil WorkQueue::RunState.daily_budget("home-me-app")
   end
 
-  test "a parent's suggested and held follow-ups are started or dropped as one batch" do
+  test "legacy follow-ups of a parent can only be dropped, never started" do
     writer = WorkQueue::QueueWriter.new(dir: @dir)
     writer.add("home-me-app", title: "Nice one", parent: 1, priority: "nice")
     writer.add("home-me-app", title: "Nice two", parent: 1, priority: "nice")
-    writer.add("home-me-app", title: "Held one", parent: 1)
-    writer.follow_up("home-me-app", 4, { held: true })
-
-    get work_queue_item_detail_path("home-me-app:1")
-    assert_select "#wq_follow_up_batch form.wq-batch input[name='ns[]']", 3
-    assert_select "#wq_follow_up_batch", text: /2 suggested follow-ups/
-    assert_select "#wq_follow_up_batch .wq-batch-held", text: "held"
     get inbox_path
-    assert_select "#inbox_s_followups .wq-batch-row", 3
-    assert_select ".inbox-strip", text: /2 follow-ups to decide/
+    assert_select "#inbox_s_followups .wq-batch-row", 2
+    assert_select "button[value=start]", 0
 
-    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "drop", ns: [3] }, as: :turbo_stream
-    assert_response :ok
-    assert_equal "dropped", WorkQueue::Store.new.find("home-me-app:3").status
     post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "start_all" }, as: :turbo_stream
-    store = WorkQueue::Store.new
-    assert_not store.find("home-me-app:2").to_decide?
-    assert_not store.find("home-me-app:4").held?
-    jobs = WorkQueue::RunState.redis.lrange(WorkQueue::RunState::JOBS, 0, -1).map { |j| JSON.parse(j)["key"] }
-    assert_equal %w[home-me-app:2 home-me-app:4], jobs.last(2)
-    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "start" }, as: :turbo_stream
+    assert_match "no longer started", response.body
+    assert WorkQueue::Store.new.find("home-me-app:2").to_decide?
+    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "drop", ns: [3] }, as: :turbo_stream
+    assert_equal "dropped", WorkQueue::Store.new.find("home-me-app:3").status
+    post work_queue_item_follow_ups_path("home-me-app:1"), params: { op: "drop" }, as: :turbo_stream
     assert_match "Tick at least one", response.body
-  end
-
-  test "a child typed by the person is marked so the follow-up limit never holds it" do
-    post work_queue_item_children_path("home-me-app:1"), params: { title: "Typed child" }, as: :turbo_stream
-    assert_equal "person", WorkQueue::Store.new.find("home-me-app:2").follow_up_info["by"]
   end
 
   test "the follow-up limit defaults to 8 and can be changed or removed per project" do

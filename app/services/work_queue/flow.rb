@@ -129,11 +129,21 @@ module WorkQueue
       return nil if closed?
       return item.open? ? 0 : 100 if item.yours? # an errand has no agent phases: not done, or done
       return 100 if phase >= PHASES.size
+      return steps_percent if item.steps? && phase < STEP_PHASES
 
       ((phase + (item.status == "running" ? 0.5 : 0)).fdiv(PHASES.size) * 100).round
     end
 
     def finished? = percent == 100
+
+    # A planned item's steps cover the work phases (Plan, Build, Test): the share of
+    # them done, plus half a step for the one in progress, mapped onto that span.
+    STEP_PHASES = 3
+    def steps_percent
+      steps = item.plan_steps
+      share = (item.steps_done + (steps.count(&:doing?) * 0.5)).fdiv(steps.size)
+      (share * STEP_PHASES.fdiv(PHASES.size) * 100).round
+    end
 
     # Failed checks / deploy problem and the CI or deploy step it is on, for "What's happening".
     def failed_checks

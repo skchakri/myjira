@@ -1,0 +1,15 @@
+<%# Ready to merge: the one thing left for the person, shown at the top of the detail pane. %>
+<section class="wq-box wq-merge-top" aria-label="Ready to merge">
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="wq-eyebrow">Ready to merge</span>
+    <a class="wq-link" href="<%= item.pr %>" target="_blank" rel="noopener">PR<%= " ##{item.pr_number}" if item.pr_number %></a>
+    <span class="ml-auto">
+      <% if context.chain_merge? %>
+        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
+                   label: "Merge (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
+      <% else %>
+        <%= render "work_queue/merge", item: item, url: work_queue_item_merge_pr_path(item.key), label: "Merge", context: context %>
+      <% end %>
+    </span>
+  </div>
+</section>
