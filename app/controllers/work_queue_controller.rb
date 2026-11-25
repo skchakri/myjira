@@ -110,7 +110,8 @@ class WorkQueueController < ApplicationController
     end
 
     message, level = if result.duplicate
-      ["##{@item.n} already has a Claude session with Chrome (session #{id}): not launching a second one", :warn]
+      where = result.launch.tmux_target.present? ? "Already running in tmux #{result.launch.tmux_target}" : "Already starting"
+      ["#{where}: ##{@item.n} already has a Claude session with Chrome (session #{id}), not launching a second one", :warn]
     elsif result.launch
       WorkQueue::Broadcaster.item_note(@item, "Run in Chrome: launched session #{id} in #{result.launch.repo_path}")
       ["Launching a Claude session with Chrome for ##{@item.n} (session #{id})", :ok]

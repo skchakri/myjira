@@ -26,10 +26,23 @@ module Api
         end
       end
 
+      # Chrome launches whose tmux window the daemon watches. For each it checks the
+      # window: gone → PATCH closed=1 (a still-running launch becomes "closed");
+      # present and finished → `tmux kill-window`, then PATCH closed=1.
+      def to_reap
+        launches = SessionLaunch.to_reap.order(:launched_at).limit(50)
+        render json: launches.map { |l| { id: l.id, status: l.status, tmux_target: l.tmux_target } }
+      end
+
       def update
         launch = SessionLaunch.find(params[:id])
         attrs = {}
         attrs[:status]      = params[:status]      if SessionLaunch::STATUSES.include?(params[:status].to_s)
+        attrs[:finished_at] = Time.current         if params[:status].to_s == "finished" && launch.finished_at.nil?
+        if ActiveModel::Type::Boolean.new.cast(params[:closed]) && launch.closed_at.nil?
+          attrs[:closed_at] = Time.current
+          attrs[:status] = "closed" if launch.live?
+        end
         attrs[:tmux_target] = params[:tmux_target] if params.key?(:tmux_target)
         attrs[:error]       = params[:error]       if params.key?(:error)
         attrs[:exit_code]   = params[:exit_code].to_i if params.key?(:exit_code)

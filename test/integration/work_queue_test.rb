@@ -554,21 +554,65 @@ class WorkQueueServerModeTest < ActionDispatch::IntegrationTest
     assert_no_match(/window\.open/, response.body)
   end
 
-  test "Run in Chrome offers the button again once the launch failed or aged out" do
+  test "Run in Chrome offers the button again once the launch failed or its window closed, never just by age" do
     chrome_item
     path = work_queue_item_run_in_chrome_path("home-me-app:1")
     post path, as: :turbo_stream
     launch = SessionLaunch.order(:created_at).last
+    assert_equal "home-me-app:1", launch.work_item_key
     launch.update!(status: "failed", error: "tmux missing")
     get work_queue_item_detail_path("home-me-app:1")
     assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
 
+    # An old but still-open window keeps blocking a second launch, and says where it is.
     launch.update!(status: "launched", tmux_target: "myjira:app-1", launched_at: (WorkQueue::ChromeRun::WINDOW + 1.minute).ago)
+    WorkQueue::RunState.del_fields("home-me-app:1", WorkQueue::ChromeRun::FIELD) # Redis forgot it: the column still ties it
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "form[action=?]", path, 0
+    assert_select ".wq-chrome-tmux", text: /Already running in tmux myjira:app-1/
+    assert_no_difference -> { SessionLaunch.count } do
+      post path, as: :turbo_stream
+    end
+    assert_match(/Already running in tmux myjira:app-1/, response.body)
+
+    # The daemon found the window gone.
+    patch api_v1_session_launch_path(launch), params: { closed: true }, as: :json
+    assert_equal "closed", launch.reload.status
+    assert launch.closed_at
     get work_queue_item_detail_path("home-me-app:1")
     assert_select "#wq_chrome_home-me-app_1 form[action=?] button.wq-btn-chrome", path
     assert_difference -> { SessionLaunch.count }, 1 do
       post path, as: :turbo_stream
     end
+  end
+
+  test "a Run in Chrome session tells itself to report finished; the daemon reaps finished and vanished windows" do
+    chrome_item
+    post work_queue_item_run_in_chrome_path("home-me-app:1"), as: :turbo_stream
+    launch = SessionLaunch.order(:created_at).last
+    assert_includes launch.prompt, "/api/v1/session_launches/#{launch.id}"
+    assert_includes launch.prompt, %("status":"finished")
+    assert_match(/Never run it while a question/, launch.prompt)
+
+    other = SessionLaunch.queue!(project: launch.project, prompt: "x", chrome: true)
+    other.update!(status: "launched", tmux_target: "myjira:other", launched_at: Time.current)
+    launch.update!(status: "launched", tmux_target: "myjira:app-1", launched_at: Time.current)
+    get to_reap_api_v1_session_launches_path, as: :json
+    assert_equal [launch.id, other.id].sort, response.parsed_body.pluck("id").sort
+
+    patch api_v1_session_launch_path(launch), params: { status: "finished" }, as: :json
+    assert_equal "finished", launch.reload.status
+    assert launch.finished_at
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select "button.wq-btn-chrome", 1
+    get to_reap_api_v1_session_launches_path, as: :json
+    assert_equal "finished", response.parsed_body.find { |l| l["id"] == launch.id }["status"]
+
+    patch api_v1_session_launch_path(launch), params: { closed: true }, as: :json
+    assert_equal "finished", launch.reload.status # closing keeps the finished verdict
+    assert launch.closed_at
+    get to_reap_api_v1_session_launches_path, as: :json
+    assert_equal [other.id], response.parsed_body.pluck("id")
   end
 
   test "a failed Run in Chrome launch says so on the item, notes the log once, and clears on the next launch" do

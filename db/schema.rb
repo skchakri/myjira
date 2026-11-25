@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -421,10 +421,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000001) do
     t.bigint "cache_read_tokens"
     t.boolean "chrome", default: false, null: false
     t.uuid "conversation_id"
+    t.datetime "closed_at"
     t.datetime "created_at", null: false
     t.text "error"
     t.integer "estimated_cost_cents"
     t.integer "exit_code"
+    t.datetime "finished_at"
     t.datetime "launched_at"
     t.integer "max_turns"
     t.string "model"
@@ -443,6 +445,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000001) do
     t.bigint "token_input"
     t.bigint "token_output"
     t.datetime "updated_at", null: false
+    t.string "work_item_key"
     t.index ["agent_id"], name: "index_session_launches_on_agent_id"
     t.index ["browser_task_id"], name: "index_session_launches_on_browser_task_id"
     t.index ["conversation_id"], name: "index_session_launches_on_conversation_id"
@@ -451,6 +454,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000001) do
     t.index ["session_id"], name: "index_session_launches_on_session_id", unique: true
     t.index ["status"], name: "index_session_launches_on_status"
     t.index ["task_id"], name: "index_session_launches_on_task_id"
+    t.index ["work_item_key", "status"], name: "index_session_launches_on_work_item_key_and_status"
   end
 
   create_table "settings", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|

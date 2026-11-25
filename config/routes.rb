@@ -283,6 +283,7 @@ Rails.application.routes.draw do
         collection do
           get :pending
           get :to_cancel
+          get :to_reap
         end
       end
 

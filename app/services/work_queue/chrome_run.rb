@@ -44,12 +44,19 @@ module WorkQueue
     end
 
     # The launch still starting, or launched recently enough to count as working the item.
-    def active_launch(run)
+    # A launch tied to the item (work_item_key) counts for as long as it is live:
+    # the daemon flips it to finished/closed when its tmux window goes away, so
+    # there is no time window to age out of while the session is still open.
+    def active_launch(run, key: nil)
+      if key && (live = SessionLaunch.live.where(chrome: true, work_item_key: key).order(created_at: :desc).first)
+        return live
+      end
       return nil if run[FIELD].blank?
 
       launch = SessionLaunch.find_by(id: run[FIELD])
       return nil unless launch
       return launch if %w[pending launching].include?(launch.status)
+      return nil if launch.work_item_key.present? # tied launches are judged by status alone, above
 
       launch if launch.status == "launched" && launch.launched_at && launch.launched_at >= WINDOW.ago
     end
