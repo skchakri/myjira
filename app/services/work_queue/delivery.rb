@@ -23,8 +23,11 @@ module WorkQueue
   #   * once GitHub says the rate limit is used up, nothing is asked until it resets.
   class Delivery
     # url: the run it is about (the batch CI run while testing), when there is one.
-    State = Struct.new(:state, :detail, :failed, :url, keyword_init: true) do
+    # unknown: a "not_live" state whose last deploy never reported a result (see NO_RESULT):
+    # not known to be live, and not known to have failed.
+    State = Struct.new(:state, :detail, :failed, :url, :unknown, keyword_init: true) do
       def live? = state == "live"
+      def unknown? = unknown == true
     end
 
     # GitHub could not be asked (outage, rate limit, gh missing). Never a delivery state.
@@ -39,6 +42,9 @@ module WorkQueue
     NOT_FOUND = /HTTP 4(04|22)/
     WORKFLOWS_TTL = 1.hour
     DEPLOY_NAME = /\Adeploy/i
+    # Conclusion given to a deployment that is over an hour old and never reported a status:
+    # nobody knows how it ended, so it reads "unknown", never "failed".
+    NO_RESULT = "stale".freeze
 
     # What the Releases page needs to know about a repo, kept in Redis next to the
     # per-PR state: its Deploy workflow (nil = none) and that workflow's latest main run.
@@ -47,9 +53,11 @@ module WorkQueue
       def workflow? = workflow.present?
       def deployments? = source == "deployments"
 
+      # "running" | "success" | "failed" | "unknown" (a deployment that never reported a result)
       def run_state
         return if run.blank?
         return "running" if run["status"] != "completed"
+        return "unknown" if run["conclusion"] == NO_RESULT
 
         run["conclusion"] == "success" ? "success" : "failed"
       end
@@ -169,6 +177,9 @@ module WorkQueue
       when :live then State.new(state: "live", detail: "Deployed by #{name}.")
       when :deploying then State.new(state: "deploying", detail: "#{name} is running with this change.")
       when :failed then State.new(state: "deploy_failed", detail: "#{name} failed with this change.", failed: [name])
+      when :unknown
+        batch_state(repo, pr) || State.new(state: "not_live", unknown: true, detail: "A deploy with this change was recorded over " \
+          "#{DEPLOYMENT_PENDING_FOR.inspect} ago and never reported a result: unknown whether it went live.")
       else batch_state(repo, pr) || State.new(state: "not_live", detail: "Merged and ready to deploy; no #{name} run includes it yet.")
       end
     end
@@ -202,9 +213,9 @@ module WorkQueue
         return { "status" => "completed", "conclusion" => done, "html_url" => url }.compact
       end
 
-      # Queued / in progress, or no status at all: going while young, then given up on.
+      # Queued / in progress, or no status at all: going while young, then its outcome is unknown.
       young = Time.zone.parse(deployment["created_at"].to_s).to_i > DEPLOYMENT_PENDING_FOR.ago.to_i
-      young ? { "status" => "in_progress", "conclusion" => nil } : { "status" => "completed", "conclusion" => "stale" }
+      young ? { "status" => "in_progress", "conclusion" => nil } : { "status" => "completed", "conclusion" => NO_RESULT }
     end
 
     # Where `sha` is among main's deploy runs (newest first), in a few compares instead of one
@@ -212,6 +223,7 @@ module WorkQueue
     #   live      the newest green run contains it (if that one doesn't, no older green one does)
     #   deploying a run still going contains it
     #   failed    the newest finished run after that green one contains it, and it wasn't green
+    #   unknown   as failed, but that run is a deployment that never reported a result
     def deployed(repo, sha, runs)
       green = runs.find { |r| r["conclusion"] == "success" }
       return :live if green && contains?(repo, sha, green["head_sha"])
@@ -219,7 +231,9 @@ module WorkQueue
 
       since_green = green ? runs.take_while { |r| !r.equal?(green) } : runs
       newest = since_green.find { |r| r["status"] == "completed" }
-      :failed if newest && contains?(repo, sha, newest["head_sha"])
+      return unless newest && contains?(repo, sha, newest["head_sha"])
+
+      newest["conclusion"] == NO_RESULT ? :unknown : :failed
     end
 
     # A PR merged into another branch (a stacked or bundle PR) is not on main: a deploy of

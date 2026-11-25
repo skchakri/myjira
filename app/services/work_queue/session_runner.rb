@@ -95,9 +95,11 @@ module WorkQueue
       result = Result.new(denials: [], exit_ok: false)
       Open3.popen2(env, *command, chdir: @cwd, pgroup: true) do |stdin, stdout, wait|
         @pid = wait.pid
-        on_spawn&.call(@pid)
+        # The prompt goes in first: `claude -p` gives up on stdin after 3 seconds, so nothing
+        # that can stall (on_spawn writes to Redis) may sit between the spawn and this write.
         stdin.write(prompt)
         stdin.close
+        on_spawn&.call(@pid)
         stdout.each_line { |line| handle(line, result) }
         result.exit_ok = wait.value.success?
       end

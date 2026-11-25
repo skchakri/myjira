@@ -156,6 +156,26 @@ class WorkQueueReleasesTest < ActionDispatch::IntegrationTest
     assert_nil releases.repo(LIB)
   end
 
+  test "a deployment that never reported a result shows as unknown, not as a failed deploy" do
+    hand = "me/hand"
+    write("home-me-hand", [done(1, "Deployed by hand", pr(hand, 2), (Time.current.to_f * 1000).to_i)])
+    @redis.set(WorkQueue::StatusCache.pr_key(pr(hand, 2)), { url: pr(hand, 2), state: "MERGED", merge_sha: "m" }.to_json)
+    @redis.set(WorkQueue::StatusCache.delivery_key(pr(hand, 2)), { state: "not_live", detail: "never reported a result", unknown: true }.to_json)
+    run = { status: "completed", conclusion: WorkQueue::Delivery::NO_RESULT, created_at: 2.hours.ago.iso8601 }
+    @redis.set(WorkQueue::Delivery.summary_key(hand), { workflow: nil, run: run, source: "deployments", at: Time.current.iso8601 }.to_json)
+
+    repo = WorkQueue::Releases.new.repo(hand)
+    assert_equal ["ready", "unknown"], [repo.state, repo.summary.run_state]
+    flow = WorkQueue::Flow.new(WorkQueue::Store.new.find("home-me-hand:1"), Struct.new(:delivery).new(repo.entries.first.delivery))
+    assert_equal "Deploy result unknown", flow.label
+
+    get work_queue_releases_path
+    assert_select "#wq_rel_me-hand .wq-pill", text: "Deploy result unknown"
+    assert_select "#wq_rel_me-hand .wq-pill-bad", count: 0
+    assert_select "#wq_rel_me-hand .wq-rel-head .wq-hint", text: /result unknown, started about 2 hours ago/
+    assert_select "#wq_rel_me-hand .wq-rel-head .wq-hint", text: /failed/, count: 0
+  end
+
   test "a failed deploy run marks the repo failed and still deployable (retry)" do
     lib = WorkQueue::Releases.new.repo(LIB)
     assert_equal "failed", lib.state

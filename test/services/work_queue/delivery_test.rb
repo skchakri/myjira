@@ -87,6 +87,31 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
     assert_equal "not_live", delivery(deployments: deploys, statuses: { 2 => "success", 1 => "success" }).compute(pr(merge_sha: "m9")).state
   end
 
+  test "a deployment with no status after an hour reads unknown, never a failed deploy" do
+    repo = URL[%r{github\.com/([^/]+/[^/]+)/}, 1]
+    deploys = [{ id: 2, sha: "d2", created_at: 2.hours.ago.iso8601 }, { id: 1, sha: "d1", created_at: 2.days.ago.iso8601 }]
+    s = delivery(deployments: deploys, statuses: { 1 => "success" }, contains: [%w[m1 d2]]).compute(pr)
+
+    assert_equal "not_live", s.state
+    assert_predicate s, :unknown?
+    assert_nil s.failed
+    assert_match(/never reported a result/, s.detail)
+    assert_equal "unknown", WorkQueue::Delivery.summary(repo).run_state
+
+    Rails.cache.clear
+    failed = delivery(deployments: deploys, statuses: { 2 => "failure", 1 => "success" }, contains: [%w[m1 d2]]).compute(pr)
+    assert_equal "deploy_failed", failed.state
+    assert_equal "failed", WorkQueue::Delivery.summary(repo).run_state
+  end
+
+  test "an unknown delivery state survives the status cache" do
+    state = WorkQueue::Delivery::State.new(state: "not_live", detail: "x", unknown: true)
+    @redis.set(WorkQueue::StatusCache.delivery_key(URL), state.to_h.to_json)
+
+    assert_predicate WorkQueue::StatusCache.delivery(URL), :unknown?
+    assert_not WorkQueue::Delivery::State.new(state: "not_live").unknown?
+  end
+
   test "a finished deployment's state is kept: asked once, not on every refresh" do
     deploys = [{ id: 1, sha: "d1", created_at: 2.days.ago.iso8601 }]
     2.times { delivery(deployments: deploys, statuses: { 1 => "inactive" }, contains: [%w[m1 d1]]).compute(pr) }
