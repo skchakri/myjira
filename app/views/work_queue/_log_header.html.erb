@@ -76,7 +76,8 @@
       <p class="text-[12.5px]"><strong>Failed checks:</strong> <%= flow.failed_checks.join(", ") %></p>
     <% end %>
     <% if flow.delivery_note %>
-      <p class="text-[12.5px]"><%= flow.delivery_note %></p>
+      <p class="text-[12.5px]"><%= flow.delivery_note %>
+        <% if flow.delivery_url %><a class="wq-link" href="<%= flow.delivery_url %>" target="_blank" rel="noopener">Open the run</a><% end %></p>
     <% end %>
     <% if roll.left.positive? && (flow.finished? || flow.closed?) %>
       <p class="text-[12.5px] wq-kid-note">This task itself is finished, but <%= pluralize(roll.left, "child step") %> below <%= roll.left == 1 ? "is" : "are" %> not.</p>

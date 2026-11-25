@@ -37,6 +37,11 @@
 
   <%= render "work_queue_releases/entries", entries: repo.entries %>
 
+  <% if repo.by_hand? && repo.state != "deploying" %>
+    <p class="wq-rel-note wq-hint">This repo has no Deploy workflow: it is deployed by hand with <code>kamal deploy</code>, whose post-deploy hook records a GitHub Deployment.
+      Tasks show Deploying, then Live, once that deploy is recorded.</p>
+  <% end %>
+
   <% if repo.deployable? %>
     <details class="wq-rel-confirm" data-controller="wq-release" data-action="keydown->wq-release#key">
       <summary class="wq-btn wq-btn-primary"><%= repo.state == "failed" ? "Retry deploy of" : "Deploy" %> <%= repo.name.split("/").last %></summary>

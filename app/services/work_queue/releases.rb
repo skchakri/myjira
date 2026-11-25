@@ -39,7 +39,9 @@ module WorkQueue
         dispatched_at.present? && (summary&.run_at.nil? || summary.run_at < dispatched_at - 5.seconds)
       end
 
-      def deployable? = state != "deploying" && entries.any?
+      # A repo deployed by hand (kamal deploy, recorded as GitHub Deployments) has nothing to dispatch.
+      def by_hand? = summary&.deployments? || false
+      def deployable? = state != "deploying" && entries.any? && !by_hand?
     end
 
     # A repo's tasks that cannot be released from here (no Deploy workflow, or merged into a branch off main).

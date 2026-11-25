@@ -21,7 +21,7 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
   # Fake gh: runs/workflows/deploy runs as given; compare says head contains base when listed.
   # `down` makes the REST reads matching `down_on` fail with that stderr. Every `gh api` path
   # lands in @calls, except the free rate_limit lookup, which answers a reset `reset_in` away.
-  def delivery(runs: [], workflows: [], deploy_runs: [], contains: [], down: nil, down_on: //, reset_in: 600)
+  def delivery(runs: [], workflows: [], deploy_runs: [], contains: [], down: nil, down_on: //, reset_in: 600, deployments: [], statuses: {})
     runner = lambda do |*args|
       path = args[1]
       next [(Time.current.to_i + reset_in).to_s, true, ""] if path == "rate_limit"
@@ -33,6 +33,8 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
       when %r{/workflows/\d+/runs} then { workflow_runs: deploy_runs }
       when %r{/actions/workflows\z} then { workflows: workflows }
       when %r{/actions/runs} then { workflow_runs: runs }
+      when %r{/deployments/(\d+)/statuses} then statuses.key?($1.to_i) ? [{ state: statuses[$1.to_i] }] : []
+      when %r{/deployments\?} then deployments
       when %r{/compare/(\w+)\.\.\.(\w+)} then { status: contains.include?([$1, $2]) ? "ahead" : "behind" }
       end
       [body.to_json, true, ""]
@@ -62,7 +64,33 @@ class WorkQueueDeliveryTest < ActiveSupport::TestCase
 
   test "batch CI running on a batch containing the PR is testing together" do
     runs = [{ head_branch: "batch/1", head_sha: "b1", status: "in_progress", name: "CI" }]
-    assert_equal "testing", delivery(runs: runs, contains: [%w[h1 b1]]).compute(pr(state: "OPEN")).state
+    s = delivery(runs: runs, contains: [%w[h1 b1]]).compute(pr(state: "OPEN"))
+    assert_equal "testing", s.state
+    assert_match(/Testing on homey's release train: batch\/1/, s.detail)
+  end
+
+  test "a testing state links the batch run" do
+    runs = [{ head_branch: "batch/1", head_sha: "b1", status: "queued", name: "CI", html_url: "https://github.com/me/app/actions/runs/7" }]
+    assert_equal "https://github.com/me/app/actions/runs/7", delivery(runs: runs, contains: [%w[h1 b1]]).compute(pr(state: "OPEN")).url
+  end
+
+  test "a repo without a Deploy workflow follows its production Deployments: deploying, then live" do
+    deploys = [{ id: 2, sha: "d2", created_at: 1.minute.ago.iso8601 }, { id: 1, sha: "d1", created_at: 2.days.ago.iso8601 }]
+    going = delivery(deployments: deploys, statuses: { 2 => "in_progress", 1 => "success" }, contains: [%w[m1 d2]])
+    s = going.compute(pr)
+    assert_equal "deploying", s.state
+    assert_match(/GitHub Deployments/, s.detail)
+    assert_equal "deployments", WorkQueue::Delivery.summary(URL[%r{github\.com/([^/]+/[^/]+)/}, 1]).source
+
+    done = delivery(deployments: deploys, statuses: { 2 => "success", 1 => "success" }, contains: [%w[m1 d2]])
+    assert_equal "live", done.compute(pr).state
+    assert_equal "not_live", delivery(deployments: deploys, statuses: { 2 => "success", 1 => "success" }).compute(pr(merge_sha: "m9")).state
+  end
+
+  test "a finished deployment's state is kept: asked once, not on every refresh" do
+    deploys = [{ id: 1, sha: "d1", created_at: 2.days.ago.iso8601 }]
+    2.times { delivery(deployments: deploys, statuses: { 1 => "inactive" }, contains: [%w[m1 d1]]).compute(pr) }
+    assert_equal 1, @calls.grep(%r{/deployments/1/statuses}).size
   end
 
   test "red batch on an open PR is ci_failed" do

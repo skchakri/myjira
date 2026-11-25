@@ -10,8 +10,10 @@ module WorkQueue
     REFRESH_EVERY = ENV.fetch("WORK_QUEUE_REFRESH_SECONDS", 20).to_i
     TRANSCRIPT = /(?:agent-[\w-]+|\A[0-9a-f-]{36})\.jsonl\z/
 
-    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new, parent_closer: ParentCloser.new)
+    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new, parent_closer: ParentCloser.new,
+                   train_sync: TrainSync.new)
       @store = store
+      @train_sync = train_sync
       @child_starter = child_starter
       @parent_closer = parent_closer
       @queues = queues.to_s
@@ -75,6 +77,8 @@ module WorkQueue
       list = Array.new(changed.size) { changed.pop }
       list |= stall_changes(items)
       Broadcaster.cards_changed(list) if list.any?
+      # PRs merged or failed by homey's release train move their items on (the queue write redraws them).
+      @train_sync.call(items.select(&:open?))
       refresh_listeners(items.select(&:open?))
     rescue StandardError => e
       @logger.error("[work-queue] status refresh failed: #{e.class}: #{e.message}")

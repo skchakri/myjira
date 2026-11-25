@@ -6,7 +6,11 @@ module WorkQueue
   # Actions via `gh api` (the same data Homey's release train acts on):
   #   * batch CI  = workflow runs on batch/** branches whose head contains the PR head
   #   * deploys   = main-branch runs of the repo's "Deploy…" workflow whose head
-  #                 contains the PR's merge commit
+  #                 contains the PR's merge commit; for a repo with no such workflow
+  #                 (deployed by hand with `kamal deploy`, whose post-deploy hook records
+  #                 a GitHub Deployment), its production Deployments instead, as homey's
+  #                 DeployHistory reads them. Either way a deploy started from myjira or
+  #                 from homey's Ship page reads Deploying, then Live.
   # Repo-wide lookups are shared through Rails.cache with a short TTL; the result
   # per PR lands in StatusCache (Redis) via the watcher, so rendering never calls gh.
   #
@@ -18,7 +22,8 @@ module WorkQueue
   #     and StatusCache keeps what it knew;
   #   * once GitHub says the rate limit is used up, nothing is asked until it resets.
   class Delivery
-    State = Struct.new(:state, :detail, :failed, keyword_init: true) do
+    # url: the run it is about (the batch CI run while testing), when there is one.
+    State = Struct.new(:state, :detail, :failed, :url, keyword_init: true) do
       def live? = state == "live"
     end
 
@@ -37,8 +42,10 @@ module WorkQueue
 
     # What the Releases page needs to know about a repo, kept in Redis next to the
     # per-PR state: its Deploy workflow (nil = none) and that workflow's latest main run.
-    Summary = Struct.new(:repo, :workflow, :run, :at, keyword_init: true) do
+    # source: "workflow", "deployments" (hand deploys recorded as GitHub Deployments) or nil.
+    Summary = Struct.new(:repo, :workflow, :run, :at, :source, keyword_init: true) do
       def workflow? = workflow.present?
+      def deployments? = source == "deployments"
 
       def run_state
         return if run.blank?
@@ -67,7 +74,7 @@ module WorkQueue
     def self.summary(repo)
       raw = RunState.redis.get(summary_key(repo)) or return
       h = JSON.parse(raw)
-      Summary.new(repo: repo, workflow: h["workflow"], run: h["run"], at: h["at"])
+      Summary.new(repo: repo, workflow: h["workflow"], run: h["run"], at: h["at"], source: h["source"])
     rescue JSON::ParserError, Redis::BaseError
       nil
     end
@@ -97,8 +104,9 @@ module WorkQueue
       workflow = deploy_workflow(repo)
       return unless @workflows_ok
 
-      run = workflow && deploy_runs(repo, workflow["id"]).first
-      body = { workflow: workflow&.dig("name"), at: Time.current.iso8601,
+      run = workflow ? deploy_runs(repo, workflow["id"]).first : deployment_runs(repo).first
+      source = workflow ? "workflow" : ("deployments" if run)
+      body = { workflow: workflow&.dig("name"), at: Time.current.iso8601, source: source,
                run: run&.slice("status", "conclusion", "created_at", "html_url", "head_sha") }
       RunState.redis.set(self.class.summary_key(repo), body.to_json, ex: SUMMARY_TTL)
       self.class.summary(repo)
@@ -136,28 +144,60 @@ module WorkQueue
       run = batches.find { |r| contains?(repo, pr.head_sha, r["head_sha"]) }
       return unless run
 
+      # batch/** branches are made by homey's release train (homey's ReleaseTrain).
       if run["status"] != "completed"
-        State.new(state: "testing", detail: "Testing together on #{run['head_branch']} (#{run['name']}).")
+        State.new(state: "testing", detail: "Testing on homey's release train: #{run['head_branch']} (#{run['name']}).", url: run["html_url"])
       elsif !pr.merged? && failed?(run)
-        State.new(state: "ci_failed", detail: "Batch CI failed on #{run['head_branch']}.", failed: [run["name"]])
+        State.new(state: "ci_failed", detail: "Batch CI failed on #{run['head_branch']}.", failed: [run["name"]], url: run["html_url"])
       end
     end
 
     MAIN = %w[main master].freeze
     MAX_STACK = 4
     PARENT_FIELDS = "number,state,baseRefName,headRefName,url,headRefOid,mergeCommit,mergedAt".freeze
+    DEPLOYMENTS = "Deploy (GitHub Deployments)".freeze
 
     def deploy_state(repo, pr, depth = 0)
-      workflow = deploy_workflow(repo) or return
-      return stacked_state(repo, pr, workflow, depth) if pr.base.present? && MAIN.exclude?(pr.base)
+      workflow = deploy_workflow(repo)
+      runs = workflow ? -> { deploy_runs(repo, workflow["id"]) } : -> { deployment_runs(repo) }
+      return if workflow.nil? && runs.call.empty?
+      return stacked_state(repo, pr, depth) if pr.base.present? && MAIN.exclude?(pr.base)
 
+      name = workflow ? workflow["name"] : DEPLOYMENTS
       sha = pr.merge_sha.presence || pr.head_sha
-      case deployed(repo, sha, deploy_runs(repo, workflow["id"]))
-      when :live then State.new(state: "live", detail: "Deployed by #{workflow['name']}.")
-      when :deploying then State.new(state: "deploying", detail: "#{workflow['name']} is running with this change.")
-      when :failed then State.new(state: "deploy_failed", detail: "#{workflow['name']} failed with this change.", failed: [workflow["name"]])
-      else batch_state(repo, pr) || State.new(state: "not_live", detail: "Merged; no #{workflow['name']} run includes it yet.")
+      case deployed(repo, sha, runs.call)
+      when :live then State.new(state: "live", detail: "Deployed by #{name}.")
+      when :deploying then State.new(state: "deploying", detail: "#{name} is running with this change.")
+      when :failed then State.new(state: "deploy_failed", detail: "#{name} failed with this change.", failed: [name])
+      else batch_state(repo, pr) || State.new(state: "not_live", detail: "Merged and ready to deploy; no #{name} run includes it yet.")
       end
+    end
+
+    # A repo without a Deploy workflow: its production Deployments (newest first), shaped
+    # like deploy runs. A finished deployment's state never changes back (success may turn
+    # "inactive" once a newer one replaces it, which still means it went live), so it is kept
+    # in Redis and costs one statuses call ever; only the list is re-read every RUNS_TTL.
+    DEPLOYMENT_DONE = { "success" => "success", "inactive" => "success", "failure" => "failure", "error" => "failure" }.freeze
+    DEPLOYMENT_PENDING_FOR = 1.hour
+
+    def deployment_runs(repo)
+      list = Rails.cache.fetch(["wq-deployments", repo], expires_in: RUNS_TTL) do
+        api("repos/#{repo}/deployments?environment=production&per_page=10") || []
+      end
+      Array(list).map { |d| { "head_sha" => d["sha"], "created_at" => d["created_at"], **deployment_status(repo, d) } }
+    end
+
+    def deployment_status(repo, deployment)
+      key = "#{RunState::PREFIX}:deployment:#{repo}:#{deployment['id']}"
+      done = kept(key) || DEPLOYMENT_DONE[api("repos/#{repo}/deployments/#{deployment['id']}/statuses?per_page=1")&.first&.dig("state")]
+      if done
+        keep(key, done, CONTAINS_TTL)
+        return { "status" => "completed", "conclusion" => done }
+      end
+
+      # Queued / in progress, or no status at all: going while young, then given up on.
+      young = Time.zone.parse(deployment["created_at"].to_s).to_i > DEPLOYMENT_PENDING_FOR.ago.to_i
+      young ? { "status" => "in_progress", "conclusion" => nil } : { "status" => "completed", "conclusion" => "stale" }
     end
 
     # Where `sha` is among main's deploy runs (newest first), in a few compares instead of one
@@ -179,7 +219,7 @@ module WorkQueue
     # main does not ship it, and with squash merges its own merge commit never reaches main
     # at all. Its fate is that of the PR that carries its base branch: follow that one.
     # "stacked" = merged, but the branch it went into has not been merged to main yet.
-    def stacked_state(repo, pr, workflow, depth)
+    def stacked_state(repo, pr, depth)
       parent = depth < MAX_STACK ? base_pr(repo, pr.base) : nil
       if parent.nil?
         State.new(state: "stacked", detail: "Merged into #{pr.base}, which has no pull request to main yet. A deploy of main would not include it.")
