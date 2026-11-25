@@ -9,6 +9,7 @@
        title="Claude is working this item in Chrome: open its live terminal">
       <span class="wq-live-dot" aria-hidden="true"></span> Running in Chrome · Watch ↗
     </a>
+    <span class="wq-hint wq-chrome-tmux" role="status">Already running in tmux <code><%= launch.tmux_target %></code></span>
   <% elsif launch %>
     <span class="wq-btn wq-chrome-status" role="status"
           title="The session launcher is starting a Claude session with Chrome for this item">
@@ -16,7 +17,7 @@
     </span>
   <% elsif item.open? && (step = context.browser_step) %>
     <%= button_to work_queue_item_run_in_chrome_path(item.key), class: "wq-btn wq-btn-chrome",
-                  title: step == :flag ? "Marked as a browser step" : "Looks like a browser step (auto-detected)",
+                  title: step.in?(%i[flag step]) ? "Marked as a browser step" : "Looks like a browser step (auto-detected)",
                   form: { data: { turbo_stream: true } } do %>
       <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5h8.2M8.9 13.8 4.8 6.7M15 13.8l-4.1 7.1"/></svg>
       Run in Chrome

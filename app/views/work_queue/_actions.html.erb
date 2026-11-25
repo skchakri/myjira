@@ -1,5 +1,6 @@
 <%# Labelled next-step buttons for the detail pane, by state. Merge and Deploy confirm in-page (details panel). %>
 <% pr = context.pr_status %>
+<% merge_on_top ||= false %>
 <% delivery = context.delivery %>
 <% deployable = item.status == "done" && delivery&.state.in?(%w[not_live deploy_failed]) %>
 <% if item.errand? %>
@@ -17,11 +18,11 @@
     <%= button_to "Run now", work_queue_item_run_path(item.key), class: "wq-btn wq-btn-primary", form: { data: { turbo_stream: true } } %>
   <% end %>
 
-  <%= render "work_queue/chrome_run", item: item, context: context %>
+  <%= render "work_queue/chrome_run", item: item, context: context unless item.open? && item.browser_step %>
 
   <% if item.ready_to_bundle? && item.pr.blank? %>
     <%= button_to "Ready for PR", work_queue_item_ship_path(item.key), class: "wq-btn wq-btn-primary",
-                  title: "Bundle this task (and any ready follow-ups) into its parent's single PR now",
+                  title: "Open this task's PR now",
                   form: { data: { turbo_stream: true } } %>
   <% elsif item.pr.present? %>
     <a class="wq-btn" href="<%= item.pr %>" target="_blank" rel="noopener">Open PR<%= " ##{item.pr_number}" if item.pr_number %></a>
@@ -29,7 +30,9 @@
     <button type="button" class="wq-btn" disabled title="Available once the task is built and tested">Ready for PR</button>
   <% end %>
 
-  <% if context.chain_merge? %>
+  <% if merge_on_top %>
+    <%# Merge is already the first box of the pane. %>
+  <% elsif context.chain_merge? %>
     <%= render "work_queue/merge", item: item, url: work_queue_item_merge_chain_path(item.key), context: context,
                label: "Merge (#{context.chain.map { |i| "##{i.n}" }.join(' → ')})" %>
   <% elsif context.card_merge? %>

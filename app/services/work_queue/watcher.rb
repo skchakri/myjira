@@ -10,11 +10,11 @@ module WorkQueue
     REFRESH_EVERY = ENV.fetch("WORK_QUEUE_REFRESH_SECONDS", 20).to_i
     TRANSCRIPT = /(?:agent-[\w-]+|\A[0-9a-f-]{36})\.jsonl\z/
 
-    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger, child_starter: ChildStarter.new, parent_closer: ParentCloser.new, worktrees: nil)
+    def initialize(store: Store.new, queues: Store.dir, projects: Transcript.root, logger: Rails.logger,
+                   train_sync: TrainSync.new, worktrees: nil)
       @store = store
+      @train_sync = train_sync
       @worktrees = worktrees || WorktreeQueues.new(dir: queues, logger: logger)
-      @child_starter = child_starter
-      @parent_closer = parent_closer
       @queues = queues.to_s
       @projects = projects.to_s
       @logger = logger
@@ -80,6 +80,8 @@ module WorkQueue
       list = Array.new(changed.size) { changed.pop }
       list |= stall_changes(items)
       Broadcaster.cards_changed(list) if list.any?
+      # PRs merged or failed by homey's release train move their items on (the queue write redraws them).
+      @train_sync.call(items.select(&:open?))
       refresh_listeners(items.select(&:open?))
     rescue StandardError => e
       @logger.error("[work-queue] status refresh failed: #{e.class}: #{e.message}")
@@ -121,11 +123,7 @@ module WorkQueue
         next fold_worktrees if WorktreeQueues.worktree?(slug, dir: @queues)
 
         items = @store.items_for(slug)
-        # Follow-ups start by themselves; the write re-triggers this with the cleared flag.
-        next if @child_starter.call(items).any?
-        # A parent with nothing of its own to merge closes once its child steps are all done.
-        next if @parent_closer.call(items).any?
-
+        # One item per task: myjira never starts or closes child items by itself any more.
         @sessions = @owners = nil
         transitions = items.filter_map do |i|
           from = @statuses[i.key]

@@ -11,7 +11,11 @@ class SessionLaunch < ApplicationRecord
 
   # canceling = the budget enforcer flagged an over-cap run for the daemon's kill
   # leg; the daemon `tmux kill-session`s it and PATCHes status → canceled.
-  STATUSES = %w[pending launching launched failed canceled canceling].freeze
+  # finished = the session reported its job done (the daemon then closes its
+  # window); closed = the daemon found the window gone without that report.
+  STATUSES = %w[pending launching launched failed canceled canceling finished closed].freeze
+  # A launch in one of these still owns its tmux window (or is about to).
+  LIVE_STATUSES = %w[pending launching launched].freeze
   # "default" → omit the flag and let the CLI pick. Kept short and shell-safe;
   # the daemon re-validates before interpolating into the tmux command.
   MODELS           = %w[default opus sonnet haiku].freeze
@@ -59,6 +63,12 @@ class SessionLaunch < ApplicationRecord
 
   scope :recent,  -> { order(created_at: :desc) }
   scope :pending, -> { where(status: "pending") }
+  scope :live,    -> { where(status: LIVE_STATUSES) }
+  # Chrome launches whose window the daemon still has to watch: running ones (to
+  # mark "closed" when the window vanished) and finished ones (to kill the window).
+  scope :to_reap, lambda {
+    where(chrome: true, closed_at: nil, status: %w[launched finished]).where.not(tmux_target: [nil, ""])
+  }
   # What the "active launches" strip shows: still in flight, or launched recently
   # enough that the attach hint is still useful (before the live convo takes over).
   scope :active, lambda {
@@ -83,7 +93,8 @@ class SessionLaunch < ApplicationRecord
 
   def self.queue!(project:, prompt:, model: "default", permission_mode: "default",
                   agent: nil, title: nil, source: "launched", task: nil, pipeline_step: nil,
-                  budget_cap_cents: nil, max_turns: nil, repo_path: nil, chrome: false, browser_task: nil)
+                  budget_cap_cents: nil, max_turns: nil, repo_path: nil, chrome: false, browser_task: nil,
+                  work_item_key: nil)
     # Pipeline (board/playbook) launches inherit a per-run $ cap + turn backstop so
     # an unattended runaway is bounded; ad-hoc "＋ New session" launches stay uncapped
     # unless a cap is passed explicitly.
@@ -105,7 +116,7 @@ class SessionLaunch < ApplicationRecord
       launch = project.session_launches.create!(
         prompt: spawn_prompt, model: model, permission_mode: permission_mode, agent: agent,
         task: task, pipeline_step: pipeline_step, repo_path: repo_path, chrome: chrome,
-        browser_task: browser_task,
+        browser_task: browser_task, work_item_key: work_item_key,
         budget_cap_cents: budget_cap_cents,
         max_turns: (max_turns.to_i.positive? ? max_turns.to_i : nil)
       )
@@ -118,6 +129,8 @@ class SessionLaunch < ApplicationRecord
         last_message_at: Time.current
       )
       launch.update!(conversation: convo)
+      # Same transaction, so the daemon never sees the row without the hint.
+      launch.update!(prompt: "#{launch.prompt}\n\n#{launch.finish_instruction}") if work_item_key.present?
       # Link the conversation to the board item so its Session column opens this
       # thread the instant the step is queued (it fills in live as the agent runs).
       task&.update_columns(last_conversation_id: convo.id, updated_at: Time.current) # rubocop:disable Rails/SkipsModelValidations
@@ -145,7 +158,24 @@ class SessionLaunch < ApplicationRecord
   end
 
   def done?
-    %w[launched failed canceled].include?(status)
+    %w[launched failed canceled finished closed].include?(status)
+  end
+
+  def live? = LIVE_STATUSES.include?(status)
+
+  # Base URL a launched session on the host uses to reach myjira.
+  def self.api_base = ENV.fetch("MYJIRA_BASE_URL", "http://localhost:1200")
+
+  # Appended to a work-item launch's prompt: the session's last act marks the
+  # launch finished, and the daemon then closes its tmux window. Only after the
+  # job is really over, never while a question is open, so a window waiting on
+  # the person is never killed.
+  def finish_instruction
+    "When this job is completely done (results logged, tabs closed) and you are NOT waiting on any answer from the " \
+      "person, end the session by running this as your very last command, so myjira closes this tmux window:\n" \
+      "curl -s -X PATCH -H 'Content-Type: application/json' -d '{\"status\":\"finished\"}' " \
+      "#{self.class.api_base}/api/v1/session_launches/#{id}\n" \
+      "Never run it while a question to the person is still open; wait for the answer first."
   end
 
   # Map a (status, launched_at) pair to one of OUTCOMES. A "launched" row is
@@ -156,6 +186,7 @@ class SessionLaunch < ApplicationRecord
     case status
     when "failed"   then "failed"
     when "canceled" then "cancelled"
+    when "finished", "closed" then "succeeded"
     when "launched"
       launched_at && launched_at > ACTIVE_LAUNCHED_WINDOW.ago ? "running" : "succeeded"
     else "running" # pending / launching
@@ -218,6 +249,10 @@ class SessionLaunch < ApplicationRecord
       emit_worklog("launch.canceling", status: "waiting", label: "Killing session (over budget)")
     when "canceled"
       emit_worklog("launch.canceled", status: "info", label: "Canceled")
+    when "finished"
+      emit_worklog("launch.finished", status: "info", label: "Session reported its job finished")
+    when "closed"
+      emit_worklog("launch.closed", status: "info", label: "tmux window closed")
     end
   end
 
@@ -226,7 +261,7 @@ class SessionLaunch < ApplicationRecord
   # for a task-bound, non-pipeline launch.
   def should_record_task_result?
     saved_change_to_status? && done? && task_id.present? && pipeline_step.blank? &&
-      !%w[launched failed canceled].include?(status_previously_was)
+      !%w[launched failed canceled finished closed].include?(status_previously_was)
   end
 
   def record_task_result

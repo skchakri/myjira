@@ -39,6 +39,7 @@ module WorkQueue
         reap
         fill_slots
         bundle_tick
+        cleanup_tick
         release_held
         heartbeat
       rescue JSON::ParserError
@@ -103,6 +104,20 @@ module WorkQueue
         Rails.application.executor.wrap { @bundler.tick }
       rescue StandardError => e
         log_error("bundler", e)
+      end
+    end
+
+    # Removes the worktree and branches of items whose PR is merged and deployed
+    # (WorktreeCleaner), off the main loop: it runs git, and a push per deleted branch.
+    def cleanup_tick
+      return if @cleaned_at && @cleaned_at > WorktreeCleaner::TICK_EVERY.ago
+      return if @cleanup_thread&.alive?
+
+      @cleaned_at = Time.current
+      @cleanup_thread = Thread.new do
+        Rails.application.executor.wrap { (@cleaner ||= WorktreeCleaner.new(store: @store, writer: @writer, logger: @logger)).tick }
+      rescue StandardError => e
+        log_error("cleanup", e)
       end
     end
 
@@ -224,6 +239,10 @@ module WorkQueue
       @writer.update(item.slug, item.n) { |i| i["agent"] = result.session_id } if result.session_id
       if (pr = SessionRunner.pr_in(result.text))
         @writer.update(item.slug, item.n, log: "PR #{pr}") { |i| i["pr"] = pr }
+      end
+
+      if (steps = SessionRunner.steps_in(result.text)).any?
+        @writer.update(item.slug, item.n, log: "Plan: #{steps.size} steps") { |i| i["steps"] = steps }
       end
 
       RunState.del_fields(key, "auto_grants") if result.denials.empty?
@@ -390,7 +409,10 @@ module WorkQueue
     end
 
     def ensure_worktree(item, run)
-      return run["worktree"] if run["worktree"].present? && File.directory?(run["worktree"])
+      if run["worktree"].present? && File.directory?(run["worktree"])
+        link_shared(run["repo"], run["worktree"])
+        return run["worktree"]
+      end
 
       repo = run["repo"].presence || Workspace.repo_for(item.slug)
       unless repo && File.directory?(File.join(repo, ".git"))
@@ -407,9 +429,18 @@ module WorkQueue
       return unless File.directory?(path)
 
       Workspace.match_owner(path, repo)
+      link_shared(repo, path)
       RunState.set(item.key, { "worktree" => path, "repo" => repo })
       @writer.update(item.slug, item.n, log: "Worktree #{path}") { |i| i["branch"] = branch }
       path
+    end
+
+    # .env, credential keys, built assets and node_modules are git-ignored, so a new
+    # worktree lacks them and its tests cannot boot. Linked in from the main checkout.
+    def link_shared(repo, path)
+      ProjectEnv.link_shared(repo, path) if repo.present? && repo != path
+    rescue SystemCallError => e
+      Rails.logger.warn("[work-queue] #{path}: could not link shared files: #{e.message}")
     end
   end
 end

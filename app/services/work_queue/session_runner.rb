@@ -17,13 +17,14 @@ module WorkQueue
       redirects). Run git as single plain commands from the working directory, one per call, with no `-C`,
       `cd`, `&&` or pipes: `git add <files>`, `git commit -m "..."`, `git push -u origin HEAD`. Never push
       to main and never force-push.
-      Otherwise finish the phase and end with a one-line summary. Never open a PR: the queue bundles this
-      item with its parent and follow-ups and opens one PR for all of them.
-      If you suggest a follow-up whose work lives in a different repo than this one, say so and give that
-      repo's absolute path, so it is filed with repo set (it then ships as its own PR in that repo).
-      Mark every follow-up you suggest or file as priority "must" (this item is wrong or incomplete without it)
-      or "nice" (an improvement). File at most the must-dos for work to start; a "nice" follow-up is never
-      started by you, the person picks those in myjira.
+      Otherwise finish the phase and end with a one-line summary. Never open a PR yourself: the queue opens
+      this item's one PR and moves it to review.
+      One task is ONE item: never file or suggest follow-up or child items. If the work is big, plan it as
+      2-5 coarse steps (not granular) and end the plan phase with one fenced block:
+      ```wq-steps
+      [{"title": "step", "status": "todo"}, {"title": "Chrome: what to do in the browser", "status": "todo", "browser": true}]
+      ```
+      Mark a step that needs a real browser with "browser": true. Ask questions with the wq-questions block.
     TXT
 
     PHASE_PROMPTS = {
@@ -70,12 +71,17 @@ module WorkQueue
     def command
       cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose", "--model", @choice.model,
              "--effort", @choice.effort, "--permission-mode", "acceptEdits", "--permission-prompts", "none",
-             "--append-system-prompt", QUESTION_PROTOCOL]
-      cmd += ["--allowedTools", *GIT_ALLOWED, *READ_ALLOWED, *@allowed]
+             "--append-system-prompt", system_prompt]
+      cmd += ["--allowedTools", *GIT_ALLOWED, *READ_ALLOWED, *ProjectEnv.allowed(@cwd), *@allowed]
       cmd += ["--disallowedTools", *GIT_DENIED]
       cmd += ["--resume", @resume] if @resume.present?
       cmd
     end
+
+    def system_prompt = [QUESTION_PROTOCOL, ProjectEnv.briefing(@cwd)].compact_blank.join("\n")
+
+    # The project's own Ruby/Bundler env, not the runner's (see ProjectEnv).
+    def env = ProjectEnv.for(@cwd)
 
     def prompt
       return @prompt if @prompt.present? && @resume.present?
@@ -87,7 +93,7 @@ module WorkQueue
     def run(on_spawn: nil)
       emit_note("Phase #{@phase} · #{@choice.model} · effort #{@choice.effort} — #{@choice.reason}", kind: "phase")
       result = Result.new(denials: [], exit_ok: false)
-      Open3.popen2(*command, chdir: @cwd, pgroup: true) do |stdin, stdout, wait|
+      Open3.popen2(env, *command, chdir: @cwd, pgroup: true) do |stdin, stdout, wait|
         @pid = wait.pid
         on_spawn&.call(@pid)
         stdin.write(prompt)
@@ -142,6 +148,21 @@ module WorkQueue
       return [] unless block
 
       Array(JSON.parse(block)).filter_map { |q| { q: q["q"].to_s, options: Array(q["options"]).map(&:to_s) } if q.is_a?(Hash) && q["q"].present? }
+    rescue JSON::ParserError
+      []
+    end
+
+    # A big task's plan: 2-5 coarse steps from a ```wq-steps block (first five kept).
+    def self.steps_in(text)
+      block = text.to_s[/```wq-steps\s*(.+?)```/m, 1]
+      return [] unless block
+
+      Array(JSON.parse(block)).filter_map do |s|
+        next unless s.is_a?(Hash) && s["title"].present?
+
+        { "title" => s["title"].to_s, "status" => %w[todo doing done].include?(s["status"]) ? s["status"] : "todo" }
+          .merge(s["browser"] == true ? { "browser" => true } : {})
+      end.first(5)
     rescue JSON::ParserError
       []
     end

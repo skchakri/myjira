@@ -81,8 +81,7 @@ class WorkQueueListingTest < ActiveSupport::TestCase
 
   test "watcher sends card updates for a status change and redraws the block only when the tree changes" do
     write
-    watcher = WorkQueue::Watcher.new(store: @store, queues: @dir, projects: Dir.mktmpdir("wqp"), logger: Logger.new(File::NULL),
-                                     child_starter: Class.new { def call(_) = [] }.new)
+    watcher = WorkQueue::Watcher.new(store: @store, queues: @dir, projects: Dir.mktmpdir("wqp"), logger: Logger.new(File::NULL))
     watcher.prime
     seen = []
     record = ->(kind) { ->(*args, **kw) { seen << [kind, args, kw] } }

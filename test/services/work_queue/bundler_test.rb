@@ -260,4 +260,25 @@ class WorkQueueBundlerTest < ActiveSupport::TestCase
     end
     %w[.env config/database.yml app/assets/builds/.keep].each { |rel| assert_not File.exist?(File.join(tree, rel)), rel }
   end
+
+  test "a repo homey's release train batches skips the local suite and bisect, and ships the bundle" do
+    root = add("Root")
+    a = add("A", parent: root)
+    shell = FakeShell.new(bad: ["wq/#{a}"], red_base: true)
+    WorkQueue::Bundler.new(store: @store, writer: @writer, logger: Logger.new(nil), shell: shell, resolver: ->(*) { false },
+                           repo_for: ->(_) { "/repo" }, commands: ->(_) { ["bin/rails test"] }, batched: ->(repo) { repo == "/repo" }).tick
+    assert_empty(shell.calls.select { |c| c[0] == "sh" })
+    pr = shell.calls.find { |c| c[0..2] == %w[gh pr create] }
+    assert_not_includes pr, "--draft"
+    assert_includes pr[pr.index("--body") + 1], "homey's release train"
+    [root, a].each { |n| assert_equal "https://github.com/me/app/pull/42", items[n].pr }
+    assert_match(/release train tests it/, items[a].log.map { |l| l["text"] }.join("\n"))
+  end
+
+  test "the repo's origin remote decides whether homey batches it" do
+    shell = ->(_, *cmd) { cmd == %w[git remote get-url origin] ? ["git@github.com:skchakri/ownsites.git\n", true] : ["", true] }
+    b = WorkQueue::Bundler.new(store: @store, writer: @writer, logger: Logger.new(nil), shell: shell)
+    WorkQueue::HomeyTrain.stub(:batched_repos, Set["skchakri/ownsites"]) { assert b.send(:homey_batched?, "/repo") }
+    WorkQueue::HomeyTrain.stub(:batched_repos, Set["skchakri/homey"]) { assert_not b.send(:homey_batched?, "/repo") }
+  end
 end

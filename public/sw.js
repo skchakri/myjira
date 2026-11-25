@@ -16,10 +16,16 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/";
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
   event.waitUntil(
-    clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) { if (w.url === url && "focus" in w) return w.focus(); }
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (wins) => {
+      const mine = wins.filter((w) => new URL(w.url).origin === self.location.origin);
+      const exact = mine.find((w) => w.url === url);
+      if (exact) return exact.focus();
+      // Reuse an open myjira tab: send it to the thread instead of opening another one.
+      for (const w of mine) {
+        try { const moved = await w.navigate(url); if (moved) return moved.focus(); } catch (e) { /* uncontrolled tab */ }
+      }
       return clients.openWindow(url);
     })
   );

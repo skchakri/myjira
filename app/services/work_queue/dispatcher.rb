@@ -8,10 +8,11 @@ module WorkQueue
   # (the mod's own reply command).
   class Dispatcher
     Result = Struct.new(:sent, :command, :copy, :reason, :launch, :duplicate, keyword_init: true)
-    PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). When filing a " \
-                    "follow-up whose work lives in a different repo, pass repo (its absolute repo path). Give every follow-up a " \
-                    "priority: \"must\" when the parent is wrong or incomplete without it, \"nice\" for an improvement. Never start " \
-                    "a \"nice\" or a held follow-up yourself: the person decides on those in myjira.".freeze
+    PROTOCOL_HINT = "Use the mcp__work-queue__queue tool for every queue change (never edit the JSON). One task is ONE " \
+                    "item: never file follow-up or child items. If the work is big, plan it as 2-5 coarse steps on this item " \
+                    "(op \"update\" with steps: [{title, status: todo|doing|done}], browser: true on a step that needs Chrome) " \
+                    "and tick them off as you go. Ask questions on the item itself (op \"update\" with ask). Ship one PR, then " \
+                    "status \"review\" with the pr.".freeze
 
     def initialize(item)
       @item = item
@@ -87,24 +88,27 @@ module WorkQueue
     # when the first click has not finished queueing yet).
     def run_in_chrome
       ChromeRun.exclusive(@item) { chrome_run } ||
-        Result.new(sent: true, launch: ChromeRun.active_launch(RunState.get(@item.key)), duplicate: true)
+        Result.new(sent: true, launch: ChromeRun.active_launch(RunState.get(@item.key), key: @item.key), duplicate: true)
     end
 
     CHROME_COPY = "run this item's browser step now in Chrome (myjira-relay controller mode)".freeze
 
     def chrome_instruction
-      "Run the browser step of work-queue item ##{@item.n} (#{@item.title}) now in Chrome (Run in Chrome from the " \
+      step = @item.browser_step
+      "Run the browser step of work-queue item ##{@item.n} (#{@item.title})#{" — plan step \"#{step.title}\"" if step} " \
+        "now in Chrome (Run in Chrome from the " \
         "myjira Work Queue). Use the myjira-relay skill (~/.claude/skills/myjira-relay) in controller mode: drive " \
         "Claude-in-Chrome yourself with the mcp__claude-in-chrome tools, log progress to a myjira ticket with the relay " \
         "CLI, run `relay blocked` before asking if a login or approval is needed, and close every tab you opened when " \
-        "done. Then op \"update\" n #{@item.n} with a log line and summary of what happened in the browser." \
+        "done. Then op \"update\" n #{@item.n} with a log line and summary of what happened in the browser" \
+        "#{step ? ", and pass steps with \"#{step.title}\" set to status \"done\" (keep the other steps as they are)" : ''}." \
         "\nItem details:\n#{@item.description.to_s.truncate(2000)}"
     end
 
     private
 
     def chrome_run
-      active = ChromeRun.active_launch(RunState.get(@item.key))
+      active = ChromeRun.active_launch(RunState.get(@item.key), key: @item.key)
       return Result.new(sent: true, launch: active, duplicate: true) if active
 
       body = chrome_instruction
@@ -120,18 +124,19 @@ module WorkQueue
       return Result.new(sent: false, copy: copy, reason: reasons.join("; ")) if reasons.size > 1
 
       launch = SessionLaunch.queue!(project: project, prompt: body, repo_path: repo, chrome: true, permission_mode: "auto",
-                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}")
+                                    source: "work-queue", title: "Chrome: ##{@item.n} #{@item.title}", work_item_key: @item.key)
       ChromeRun.remember(@item, launch)
       Result.new(sent: true, launch: launch)
     end
 
     def listen_reason = conversation ? "CLI session #{@item.session.to_s.first(8)} isn't listening" : "no live CLI session owns this item"
 
+    # Legacy child items (filed before one-item-per-task) still ship in their parent's PR.
     def follow_up_note
       return "" if @item.parent.blank?
 
-      " It is a follow-up of ##{@item.parent}: no approval needed, it may run in parallel. Commit and push its own " \
-        "branch only and do NOT open a PR; myjira merges it into ##{@item.parent}'s bundle and its single PR."
+      " It is a legacy child of ##{@item.parent}: commit and push its own branch only and do NOT open a PR; " \
+        "it ships in ##{@item.parent}'s PR. Do not file any further items."
     end
 
     def deliver(body, copy:)

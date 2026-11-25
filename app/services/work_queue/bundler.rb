@@ -19,19 +19,23 @@ module WorkQueue
   # A red run is only blamed on members when the base is green by itself. When
   # the base is red too (or the suite cannot run in the bundle worktree), nobody
   # is blocked: the items keep "readyToBundle" and get a log line with the reason.
+  #
+  # Repos that homey's release train batches (HomeyTrain.batched?) skip the local suite
+  # and its bisect: homey runs CI on the bundle PR inside a batch/** branch, merges it when
+  # green and names the culprit when red, so here the bundle is only merged and pushed.
   class Bundler
     WAIT = %w[triage queued running blocked].freeze
     IGNORE = %w[dropped merged].freeze
     Member = Struct.new(:item, :branch)
-    # Git-ignored files a fresh worktree lacks but the suite needs (credentials key, built CSS, deps).
-    SHARED = ["config/*.key", "config/credentials/*.key", "app/assets/builds/*", ".env*", "node_modules"].freeze
     # A base that was red is tried again when it moves, or after this long (the cause may be outside git).
     RECHECK_RED_BASE = 15.minutes
     TAIL_LINES = 8
     TAIL_CHARS = 600
 
     # shell: ->(cwd, *cmd) { [output, ok] }; resolver: ->(cwd, branch) { ok }
-    def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, shell: nil, resolver: nil, repo_for: nil, commands: nil)
+    # batched: ->(repo_path) { true when homey's release train tests this repo's PRs }
+    def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, shell: nil, resolver: nil, repo_for: nil, commands: nil,
+                   batched: nil)
       @store = store
       @writer = writer
       @logger = logger
@@ -39,6 +43,7 @@ module WorkQueue
       @resolver = resolver || method(:claude_resolve)
       @repo_for = repo_for || Workspace.method(:repo_for)
       @commands = commands || method(:detect_commands)
+      @batched = batched || method(:homey_batched?)
       @red_bases = {}
     end
 
@@ -98,6 +103,8 @@ module WorkQueue
 
       log(slug, items, onto ? "Adding #{items.size} item(s) to the open bundle #{branch}" : "Bundling #{items.size} item(s) into #{branch}") unless seen
       merged, failed = merge_all(path, branch, base, members)
+      return ship_to_homey(slug, root, path, branch, merged, failed, append: onto.present?) if @batched.call(repo)
+
       cmds = @commands.call(path)
       red = merged.any? ? failure(path, cmds) : nil
       if red && (base_red = base_failure(path, base, cmds))
@@ -120,6 +127,12 @@ module WorkQueue
       publish(slug, root, path, branch, good, failed, append: onto.present?) if good.any?
     ensure
       cleanup(repo, path) if repo && path
+    end
+
+    # homey's release train is this repo's CI: no local suite or bisect, the bundle PR is its input.
+    def ship_to_homey(slug, root, path, branch, merged, failed, append:)
+      failed.each { |m, why| fail_member(slug, root, m, why) }
+      publish(slug, root, path, branch, merged, failed, append: append, homey: true) if merged.any?
     end
 
     # The run is red without any member's changes, so no member is to blame: say why on the
@@ -191,14 +204,7 @@ module WorkQueue
     # A fresh worktree has none of the repo's git-ignored files, and the suite cannot run without
     # some of them. Links them in from the main checkout; only ignored paths, so a bundle's content never changes.
     def link_shared(repo, path)
-      return unless File.directory?(path)
-
-      SHARED.flat_map { |glob| Dir.glob(glob, base: repo) }.each do |rel|
-        to = File.join(path, rel)
-        next if File.exist?(to) || File.symlink?(to) || !File.directory?(File.dirname(to))
-
-        File.symlink(File.join(repo, rel), to) if git(path, "check-ignore", "-q", rel).last
-      end
+      ProjectEnv.link_shared(repo, path, git: ->(cwd, *args) { git(cwd, *args) })
     rescue SystemCallError => e
       @logger.warn("[work-queue] bundle #{path}: could not link shared files: #{e.message}")
     end
@@ -281,35 +287,26 @@ module WorkQueue
     end
 
     # Full test + lint commands for the bundle's repo.
-    def detect_commands(path)
-      cmds = []
-      if File.exist?(File.join(path, "bin/rails"))
-        cmds << "bin/rails test"
-      elsif File.exist?(File.join(path, "package.json")) && JSON.parse(File.read(File.join(path, "package.json"))).dig("scripts", "test")
-        cmds << "npm test"
-      end
-      cmds << "bin/rubocop" if File.exist?(File.join(path, "bin/rubocop"))
-      cmds << "npm run lint" if File.exist?(File.join(path, "package.json")) && JSON.parse(File.read(File.join(path, "package.json"))).dig("scripts", "lint")
-      cmds
-    rescue JSON::ParserError
-      cmds
-    end
+    def detect_commands(path) = ProjectEnv.suite(path)
 
-    def publish(slug, root, path, branch, good, failed, append: false)
+    # The PR is opened ready (never a draft) into main: what homey's train counts as ready to batch.
+    def publish(slug, root, path, branch, good, failed, append: false, homey: false)
       # Appending only adds commits on top of the open PR's branch, so no force-push.
       _, pushed = append ? git(path, "push", "-u", "origin", branch) : git(path, "push", "--force", "-u", "origin", branch)
       return good.each { |m| fail_member(slug, root, m, "Could not push #{branch}") } unless pushed
 
       out, ok = @shell.call(path, "gh", "pr", "create", "--base", "main", "--head", branch,
-                            "--title", "Bundle ##{root.n}: #{root.title}".truncate(120), "--body", body(root, good, failed))
+                            "--title", "Bundle ##{root.n}: #{root.title}".truncate(120), "--body", body(root, good, failed, homey: homey))
       url = out.to_s[%r{https://github\.com/[\w.-]+/[\w.-]+/pull/\d+}]
       unless ok && url
         url = @shell.call(path, "gh", "pr", "view", branch, "--json", "url", "-q", ".url").first.to_s.strip.presence
         return good.each { |m| fail_member(slug, root, m, "gh pr create failed: #{out.to_s.strip.truncate(160)}") } unless url
       end
 
+      note = "Bundled → PR #{url}"
+      note += ". homey's release train tests it in its next batch and merges it when green" if homey
       good.each do |m|
-        @writer.update(slug, m.item.n, log: "Bundled → PR #{url}") do |i|
+        @writer.update(slug, m.item.n, log: note) do |i|
           i.delete("readyToBundle")
           i["pr"] = url
           i["bundle"] = { "root" => root.n, "branch" => branch, "pr" => url, "size" => good.size }
@@ -317,8 +314,9 @@ module WorkQueue
       end
     end
 
-    def body(root, good, failed)
-      lines = ["Bundle for work-queue item ##{root.n} and its follow-ups. CI runs once for all of them.", "", "## Items"]
+    def body(root, good, failed, homey: false)
+      ci = homey ? "homey's release train tests it in a batch/** CI run and merges it when green." : "CI runs once for all of them."
+      lines = ["Bundle for work-queue item ##{root.n} and its follow-ups. #{ci}", "", "## Items"]
       lines += good.map { |m| "- ##{m.item.n} #{m.item.title} (`#{m.branch}`)" }
       if failed.any?
         lines += ["", "## Left out"]
@@ -344,8 +342,15 @@ module WorkQueue
 
     def git(cwd, *args) = @shell.call(cwd, "git", *args)
 
+    # The repo's GitHub name from its origin remote, looked up in homey's projects.yml.
+    def homey_batched?(repo)
+      url = git(repo, "remote", "get-url", "origin").first.to_s.strip
+      HomeyTrain.batched?(url[%r{github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?\z}, 1])
+    end
+
     def sh(cwd, *cmd)
-      out, status = Open3.capture2e(*cmd, chdir: cwd)
+      # git/gh/claude and the suite all run in the project's env, not the runner's myjira Bundler env.
+      out, status = Open3.capture2e(ProjectEnv.for(cwd), *cmd, chdir: cwd)
       [out, status.success?]
     rescue SystemCallError => e
       [e.message, false]

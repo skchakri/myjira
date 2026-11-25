@@ -1,4 +1,4 @@
-<%# Suggested (nice-to-have) and held follow-ups of one parent, decided in one request. %>
+<%# Legacy suggested / held follow-ups of one parent (from before one-item-per-task): drop-only, myjira never starts them. %>
 <% suggested = batch.suggested %>
 <% held = batch.held %>
 <%= form_with url: work_queue_item_follow_ups_path(batch.parent.key), class: "wq-batch", data: { turbo_stream: true, inbox_done: "Decided" } do %>
@@ -6,10 +6,7 @@
     <% if suggested.any? %><strong><%= pluralize(suggested.size, "suggested follow-up") %></strong><% end %>
     <% if suggested.any? && held.any? %> · <% end %>
     <% if held.any? %><strong><%= held.size %> held</strong><% end %>
-    <span class="wq-hint">
-      <% if suggested.any? %>Nice-to-haves never start by themselves. <% end %>
-      <% if held.any? %>Held ones start by themselves once less is waiting on you in this project.<% end %>
-    </span>
+    <span class="wq-hint">Left over from before one item per task. They no longer start; drop them or leave them.</span>
   </p>
   <ul class="wq-batch-list">
     <% (suggested + held).each do |k| %>
@@ -25,8 +22,6 @@
     <% end %>
   </ul>
   <div class="wq-actions">
-    <button class="wq-btn wq-btn-primary" name="op" value="start"><%= held.any? && suggested.empty? ? "Start selected anyway" : "Start selected" %></button>
-    <button class="wq-btn" name="op" value="start_all">Start all</button>
     <button class="wq-btn wq-btn-ghost" name="op" value="drop">Drop selected</button>
     <details class="wq-merge">
       <summary class="wq-btn wq-btn-ghost">Drop all</summary>

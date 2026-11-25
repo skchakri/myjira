@@ -24,7 +24,9 @@ module WorkQueue
       "stalled" => "Resume it, or tell the agent what to do.",
       "bundle" => "Nothing. It ships in one PR with its parent and follow-ups once they are all built.",
       "run" => "Nothing yet. It moves on by itself.",
-      "notlive" => "Nothing. It goes live with the next deploy.",
+      "notlive" => "Deploy it (Releases, or homey's Ship page) when you are ready; it goes live with the next deploy.",
+      "train" => "Nothing. homey's release train tests it in its next batch and merges it when green.",
+      "train_failed" => "Fix what failed (see the log below), push to the PR's branch, then retry. homey tries a PR again once it has a new commit.",
       "stacked" => "Merge the branch it went into (its parent pull request) to main. A deploy alone will not ship it.",
       "wait" => "Nothing. It starts by itself.",
       "held" => "Clear some of what is waiting on you in this project and it starts by itself, or start it anyway.",
@@ -127,11 +129,21 @@ module WorkQueue
       return nil if closed?
       return item.open? ? 0 : 100 if item.yours? # an errand has no agent phases: not done, or done
       return 100 if phase >= PHASES.size
+      return steps_percent if item.steps? && phase < STEP_PHASES
 
       ((phase + (item.status == "running" ? 0.5 : 0)).fdiv(PHASES.size) * 100).round
     end
 
     def finished? = percent == 100
+
+    # A planned item's steps cover the work phases (Plan, Build, Test): the share of
+    # them done, plus half a step for the one in progress, mapped onto that span.
+    STEP_PHASES = 3
+    def steps_percent
+      steps = item.plan_steps
+      share = (item.steps_done + (steps.count(&:doing?) * 0.5)).fdiv(steps.size)
+      (share * STEP_PHASES.fdiv(PHASES.size) * 100).round
+    end
 
     # Failed checks / deploy problem and the CI or deploy step it is on, for "What's happening".
     def failed_checks
@@ -140,6 +152,7 @@ module WorkQueue
     end
 
     def delivery_note = delivery&.detail
+    def delivery_url = delivery&.url
 
     # Per step: "done", "now-<tone>" or nil (not reached).
     def path
@@ -209,7 +222,7 @@ module WorkQueue
       when "triage" then ["wait", "Being sorted", 0, %w[wait], "wait"]
       when "queued" then ["wait", "Queued", 0, %w[wait], "wait"]
       when "running" then running_state
-      when "blocked" then item.bundle_failed? ? ["bad", "Left out of bundle", 3, %w[bad you], "bad"] : ["bad", "Stuck: needs a look", 2, %w[bad you], "bad"]
+      when "blocked" then blocked_state
       else review_state
       end
     end
@@ -242,9 +255,9 @@ module WorkQueue
 
     def done_state
       case delivery&.state
-      when "testing" then ["run", "Testing together", 4, %w[testing], "run"]
+      when "testing" then ["run", "Testing on homey", 4, %w[testing], "run"]
       when "deploying" then ["run", "Deploying", 5, %w[testing open unreleased], "run"]
-      when "not_live" then ["wait", "Merged, not live yet", 5, %w[open unreleased], "notlive"]
+      when "not_live" then ["wait", "Ready to deploy", 5, %w[open unreleased], "notlive"]
       when "stacked" then ["wait", "Merged into a branch, not on main", 5, %w[open unreleased], "stacked"]
       when "deploy_failed" then ["bad", "Deploy failed", 5, %w[bad you open unreleased], "bad"]
       else ["ok", "Live", 5, %w[ok], "ok"]
@@ -276,9 +289,17 @@ module WorkQueue
       pr = @context&.pr_status
       return ["bad", "PR has conflicts", 3, %w[bad you], "bad"] if pr&.conflicts?
       return ["bad", "Failed checks", 3, %w[bad you], "bad"] if failed_checks.any?
-      return ["run", "Testing together", 4, %w[testing], "run"] if delivery&.state == "testing"
+      return ["run", "Testing on homey", 4, %w[testing], "run"] if delivery&.state == "testing"
+      return ["run", "Waiting for homey's release train", 4, %w[testing], "train"] if HomeyTrain.batched?(pr&.repo)
 
       ["you", bundled_label || "Ready to merge", 3, %w[you merge], "merge"]
+    end
+
+    def blocked_state
+      return ["bad", "Failed on homey's release train", 4, %w[bad you], "train_failed"] if item.bundle_info["train"].present?
+      return ["bad", "Left out of bundle", 3, %w[bad you], "bad"] if item.bundle_failed?
+
+      ["bad", "Stuck: needs a look", 2, %w[bad you], "bad"]
     end
 
     RUN_STEP = { "plan" => 1, "review" => 4 }.freeze

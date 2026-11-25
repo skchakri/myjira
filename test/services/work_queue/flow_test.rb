@@ -41,14 +41,25 @@ class WorkQueueFlowTest < ActiveSupport::TestCase
     d = ->(state, failed = nil) { WorkQueue::Delivery::State.new(state: state, detail: "x", failed: failed) }
     done = item(status: "done", pr: "12")
     assert_equal "Live", flow(done).label
-    assert_equal ["Testing together", 4], flow(done, delivery: d.call("testing")).then { |f| [f.label, f.step] }
+    assert_equal ["Testing on homey", 4], flow(done, delivery: d.call("testing")).then { |f| [f.label, f.step] }
     assert_includes flow(done, delivery: d.call("deploying")).tags, "testing"
     nl = flow(done, delivery: d.call("not_live"))
-    assert_equal "Merged, not live yet", nl.label
+    assert_equal "Ready to deploy", nl.label
     assert_includes nl.tags, "open"
     assert_equal "Live", flow(done, delivery: d.call("live")).label
     assert_equal ["Deploy"], flow(done, delivery: d.call("deploy_failed", ["Deploy"])).failed_checks
-    assert_equal "Testing together", flow(item(status: "review", pr: "12"), delivery: d.call("testing")).label
+    assert_equal "Testing on homey", flow(item(status: "review", pr: "12"), delivery: d.call("testing")).label
+  end
+
+  test "a PR in a repo homey's release train batches waits for the train instead of a merge" do
+    pr = WorkQueue::PullRequests::Status.new(url: "https://github.com/me/app/pull/12", state: "OPEN", mergeable: "MERGEABLE")
+    WorkQueue::HomeyTrain.stub(:batched?, ->(repo) { repo == "me/app" }) do
+      f = flow(item(status: "review", pr: "12"), pr_status: pr)
+      assert_equal ["run", "Waiting for homey's release train"], [f.tone, f.label]
+      assert_not_includes f.tags, "merge"
+    end
+    blocked = item(status: "blocked", pr: "12", bundle: { "train" => { "checks" => ["CI"] } })
+    assert_equal "Failed on homey's release train", flow(blocked).label
   end
 
   test "a running item with no activity for 30 minutes is stalled" do

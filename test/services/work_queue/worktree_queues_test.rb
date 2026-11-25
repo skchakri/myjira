@@ -117,7 +117,7 @@ class WorkQueueWorktreeQueuesTest < ActiveSupport::TestCase
   test "the watcher folds a worktree queue when its file changes" do
     write(STRAY, [raw(1, "Stray one")])
     watcher = WorkQueue::Watcher.new(store: @store, queues: @dir, projects: Dir.mktmpdir("wq-tr"), logger: Logger.new(IO::NULL),
-                                     child_starter: ->(_) { [] }, parent_closer: ->(_) { [] })
+                                     train_sync: ->(_) { [] })
     watcher.queue_changed([File.join(@dir, "#{STRAY}.json")])
 
     assert_not exist?(STRAY)

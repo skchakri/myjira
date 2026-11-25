@@ -30,12 +30,4 @@
     <button type="button" class="wq-mic" aria-label="Attach files" title="Attach files (or drop / paste them here)" data-action="work-queue#pickFiles">file</button>
     <button class="wq-btn wq-btn-primary">Send</button>
   <% end %>
-  <details class="wq-add-child">
-    <summary class="wq-btn">＋ Add child item</summary>
-    <%= form_with url: work_queue_item_children_path(item.key), data: { turbo_stream: true, action: "turbo:submit-end->work-queue#resetForm" }, class: "wq-instruct" do %>
-      <%= text_field_tag :title, nil, required: true, placeholder: "Child item title", class: "wq-input", "aria-label": "Child item title" %>
-      <%= text_area_tag :description, nil, rows: 2, placeholder: "Description (optional)", class: "wq-input", "aria-label": "Child item description" %>
-      <button class="wq-btn wq-btn-primary">Add</button>
-    <% end %>
-  </details>
 </section>

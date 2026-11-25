@@ -1075,3 +1075,14 @@ html.sb-collapsed .sb-aside { position: fixed; left: 0; top: 0; z-index: 60; tra
 html.sb-collapsed .sb-aside.sb-peek { transform: translateX(0); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
 .sb-edge { position: absolute; left: 0; top: 0; bottom: 0; width: 10px; }
 @media (prefers-reduced-motion: reduce) { .sb-aside { transition: none; } }
+
+/* Work Queue: a big task's plan (2-5 coarse steps) and the merge box at the top of the detail pane. */
+.wq-plan-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.wq-plan-step { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.wq-plan-step .wq-errand-box { border-color: var(--color-hair); }
+.wq-plan-doing .wq-errand-box { border-color: var(--wq-run); background: var(--wq-run-wash); }
+.wq-plan-done > span:nth-child(2) { color: var(--color-ink-soft); text-decoration: line-through; }
+.wq-plan-chrome { display: inline-flex; align-items: center; gap: 4px; color: var(--wq-run); background: var(--wq-run-wash); }
+.wq-merge-top { border-color: var(--wq-rev); background: var(--wq-rev-wash); }
+.wq-merge-top .wq-btn-merge { background: var(--wq-rev); color: var(--color-paper-raised); font-weight: 600; }
+.wq-merge-top .wq-merge-panel { left: auto; right: 0; }
