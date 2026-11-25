@@ -19,6 +19,10 @@ module WorkQueue
   # A red run is only blamed on members when the base is green by itself. When
   # the base is red too (or the suite cannot run in the bundle worktree), nobody
   # is blocked: the items keep "readyToBundle" and get a log line with the reason.
+  #
+  # Repos that homey's release train batches (HomeyTrain.batched?) skip the local suite
+  # and its bisect: homey runs CI on the bundle PR inside a batch/** branch, merges it when
+  # green and names the culprit when red, so here the bundle is only merged and pushed.
   class Bundler
     WAIT = %w[triage queued running blocked].freeze
     IGNORE = %w[dropped merged].freeze
@@ -29,7 +33,9 @@ module WorkQueue
     TAIL_CHARS = 600
 
     # shell: ->(cwd, *cmd) { [output, ok] }; resolver: ->(cwd, branch) { ok }
-    def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, shell: nil, resolver: nil, repo_for: nil, commands: nil)
+    # batched: ->(repo_path) { true when homey's release train tests this repo's PRs }
+    def initialize(store: Store.new, writer: QueueWriter.new, logger: Rails.logger, shell: nil, resolver: nil, repo_for: nil, commands: nil,
+                   batched: nil)
       @store = store
       @writer = writer
       @logger = logger
@@ -37,6 +43,7 @@ module WorkQueue
       @resolver = resolver || method(:claude_resolve)
       @repo_for = repo_for || Workspace.method(:repo_for)
       @commands = commands || method(:detect_commands)
+      @batched = batched || method(:homey_batched?)
       @red_bases = {}
     end
 
@@ -96,6 +103,8 @@ module WorkQueue
 
       log(slug, items, onto ? "Adding #{items.size} item(s) to the open bundle #{branch}" : "Bundling #{items.size} item(s) into #{branch}") unless seen
       merged, failed = merge_all(path, branch, base, members)
+      return ship_to_homey(slug, root, path, branch, merged, failed, append: onto.present?) if @batched.call(repo)
+
       cmds = @commands.call(path)
       red = merged.any? ? failure(path, cmds) : nil
       if red && (base_red = base_failure(path, base, cmds))
@@ -118,6 +127,12 @@ module WorkQueue
       publish(slug, root, path, branch, good, failed, append: onto.present?) if good.any?
     ensure
       cleanup(repo, path) if repo && path
+    end
+
+    # homey's release train is this repo's CI: no local suite or bisect, the bundle PR is its input.
+    def ship_to_homey(slug, root, path, branch, merged, failed, append:)
+      failed.each { |m, why| fail_member(slug, root, m, why) }
+      publish(slug, root, path, branch, merged, failed, append: append, homey: true) if merged.any?
     end
 
     # The run is red without any member's changes, so no member is to blame: say why on the
@@ -274,21 +289,24 @@ module WorkQueue
     # Full test + lint commands for the bundle's repo.
     def detect_commands(path) = ProjectEnv.suite(path)
 
-    def publish(slug, root, path, branch, good, failed, append: false)
+    # The PR is opened ready (never a draft) into main: what homey's train counts as ready to batch.
+    def publish(slug, root, path, branch, good, failed, append: false, homey: false)
       # Appending only adds commits on top of the open PR's branch, so no force-push.
       _, pushed = append ? git(path, "push", "-u", "origin", branch) : git(path, "push", "--force", "-u", "origin", branch)
       return good.each { |m| fail_member(slug, root, m, "Could not push #{branch}") } unless pushed
 
       out, ok = @shell.call(path, "gh", "pr", "create", "--base", "main", "--head", branch,
-                            "--title", "Bundle ##{root.n}: #{root.title}".truncate(120), "--body", body(root, good, failed))
+                            "--title", "Bundle ##{root.n}: #{root.title}".truncate(120), "--body", body(root, good, failed, homey: homey))
       url = out.to_s[%r{https://github\.com/[\w.-]+/[\w.-]+/pull/\d+}]
       unless ok && url
         url = @shell.call(path, "gh", "pr", "view", branch, "--json", "url", "-q", ".url").first.to_s.strip.presence
         return good.each { |m| fail_member(slug, root, m, "gh pr create failed: #{out.to_s.strip.truncate(160)}") } unless url
       end
 
+      note = "Bundled → PR #{url}"
+      note += ". homey's release train tests it in its next batch and merges it when green" if homey
       good.each do |m|
-        @writer.update(slug, m.item.n, log: "Bundled → PR #{url}") do |i|
+        @writer.update(slug, m.item.n, log: note) do |i|
           i.delete("readyToBundle")
           i["pr"] = url
           i["bundle"] = { "root" => root.n, "branch" => branch, "pr" => url, "size" => good.size }
@@ -296,8 +314,9 @@ module WorkQueue
       end
     end
 
-    def body(root, good, failed)
-      lines = ["Bundle for work-queue item ##{root.n} and its follow-ups. CI runs once for all of them.", "", "## Items"]
+    def body(root, good, failed, homey: false)
+      ci = homey ? "homey's release train tests it in a batch/** CI run and merges it when green." : "CI runs once for all of them."
+      lines = ["Bundle for work-queue item ##{root.n} and its follow-ups. #{ci}", "", "## Items"]
       lines += good.map { |m| "- ##{m.item.n} #{m.item.title} (`#{m.branch}`)" }
       if failed.any?
         lines += ["", "## Left out"]
@@ -322,6 +341,12 @@ module WorkQueue
     end
 
     def git(cwd, *args) = @shell.call(cwd, "git", *args)
+
+    # The repo's GitHub name from its origin remote, looked up in homey's projects.yml.
+    def homey_batched?(repo)
+      url = git(repo, "remote", "get-url", "origin").first.to_s.strip
+      HomeyTrain.batched?(url[%r{github\.com[:/]([\w.-]+/[\w.-]+?)(?:\.git)?\z}, 1])
+    end
 
     def sh(cwd, *cmd)
       # git/gh/claude and the suite all run in the project's env, not the runner's myjira Bundler env.

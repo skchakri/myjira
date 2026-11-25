@@ -11,7 +11,7 @@
         <% if summary&.run.present? %>
           Last <%= summary.workflow %> run:
           <% label = { "running" => "running", "success" => "succeeded", "failed" => "failed" }[summary.run_state] %>
-          <a class="wq-link" href="<%= summary.run_url %>" target="_blank" rel="noopener"><%= label %> <%= time_ago_in_words(summary.run_at) %> ago</a>.
+          <% if summary.run_url %><a class="wq-link" href="<%= summary.run_url %>" target="_blank" rel="noopener"><%= label %> <%= time_ago_in_words(summary.run_at) %> ago</a><% else %><%= label %> <%= time_ago_in_words(summary.run_at) %> ago<% end %>.
         <% elsif summary&.workflow? %>
           <%= summary.workflow %> has not run on <code>main</code> yet.
         <% end %>
@@ -36,6 +36,11 @@
   <% end %>
 
   <%= render "work_queue_releases/entries", entries: repo.entries %>
+
+  <% if repo.by_hand? && repo.state != "deploying" %>
+    <p class="wq-rel-note wq-hint">This repo has no Deploy workflow: it is deployed by hand with <code>kamal deploy</code>, whose post-deploy hook records a GitHub Deployment.
+      Tasks show Deploying, then Live, once that deploy is recorded.</p>
+  <% end %>
 
   <% if repo.deployable? %>
     <details class="wq-rel-confirm" data-controller="wq-release" data-action="keydown->wq-release#key">
