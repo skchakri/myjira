@@ -27,6 +27,7 @@
         <span class="wq-node-p">
           <%= wq_progress(roll.percent, tone: wq_progress_tone(flow, roll),
                           label: roll.parent? ? "Task #{item.n} with its child steps" : "Task #{item.n}") %>
+          <% if item.steps? && !roll.parent? %><span class="wq-kid-sum" title="Plan steps done"><%= item.steps_done %>/<%= item.plan_steps.size %> steps</span><% end %>
           <% if roll.parent? %><span class="wq-kid-sum" title="This task and every child step below it"><%= wq_kid_summary(roll) %></span><% end %>
         </span>
       <% end %>

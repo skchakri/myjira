@@ -1,0 +1,29 @@
+<%# A big task's plan: 2-5 coarse steps the agent ticks off on the item itself ("steps" in the queue JSON). %>
+<% steps = item.plan_steps %>
+<% done = item.steps_done %>
+<% context ||= nil %>
+<% chrome_step = item.open? && context ? item.browser_step : nil %>
+<section class="wq-box wq-plan-steps" aria-label="Plan">
+  <div class="flex items-center gap-2">
+    <span class="wq-eyebrow">Plan</span>
+    <%= wq_progress((done * 100.0 / steps.size).round, tone: done == steps.size ? "ok" : "run", label: "Plan steps done") %>
+    <span class="wq-hint"><%= done %> of <%= pluralize(steps.size, "step") %> done</span>
+  </div>
+  <ol class="wq-plan-list">
+    <% steps.each do |s| %>
+      <li class="wq-plan-step wq-plan-<%= s.status %>">
+        <span class="wq-errand-box <%= 'wq-errand-box-on' if s.done? %>" aria-hidden="true"></span>
+        <span><%= s.title %></span>
+        <% if s.browser? %>
+          <span class="wq-pill wq-plan-chrome" title="Needs a real browser (Claude in Chrome)">
+            <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/><path d="M12 8.5h8.2M8.9 13.8 4.8 6.7M15 13.8l-4.1 7.1"/></svg>
+            Chrome
+          </span>
+        <% end %>
+        <% if s.doing? %><span class="wq-pill wq-pill-run">in progress</span><% end %>
+        <% if chrome_step && s.equal?(chrome_step) %><%= render "work_queue/chrome_run", item: item, context: context %><% end %>
+        <span class="sr-only"><%= { "done" => "done", "doing" => "in progress" }.fetch(s.status, "to do") %></span>
+      </li>
+    <% end %>
+  </ol>
+</section>

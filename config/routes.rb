@@ -167,7 +167,6 @@ Rails.application.routes.draw do
     post :browser, to: "work_queue#browser"
     post :answer, to: "work_queue#answer"
     post :instruct, to: "work_queue#instruct"
-    post :children, to: "work_queue#add_child"
     post :follow_ups, to: "work_queue#follow_ups"
     post :errand, to: "work_queue#errand"
     post :merge_pr, to: "work_queue#merge_pr"

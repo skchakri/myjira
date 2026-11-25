@@ -113,8 +113,28 @@ class WorkQueueServicesTest < ActiveSupport::TestCase
     assert_nil WorkQueue::Store::Item.new(slug: "home-me-proj", n: 9).foreign_repo("/home/me/proj")
   end
 
-  test "item sessions are told to pass repo for follow-ups in another repo" do
-    assert_includes WorkQueue::Dispatcher::PROTOCOL_HINT, "pass repo"
-    assert_includes WorkQueue::SessionRunner::QUESTION_PROTOCOL, "different repo"
+  test "item sessions are told to keep one item with coarse steps, never follow-ups" do
+    assert_includes WorkQueue::Dispatcher::PROTOCOL_HINT, "never file follow-up"
+    assert_includes WorkQueue::Dispatcher::PROTOCOL_HINT, "2-5 coarse steps"
+    assert_includes WorkQueue::SessionRunner::QUESTION_PROTOCOL, "wq-steps"
+    assert_not_includes WorkQueue::SessionRunner::QUESTION_PROTOCOL, "\"nice\""
+  end
+
+  test "steps_in reads a wq-steps block, keeping browser steps" do
+    text = "plan
+```wq-steps
+[{\"title\":\"A\",\"status\":\"done\"},{\"title\":\"B\",\"browser\":true}]
+```"
+    assert_equal [{ "title" => "A", "status" => "done" }, { "title" => "B", "status" => "todo", "browser" => true }],
+                 WorkQueue::SessionRunner.steps_in(text)
+    assert_empty WorkQueue::SessionRunner.steps_in("no block")
+  end
+
+  test "an open browser step makes the item a browser item" do
+    step = WorkQueue::Store::Step.new(title: "Chrome: x", status: "todo", browser: true)
+    item = WorkQueue::Store::Item.new(slug: "s", n: 1, title: "t", steps: [step], log: [])
+    assert_equal :step, WorkQueue::BrowserStep.reason(item, {})
+    step.status = "done"
+    assert_nil WorkQueue::BrowserStep.reason(item, {})
   end
 end

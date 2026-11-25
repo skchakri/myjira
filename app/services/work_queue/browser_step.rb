@@ -14,10 +14,12 @@ module WorkQueue
          developers\.facebook|business\.facebook|play\.google\.com/console|appstoreconnect)}xi
     ].freeze
 
-    # :flag, :detected, or nil.
+    # :flag, :step (an open plan step has browser: true), :detected, or nil.
     def reason(item, run = RunState.get(item.key))
       return :flag if run[FLAG] == "1"
       return nil if run[FLAG] == "0" # the person said no: ignore detection
+
+      return :step if item.respond_to?(:browser_step) && item.browser_step
 
       :detected if detect?(text_for(item))
     end

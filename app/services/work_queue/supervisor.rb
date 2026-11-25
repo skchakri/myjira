@@ -226,6 +226,10 @@ module WorkQueue
         @writer.update(item.slug, item.n, log: "PR #{pr}") { |i| i["pr"] = pr }
       end
 
+      if (steps = SessionRunner.steps_in(result.text)).any?
+        @writer.update(item.slug, item.n, log: "Plan: #{steps.size} steps") { |i| i["steps"] = steps }
+      end
+
       RunState.del_fields(key, "auto_grants") if result.denials.empty?
       if result.denials.any?
         handle_denials(item, key, result.denials.first(4))

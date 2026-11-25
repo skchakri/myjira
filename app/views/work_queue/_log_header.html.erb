@@ -28,6 +28,9 @@
   </div>
 
   <%= render "work_queue/question_box", item: item %>
+  <% merge_on_top = item.status == "review" && (context.card_merge? || context.chain_merge?) %>
+  <%= render "work_queue/merge_top", item: item, context: context if merge_on_top %>
+  <%= render "work_queue/steps", item: item, context: context if item.steps? %>
 
   <section class="wq-box wq-now" aria-label="What's happening">
     <span class="wq-eyebrow">What's happening</span>
@@ -38,6 +41,8 @@
         <span class="wq-hint">
           <% if roll.parent? %>
             <%= "This task #{roll.own}% · " if roll.own %>child steps <%= roll.done %> of <%= roll.total %> done
+          <% elsif item.steps? && !flow.finished? %>
+            plan <%= item.steps_done %> of <%= pluralize(item.plan_steps.size, "step") %> done
           <% elsif item.yours? %>
             <%= roll.complete? ? "done by you" : "yours to do: no agent phases" %>
           <% else %>
@@ -97,7 +102,7 @@
     <% kids = context.children %>
     <% if kids.any? %>
       <div class="wq-kid-steps">
-        <span class="wq-eyebrow">Child steps (run in parallel, ship in this task's PR)</span>
+        <span class="wq-eyebrow">Earlier child items (read-only)</span>
         <ul class="wq-related">
           <% kids.each do |k| %>
             <% kf = progress.flow(k) %>
@@ -118,14 +123,7 @@
         </ul>
       </div>
     <% end %>
-    <% batch = WorkQueue::Inbox.batches_for(context.project_items).find { |b| b.parent.n == item.n } %>
-    <% if batch %>
-      <div class="wq-kid-steps" id="wq_follow_up_batch">
-        <span class="wq-eyebrow">Follow-ups to decide</span>
-        <%= render "work_queue/follow_up_batch", batch: batch %>
-      </div>
-    <% end %>
-    <%= render "work_queue/actions", item: item, context: context %>
+    <%= render "work_queue/actions", item: item, context: context, merge_on_top: merge_on_top %>
   </section>
 
   <div class="wq-grid2">

@@ -10,14 +10,27 @@ module WorkQueue
       def open? = a.nil?
     end
 
+    # One coarse step of a big task's plan ("steps" in the queue JSON, 2-5 of them).
+    # browser: true marks a step that needs a real browser (Run in Chrome).
+    Step = Struct.new(:title, :status, :browser, keyword_init: true) do
+      def done? = status == "done"
+      def browser? = browser == true
+      def doing? = status == "doing"
+    end
+
     Item = Struct.new(:slug, :n, :title, :description, :status, :questions, :log, :created_at,
                       :updated_at, :session, :agent, :branch, :pr, :summary, :parent,
                       :awaiting_approval, :merged_into, :ready_to_bundle, :bundle, :repo, :follow_up,
-                      :kind, :due, :snoozed_until, :yours_at, keyword_init: true) do
+                      :kind, :due, :snoozed_until, :yours_at, :steps, keyword_init: true) do
       def key = "#{slug}:#{n}"
       def dom_id = "wq_item_#{slug}_#{n}"
       def open? = OPEN.include?(status)
       def open_questions = questions.select(&:open?)
+      def plan_steps = Array(steps)
+      def steps? = plan_steps.any?
+      def steps_done = plan_steps.count(&:done?)
+      # The first browser step not yet done: what Run in Chrome works on.
+      def browser_step = plan_steps.find { |s| s.browser? && !s.done? }
 
       # The six states the web view shows (the mod has eight; it folds triage/queued
       # into "pending" and splits blocked-with-open-questions out as "waiting").
@@ -31,7 +44,7 @@ module WorkQueue
 
       def pending? = display_status == "pending"
       # Follow-up record ("followUp" in the queue JSON): {"priority" => "must"|"nice", "held" => true,
-      # "admitted" => true, "by" => "person"}. See WorkQueue::ChildStarter.
+      # "admitted" => true, "by" => "person"}. Legacy: myjira no longer starts child items.
       def follow_up_info = follow_up.is_a?(Hash) ? follow_up : {}
       def unstarted? = %w[triage queued].include?(status) && agent.blank?
       def held? = follow_up_info["held"] == true && unstarted?
@@ -143,8 +156,18 @@ module WorkQueue
         summary: h["summary"], parent: h["parent"]&.to_i, awaiting_approval: h["awaitingApproval"] == true,
         merged_into: h["mergedInto"], ready_to_bundle: h["readyToBundle"] == true, bundle: h["bundle"],
         repo: h["repo"].presence, follow_up: h["followUp"],
-        kind: h["kind"].presence, due: date(h["due"]), snoozed_until: ms(h["snoozedUntil"]), yours_at: ms(h["yoursAt"])
+        kind: h["kind"].presence, due: date(h["due"]), snoozed_until: ms(h["snoozedUntil"]), yours_at: ms(h["yoursAt"]),
+        steps: steps(h["steps"])
       )
+    end
+
+    def steps(raw)
+      Array(raw).filter_map do |s|
+        next unless s.is_a?(Hash) && s["title"].present?
+
+        Step.new(title: s["title"].to_s, status: %w[todo doing done].include?(s["status"]) ? s["status"] : "todo",
+                 browser: s["browser"] == true)
+      end
     end
 
     def ms(v) = v ? Time.zone.at(v.to_i / 1000.0) : nil
