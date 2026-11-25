@@ -64,6 +64,8 @@
       </section>
     <% end %>
 
+    <%= render "work_queue_releases/cleanup", left: @releases.cleanup_left, orphans: @releases.cleanup_orphans %>
+
     <% if @releases.closed_unmerged.any? || @releases.unknown.any? %>
       <p class="wq-hint mt-4">
         <% if @releases.closed_unmerged.any? %>

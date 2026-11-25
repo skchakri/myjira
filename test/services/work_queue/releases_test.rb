@@ -281,4 +281,45 @@ class WorkQueueReleasesTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_select ".wq-merge-panel a[href='#{work_queue_releases_path}']", text: /2 other merged tasks would go out with this deploy/
   end
+
+  test "the Releases page says what the cleanup after deploy left, and why" do
+    state = { at: 5.minutes.ago.iso8601, removed: [{ kind: "remote", target: "wq/3-live" }],
+              skipped: [{ kind: "worktree", target: "/home/me/app-wq-3", reason: "files owned by another user; remove with sudo", detail: "log/test.log" }] }
+    @redis.hset(WorkQueue::WorktreeCleaner.mark_key("home-me-app:3"), "state", state.to_json)
+    @redis.hset(WorkQueue::CleanupReport::ORPHANS_KEY, "/home/me/app", {
+      name: APP, slugs: ["home-me-app"], at: 1.hour.ago.iso8601, dry_run: true,
+      removed: [{ kind: "local", target: "worktree-agent-a1", detail: "was abc1234" }],
+      skipped: [{ kind: "worktree", target: "/home/me/app/.claude/worktrees/agent-b2", reason: "it is locked by an agent that is still running", detail: "pid 42" }]
+    }.to_json)
+
+    get work_queue_releases_path
+    assert_response :success
+    assert_select "#wq_rel_cleanup_h"
+    assert_select "section[aria-labelledby=wq_rel_cleanup_h] > table tbody tr", 1 do
+      assert_select "a", text: /#3 Already live/
+      assert_select "td", text: /files owned by another user; remove with sudo/
+      assert_select ".wq-pill-bad", text: "worktree"
+    end
+    assert_select "details.wq-rel-loose summary", text: /would remove 1, left 1/
+    assert_select "details.wq-rel-loose td", text: /it is locked by an agent that is still running/
+    assert_select "details.wq-rel-loose .wq-pill-wait", text: "Would remove"
+
+    get work_queue_releases_path(slug: "home-me-other")
+    assert_select "#wq_rel_cleanup_h", 0
+  end
+
+  test "the task detail shows the cleanup state and the reason something was left" do
+    get work_queue_item_detail_path("home-me-app:1")
+    assert_select ".wq-cleanup .wq-pill-wait", text: "Cleanup waiting"
+    assert_select ".wq-cleanup", text: /merged but not deployed yet \(not live\)/
+
+    state = { at: 5.minutes.ago.iso8601, removed: [], skipped: [{ kind: "local", target: "wq/3-live", reason: "it is still checked out in a worktree" }] }
+    @redis.hset(WorkQueue::WorktreeCleaner.mark_key("home-me-app:3"), "state", state.to_json)
+    get work_queue_item_detail_path("home-me-app:3")
+    assert_select ".wq-cleanup .wq-pill-bad", text: "Cleanup left 1 thing"
+    assert_select ".wq-cleanup li", text: /Left local branch\s+wq\/3-live: it is still checked out in a worktree/
+
+    get work_queue_item_detail_path("home-me-app:7")
+    assert_select ".wq-cleanup", 0
+  end
 end

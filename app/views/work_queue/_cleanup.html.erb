@@ -1,0 +1,25 @@
+<%# Task detail: what the cleanup after deploy did with this task's worktree and branches (WorkQueue::CleanupReport). %>
+<% cleanup = WorkQueue::CleanupReport.for(item) %>
+<% if cleanup %>
+  <div class="wq-cleanup text-[12.5px]" role="status">
+    <p>
+      <span class="wq-pill wq-pill-<%= cleanup.tone %>"><%= cleanup.label %></span>
+      <% case cleanup.state
+         when "waiting" %>The worktree and branches stay until this is merged and deployed: <%= cleanup.reason %>.
+      <% when "due" %>Merged and deployed. The runner removes the worktree and branches on its next cleanup pass.
+      <% when "manual" %>Delivered before the automatic cleanup started. Leftovers go with <code>bin/rails work_queue:cleanup_worktrees</code> (a dry run unless <code>DRY_RUN=0</code>).
+      <% when "nothing" %><%= cleanup.reason.present? ? "Not cleaned from here: #{cleanup.reason}." : "No worktree or branch of this task was left." %>
+      <% when "cleaned" %><%= cleanup.removed.any? ? "Removed #{cleanup.removed.map(&:to_s).to_sentence}." : "Its worktree and branches are removed." %>
+      <% when "left" %>Tried again every <%= WorkQueue::WorktreeCleaner::RETRY_EVERY.inspect %>.<%= " Already removed: #{cleanup.removed.map(&:to_s).to_sentence}." if cleanup.removed.any? %>
+      <% end %>
+      <% if cleanup.at %><span class="wq-hint" title="<%= cleanup.at.strftime('%Y-%m-%d %H:%M %Z') %>"><%= time_ago_in_words(cleanup.at) %> ago</span><% end %>
+    </p>
+    <% if cleanup.left? %>
+      <ul class="mt-1 list-disc pl-5">
+        <% cleanup.skipped.each do |line| %>
+          <li>Left <%= line.label %> <span class="wq-mono"><%= line.target %></span>: <%= line.reason %><% if line.detail.present? %> <span class="wq-hint">(<%= line.detail %>)</span><% end %></li>
+        <% end %>
+      </ul>
+    <% end %>
+  </div>
+<% end %>
