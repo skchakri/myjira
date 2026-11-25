@@ -39,6 +39,7 @@ module WorkQueue
         reap
         fill_slots
         bundle_tick
+        cleanup_tick
         release_held
         heartbeat
       rescue JSON::ParserError
@@ -103,6 +104,20 @@ module WorkQueue
         Rails.application.executor.wrap { @bundler.tick }
       rescue StandardError => e
         log_error("bundler", e)
+      end
+    end
+
+    # Removes the worktree and branches of items whose PR is merged and deployed
+    # (WorktreeCleaner), off the main loop: it runs git, and a push per deleted branch.
+    def cleanup_tick
+      return if @cleaned_at && @cleaned_at > WorktreeCleaner::TICK_EVERY.ago
+      return if @cleanup_thread&.alive?
+
+      @cleaned_at = Time.current
+      @cleanup_thread = Thread.new do
+        Rails.application.executor.wrap { (@cleaner ||= WorktreeCleaner.new(store: @store, writer: @writer, logger: @logger)).tick }
+      rescue StandardError => e
+        log_error("cleanup", e)
       end
     end
 
