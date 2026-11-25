@@ -87,6 +87,28 @@ class WorkQueueWorktreeQueuesTest < ActiveSupport::TestCase
     assert_equal ["First ever"], @store.items_for("home-me-fresh").map(&:title)
   end
 
+  test "a worktree's slug maps to the parent repo's path" do
+    Project.create!(slug: "fresh", name: "Fresh", repo_path: "/home/me/fresh")
+    repo_for = WorkQueue::Workspace.method(:repo_for)
+
+    assert_equal "/home/me/fresh", repo_for.call("home-me-fresh")
+    assert_equal "/home/me/fresh", repo_for.call("home-me-fresh-wq-4")
+    assert_equal "/home/me/fresh", repo_for.call("home-me-fresh-claude-worktrees-agent-a1b2")
+    assert_equal "/home/me/fresh", repo_for.call("home-me-fresh-wq-4-claude-worktrees-agent-a1b2")
+    assert_nil repo_for.call("home-me-other-wq-4"), "no project for the parent: nothing to map to"
+    assert_nil repo_for.call("home-me-fresh-wq"), "not a worktree's slug"
+
+    WorkQueue::Current.repos = WorkQueue::Workspace.repos
+    assert_equal "/home/me/fresh", repo_for.call("home-me-fresh-wq-4"), "also through the per-request memo"
+  end
+
+  test "a project still saved on a worktree path maps to the parent repo" do
+    Project.create!(slug: "fresh", name: "Fresh", repo_path: "/home/me/fresh")
+    Project.create!(slug: "stray", name: "Stray", repo_path: "/home/me/elsewhere").update_column(:repo_path, "/home/me/fresh/.claude/worktrees/agent-a1b2")
+
+    assert_equal "/home/me/fresh", WorkQueue::Workspace.repo_for("home-me-fresh-claude-worktrees-agent-a1b2")
+  end
+
   test "leaves alone slugs that only look like a worktree" do
     lookalikes = %w[home-me-other-wq-7 home-me-app-wq home-me-app-wq-2x home-me-nothing-claude-worktrees-x home-me-app-worktrees-x]
     lookalikes.each { |slug| write(slug, [raw(1, slug)]) }

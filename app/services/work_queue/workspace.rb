@@ -17,10 +17,21 @@ module WorkQueue
       (from_projects + from_files.map { |s| [Store.label(s), s, nil] }).sort_by(&:first)
     end
 
+    # The repo a queue slug belongs to. A worktree's slug ("<repo>-wq-<n>",
+    # "<repo>-claude-worktrees-<name>") has no project of its own: it maps to its
+    # parent repo's path, and a project still saved on a worktree path does too.
     def repo_for(slug)
-      return Current.repos[slug] if Current.repos
+      map = Current.repos || repos
+      repo = map[slug] || parent_slugs(slug).filter_map { |parent| map[parent] }.first
+      Project.canonical_repo_path(repo)
+    end
 
-      Project.where.not(repo_path: [nil, ""]).pluck(:repo_path).find { |r| slug_for(r) == slug }
+    # Slugs a worktree's slug may belong to, likeliest first (as WorktreeQueues.origin
+    # reads them): "<repo>" before "<repo>-wq-<n>". Empty for any other slug.
+    def parent_slugs(slug)
+      inside = slug.to_s.sub(WorktreeQueues::INSIDE, "")
+      sibling = inside.match(WorktreeQueues::SIBLING)
+      [sibling&.pre_match, (inside if inside != slug.to_s)].compact_blank
     end
 
     # { slug => repo_path } for every project, in one query (see WorkQueue::Current).
