@@ -26,8 +26,45 @@ module WorkQueue
 
     def path_for(path, current)
       parts = current.split(":").reject { |p| p.start_with?(RVM) }
-      ruby = ruby_bin(path)
-      ([ruby] + parts).compact.uniq.join(":")
+      ([ruby_bin(path), node_bin(path)] + parts).compact.uniq.join(":")
+    end
+
+    NVM = File.join(Dir.home, ".nvm")
+
+    # The project's Node as an nvm bin dir: .nvmrc / .node-version, else nvm's default alias
+    # (followed through lts/* and friends), else the newest installed. The runner is a systemd
+    # service with no nvm in its PATH, so without this `node` is "command not found" and the
+    # agent falls back to an absolute path that no allow rule matches.
+    def node_bin(path, nvm: NVM)
+      installed = Dir.glob(File.join(nvm, "versions/node/v*")).map { |d| File.basename(d) }
+      return if installed.empty?
+
+      wanted = %w[.nvmrc .node-version].filter_map { |f| read(File.join(path, f)) }.first || nvm_alias("default", nvm)
+      version = matching(installed, wanted) || installed.max_by { |v| Gem::Version.new(v.delete_prefix("v")) }
+      File.join(nvm, "versions/node", version, "bin")
+    end
+
+    def nvm_alias(name, nvm)
+      5.times do
+        target = read(File.join(nvm, "alias", name)) or break
+        name = target
+      end
+      name
+    end
+
+    # Newest installed version matching "24", "v24.13" or "24.13.0".
+    def matching(installed, wanted)
+      want = wanted.to_s.strip.delete_prefix("v")
+      return if want.blank? || !want.match?(/\A\d+(\.\d+)*\z/)
+
+      installed.select { |v| v.delete_prefix("v") == want || v.delete_prefix("v").start_with?("#{want}.") }
+               .max_by { |v| Gem::Version.new(v.delete_prefix("v")) }
+    end
+
+    def read(file)
+      File.read(file).strip.presence
+    rescue SystemCallError
+      nil
     end
 
     # The project's .ruby-version as an rvm wrapper dir (ruby, bundle, gem with its own gemset).

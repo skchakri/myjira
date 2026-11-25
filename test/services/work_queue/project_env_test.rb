@@ -29,6 +29,23 @@ module WorkQueue
       assert env["PATH"].start_with?(wrapper) if File.directory?(wrapper)
     end
 
+    test "the project's Node goes on PATH: .nvmrc first, else nvm's default alias chain, else the newest" do
+      nvm = File.join(@dir, "nvm")
+      %w[v16.20.2 v22.20.0 v24.13.0].each { |v| FileUtils.mkdir_p(File.join(nvm, "versions/node", v, "bin")) }
+      FileUtils.mkdir_p(File.join(nvm, "alias/lts"))
+      File.write(File.join(nvm, "alias/default"), "lts/*")
+      File.write(File.join(nvm, "alias/lts/*"), "lts/krypton")
+      File.write(File.join(nvm, "alias/lts/krypton"), "v24.13.0")
+      assert ProjectEnv.node_bin(@dir, nvm: nvm).end_with?("v24.13.0/bin")
+
+      touch(".nvmrc", "22\n")
+      assert ProjectEnv.node_bin(@dir, nvm: nvm).end_with?("v22.20.0/bin")
+
+      File.write(File.join(@dir, ".nvmrc"), "lts/hydrogen")
+      assert ProjectEnv.node_bin(@dir, nvm: nvm).end_with?("v24.13.0/bin"), "unknown alias falls back to the newest"
+      assert_nil ProjectEnv.node_bin(@dir, nvm: File.join(@dir, "none"))
+    end
+
     test "rspec repos get rspec, minitest repos get bin/rails test, both with lint" do
       touch("Gemfile")
       touch("bin/rubocop")
