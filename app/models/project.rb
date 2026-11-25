@@ -27,6 +27,8 @@ class Project < ApplicationRecord
 
   before_validation :derive_slug, on: :create
   before_validation :assign_category, on: :create
+  # A hand-typed worktree path (the web form) is saved as the repo it is a checkout of.
+  before_validation :canonicalize_repo_path, if: :will_save_change_to_repo_path?
   after_create :ensure_default_environments!
 
   # A "client" is a project that is either explicitly pinned (listed) or has real
@@ -343,6 +345,10 @@ class Project < ApplicationRecord
   end
 
   private
+
+  def canonicalize_repo_path
+    self.repo_path = self.class.canonical_repo_path(repo_path) if repo_path.present?
+  end
 
   def derive_slug
     return if slug.present?

@@ -68,7 +68,7 @@ class WorkQueueOlderTest < ActionDispatch::IntegrationTest
   test "the new-item project picker leaves out archived projects and agent worktrees" do
     Project.create!(name: "Live repo", repo_path: "/srv/live-repo")
     Project.create!(name: "Shelved repo", repo_path: "/srv/shelved-repo", archived_at: Time.current)
-    Project.create!(name: "Agent copy", repo_path: "/srv/live-repo/.claude/worktrees/agent-abc")
+    Project.create!(name: "Agent copy").update_column(:repo_path, "/srv/live-repo/.claude/worktrees/agent-abc")
     labels = WorkQueue::Workspace.choices.map(&:first)
     assert_includes labels, "Live repo"
     assert_not_includes labels, "Shelved repo"

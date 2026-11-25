@@ -7,8 +7,13 @@ class Projects::WorktreeFolderTest < ActionDispatch::IntegrationTest
     @tag = SecureRandom.hex(3)
     @repo = "/tmp/fold-#{@tag}/shop"
     @parent = Project.create!(name: "Shop #{@tag}", slug: "shop-#{@tag}", repo_path: @repo)
-    @inside = Project.create!(name: "agent-a1", slug: "agent-a1-#{@tag}", repo_path: "#{@repo}/.claude/worktrees/agent-a1")
-    @sibling = Project.create!(name: "shop-wq-7", slug: "shop-wq-7-#{@tag}", repo_path: "#{@repo}-wq-7")
+    @inside = leftover("agent-a1", "#{@repo}/.claude/worktrees/agent-a1")
+    @sibling = leftover("shop-wq-7", "#{@repo}-wq-7")
+  end
+
+  # A project saved on a worktree path before the model resolved such paths on save.
+  def leftover(name, path)
+    Project.create!(name: name, slug: "#{name}-#{@tag}").tap { |p| p.update_column(:repo_path, path) }
   end
 
   def fold(dry_run: false, out: StringIO.new)
@@ -31,6 +36,28 @@ class Projects::WorktreeFolderTest < ActionDispatch::IntegrationTest
 
   test "a worktree of a wq worktree resolves all the way to the repo" do
     assert_equal @repo, Project.canonical_repo_path("#{@repo}-wq-7/.claude/worktrees/agent-b2")
+  end
+
+  test "saving a project on a worktree path saves the repo it is a checkout of" do
+    typed = Project.create!(name: "typed #{@tag}", slug: "typed-#{@tag}", repo_path: "#{@repo}/.claude/worktrees/agent-a1/")
+    assert_equal @repo, typed.repo_path
+
+    typed.update!(repo_path: "#{@repo}-wq-12")
+    assert_equal @repo, typed.repo_path
+    typed.update!(repo_path: "/tmp/nobody-#{@tag}-wq-3")
+    assert_equal "/tmp/nobody-#{@tag}-wq-3", typed.repo_path, "a -wq-N name with no known parent is a repo of its own"
+    typed.update!(repo_path: "")
+    assert_equal "", typed.repo_path
+  end
+
+  test "a project already on a worktree path keeps it until the path itself is edited" do
+    @inside.update!(description: "still here")
+    assert_equal "#{@repo}/.claude/worktrees/agent-a1", @inside.reload.repo_path
+  end
+
+  test "the web form saves a typed worktree path as the parent repo" do
+    patch project_path(@inside), params: { project: { repo_path: "#{@repo}-wq-7/app" } }
+    assert_equal @repo, @inside.reload.repo_path
   end
 
   test "plain repos and blanks are left alone" do
@@ -152,7 +179,7 @@ class Projects::WorktreeFolderTest < ActionDispatch::IntegrationTest
   end
 
   test "a worktree project with no parent project is listed and left alone" do
-    orphan = Project.create!(name: "orphan", slug: "orphan-#{@tag}", repo_path: "/tmp/fold-#{@tag}/gone/.claude/worktrees/agent-x")
+    orphan = leftover("orphan", "/tmp/fold-#{@tag}/gone/.claude/worktrees/agent-x")
     Conversation.create!(project: orphan, session_id: "o-#{@tag}")
     result, text = fold
     assert_includes result.unresolved, orphan
