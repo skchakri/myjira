@@ -957,6 +957,8 @@ html[data-theme="dark"] .wq-releases { --wq-run: #67E8F9; --wq-run-wash: rgba(10
 .wq-qbox { border: 1px solid var(--wq-you); background: var(--color-amber-wash); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .wq-qbox-h { font-size: 14px; font-weight: 600; color: var(--wq-you); }
 .wq-qbox-form { display: flex; flex-direction: column; gap: 10px; }
+.wq-send-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px; padding: 6px 0; background: var(--color-paper-raised); }
+.wq-send-status { font-size: 13px; color: var(--color-amber-ink); }
 .wq-question { border: 1px solid var(--color-hair); border-radius: 10px; padding: 10px 12px 12px; background: var(--color-paper-raised); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .wq-question .wq-q-text { padding: 0 2px; }
 .wq-qbox .wq-chips { flex-direction: row; flex-wrap: wrap; margin: 0; }

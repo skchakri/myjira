@@ -3,7 +3,7 @@
 <% open = item.questions.each_with_index.reject { |q, _| q.a } %>
 <% if open.any? %>
   <section class="wq-qbox" aria-labelledby="wq_qbox_h" data-work-queue-target="question" data-item-key="<%= item.key %>"
-           data-action="input->work-queue#saveDraft change->work-queue#saveDraft turbo:submit-end->work-queue#clearDraft">
+           data-action="input->work-queue#saveDraft change->work-queue#saveDraft change->work-queue#chipPicked turbo:submit-end->work-queue#clearDraft">
     <h3 id="wq_qbox_h" class="wq-qbox-h"><%= open.size == 1 ? "1 question for you" : "#{open.size} questions for you" %></h3>
     <%= form_with url: work_queue_item_answer_path(item.key), data: { turbo_stream: true }, class: "wq-qbox-form" do %>
       <%# Several permission prompts stacked up: one click answers them all. %>
@@ -43,7 +43,11 @@
           </div>
         </fieldset>
       <% end %>
-      <div><button type="submit" class="wq-btn wq-btn-primary">Send answers</button></div>
+      <div class="wq-send-bar">
+        <button type="submit" class="wq-btn wq-btn-primary">Send answers</button>
+        <%# Picking a chip only selects it; say so until the form is sent (a single question sends on pick). %>
+        <span class="wq-send-status" data-send-status role="status" aria-live="polite" hidden></span>
+      </div>
     <% end %>
   </section>
 <% end %>

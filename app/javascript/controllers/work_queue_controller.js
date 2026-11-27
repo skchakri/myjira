@@ -506,6 +506,25 @@ export default class extends Controller {
       if (Object.keys(draft).length) sessionStorage.setItem(this.draftKey(box), JSON.stringify(draft))
       else sessionStorage.removeItem(this.draftKey(box))
     } catch (_) {}
+    this.updateSendStatus(box)
+  }
+
+  // One open question: a chip pick is the answer, send it now. Several: show "N of M picked — not sent yet".
+  chipPicked(e) {
+    if (!e.target.matches?.(".wq-chip-input")) return
+    const box = e.currentTarget
+    const form = box.querySelector("form.wq-qbox-form")
+    if (form && box.querySelectorAll("fieldset.wq-question").length === 1) { form.requestSubmit(); return }
+    this.updateSendStatus(box)
+  }
+
+  updateSendStatus(box) {
+    const status = box.querySelector("[data-send-status]")
+    if (!status) return
+    const sets = [...box.querySelectorAll("fieldset.wq-question")]
+    const picked = sets.filter((f) => f.querySelector(".wq-chip-input:checked") || f.querySelector("textarea")?.value.trim()).length
+    status.hidden = picked === 0
+    status.textContent = picked ? `${picked} of ${sets.length} picked, not sent yet. Press Send answers.` : ""
   }
 
   clearDraft(e) {
@@ -525,6 +544,7 @@ export default class extends Controller {
     let draft = null
     try { draft = JSON.parse(sessionStorage.getItem(this.draftKey(box)) || "null") } catch (_) {}
     if (draft) this.writeDraft(box, draft)
+    this.updateSendStatus(box)
     const f = this.pendingFocus
     if (f && f.key === box.dataset.itemKey) {
       const el = f.id && document.getElementById(f.id)
