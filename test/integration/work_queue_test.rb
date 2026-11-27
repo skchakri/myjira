@@ -20,6 +20,13 @@ class WorkQueuePageTest < ActionDispatch::IntegrationTest
     FileUtils.rm_rf(@dir)
   end
 
+  test "question box wires chip picks to send-on-pick and an unsent-picks status" do
+    get work_queue_item_detail_path("home-me-app:7")
+    assert_response :success
+    assert_select ".wq-qbox[data-action*='work-queue#chipPicked']"
+    assert_select ".wq-send-bar [data-send-status][hidden]"
+  end
+
   test "renders a project tree with follow-ups nested under their parent" do
     get work_queue_path(item: "home-me-app:7")
     assert_response :ok
