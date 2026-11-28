@@ -82,9 +82,7 @@ module WorkQueue
     RETRY_EVERY = 30.minutes
     MARK_TTL = 90.days.to_i
     PR_FACTS = %i[url number state base head head_sha merge_sha merged_at].freeze
-    # A daemon has nobody to answer a credential prompt.
-    NET_ENV = { "GIT_TERMINAL_PROMPT" => "0",
-                "GIT_SSH_COMMAND" => ENV.fetch("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=15") }.freeze
+    NET_ENV = GitInfo::NET_ENV
 
     def self.enabled? = ENV.fetch("WORK_QUEUE_CLEANUP", "1") != "0"
     def self.mark_key(item_key) = "#{RunState::PREFIX}:cleanup:#{item_key}"

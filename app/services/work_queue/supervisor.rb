@@ -423,8 +423,11 @@ module WorkQueue
 
       branch = "wq/#{item.n}-#{item.title.parameterize.first(40)}"
       path = "#{repo}-wq-#{item.n}"
-      base = %w[main master].find { |b| GitInfo.git(repo, "rev-parse", "--verify", "-q", b).last } || "HEAD"
-      GitInfo.git(repo, "worktree", "add", "-b", branch, path, base) unless File.directory?(path)
+      # An existing item branch is reused as it is; only a new one needs a fresh base.
+      unless File.directory?(path) || GitInfo.git(repo, "rev-parse", "--verify", "-q", "refs/heads/#{branch}").last
+        base = new_branch_base(item, repo)
+        GitInfo.git(repo, "worktree", "add", "--no-track", "-b", branch, path, base)
+      end
       GitInfo.git(repo, "worktree", "add", path, branch) unless File.directory?(path)
       return unless File.directory?(path)
 
@@ -433,6 +436,14 @@ module WorkQueue
       RunState.set(item.key, { "worktree" => path, "repo" => repo })
       @writer.update(item.slug, item.n, log: "Worktree #{path}") { |i| i["branch"] = branch }
       path
+    end
+
+    # origin/main (fetched now) rather than the local main, which can be far behind;
+    # a failed fetch is logged on the item and does not hold it up.
+    def new_branch_base(item, repo)
+      fresh = GitInfo.fresh_base(repo)
+      @writer.update(item.slug, item.n, log: "git fetch origin failed; branching from #{fresh.ref}, which may be behind") if fresh.fetch_failed
+      fresh.ref
     end
 
     # .env, credential keys, built assets and node_modules are git-ignored, so a new

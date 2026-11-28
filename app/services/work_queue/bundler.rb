@@ -192,9 +192,9 @@ module WorkQueue
 
     # Starts from the open bundle branch when appending to it, else from main.
     def setup(repo, path, onto: nil)
-      git(repo, "fetch", "origin", "--prune")
-      candidates = [("origin/#{onto}" if onto), "origin/main", "main", "origin/master", "master"].compact
-      base = candidates.find { |b| git(repo, "rev-parse", "--verify", "-q", b).last } || "HEAD"
+      fresh = GitInfo.fresh_base(repo, onto: onto, git: ->(*args) { git(repo, *args) })
+      @logger.warn("[work-queue] bundle #{path}: git fetch origin failed; starting from #{fresh.ref} as last fetched") if fresh.fetch_failed
+      base = fresh.ref
       cleanup(repo, path)
       git(repo, "worktree", "add", "--detach", path, base)
       link_shared(repo, path)

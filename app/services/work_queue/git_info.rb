@@ -41,11 +41,33 @@ module WorkQueue
       ok ? out.hash : nil
     end
 
-    def self.git(dir, *args)
-      out, status = Open3.capture2("git", "-c", "safe.directory=*", "-C", dir.to_s, *args, err: File::NULL)
+    def self.git(dir, *args, env: {})
+      out, status = Open3.capture2(env, "git", "-c", "safe.directory=*", "-C", dir.to_s, *args, err: File::NULL)
       [out.strip, status.success?]
     rescue SystemCallError
       ["", false]
+    end
+
+    # A daemon has nobody to answer a credential prompt, and a stalled transfer
+    # must give up rather than hang the item's thread (HTTPS: under 1 KB/s for 60s;
+    # SSH: no answer to 4 keepalives 15s apart).
+    NET_ENV = { "GIT_TERMINAL_PROMPT" => "0",
+                "GIT_HTTP_LOW_SPEED_LIMIT" => "1000", "GIT_HTTP_LOW_SPEED_TIME" => "60",
+                "GIT_SSH_COMMAND" => ENV.fetch("GIT_SSH_COMMAND",
+                                               "ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4") }.freeze
+
+    Base = Struct.new(:ref, :fetch_failed, keyword_init: true)
+
+    # Where a new branch starts: fetches origin first, then prefers origin's copy of
+    # `onto`, main or master over the local one, which may be far behind. A repo with
+    # no origin, or a fetch that fails, still gets a base (origin refs as last fetched,
+    # else the local branch, else HEAD); fetch_failed says the fetch did not work.
+    # `git` runs one git command in the repo and returns [stdout, ok].
+    def self.fresh_base(repo, onto: nil, git: ->(*args) { self.git(repo, *args, env: NET_ENV) })
+      failed = git.call("remote", "get-url", "origin")[1] && !git.call("fetch", "origin", "--prune")[1]
+      candidates = [("origin/#{onto}" if onto), "origin/main", "main", "origin/master", "master"].compact
+      ref = candidates.find { |b| git.call("rev-parse", "--verify", "-q", b)[1] } || "HEAD"
+      Base.new(ref: ref, fetch_failed: failed)
     end
 
     def initialize(worktree, pr_base)
