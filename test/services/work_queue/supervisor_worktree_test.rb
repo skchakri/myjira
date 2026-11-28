@@ -73,6 +73,17 @@ class WorkQueueSupervisorWorktreeTest < ActiveSupport::TestCase
     assert(@store.find(KEY).log.any? { |l| l["text"].include?("git fetch origin failed") })
   end
 
+  test "an existing item branch is reused as it is, without fetching" do
+    sh(@repo, "git", "branch", "wq/1-fix-the-thing", @stale)
+    advance_origin
+
+    path = ensure_worktree
+
+    assert_equal @stale, head(path)
+    assert_equal "wq/1-fix-the-thing", sh(path, "git", "rev-parse", "--abbrev-ref", "HEAD").strip
+    assert_equal @stale, sh(@repo, "git", "rev-parse", "origin/main").strip, "no fetch for a reused branch"
+  end
+
   test "a repo with no origin branches from the local main without logging a fetch failure" do
     sh(@repo, "git", "remote", "remove", "origin")
 

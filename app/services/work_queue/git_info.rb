@@ -48,9 +48,13 @@ module WorkQueue
       ["", false]
     end
 
-    # A daemon has nobody to answer a credential prompt.
+    # A daemon has nobody to answer a credential prompt, and a stalled transfer
+    # must give up rather than hang the item's thread (HTTPS: under 1 KB/s for 60s;
+    # SSH: no answer to 4 keepalives 15s apart).
     NET_ENV = { "GIT_TERMINAL_PROMPT" => "0",
-                "GIT_SSH_COMMAND" => ENV.fetch("GIT_SSH_COMMAND", "ssh -o BatchMode=yes -o ConnectTimeout=15") }.freeze
+                "GIT_HTTP_LOW_SPEED_LIMIT" => "1000", "GIT_HTTP_LOW_SPEED_TIME" => "60",
+                "GIT_SSH_COMMAND" => ENV.fetch("GIT_SSH_COMMAND",
+                                               "ssh -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=4") }.freeze
 
     Base = Struct.new(:ref, :fetch_failed, keyword_init: true)
 

@@ -423,7 +423,8 @@ module WorkQueue
 
       branch = "wq/#{item.n}-#{item.title.parameterize.first(40)}"
       path = "#{repo}-wq-#{item.n}"
-      unless File.directory?(path)
+      # An existing item branch is reused as it is; only a new one needs a fresh base.
+      unless File.directory?(path) || GitInfo.git(repo, "rev-parse", "--verify", "-q", "refs/heads/#{branch}").last
         base = new_branch_base(item, repo)
         GitInfo.git(repo, "worktree", "add", "--no-track", "-b", branch, path, base)
       end
